@@ -1,0 +1,909 @@
+{
+	"compiler": {
+		"version": "0.8.20+commit.a1b79de6"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_feeTo",
+						"type": "address"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"inputs": [],
+				"name": "IdenticalAddresses",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "InvalidFee",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "NotRouter",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"name": "OwnableInvalidOwner",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "account",
+						"type": "address"
+					}
+				],
+				"name": "OwnableUnauthorizedAccount",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "PairCreationPaused",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					}
+				],
+				"name": "PairExists",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "PairNotFound",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ReentrancyGuardReentrantCall",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ZeroAddress",
+				"type": "error"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "bool",
+						"name": "whitelisted",
+						"type": "bool"
+					}
+				],
+				"name": "EmissionsWhitelistUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "oldFeeTo",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newFeeTo",
+						"type": "address"
+					}
+				],
+				"name": "FeeToUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "previousOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "token0",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "token1",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "pairIndex",
+						"type": "uint256"
+					}
+				],
+				"name": "PairCreated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "destination",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "bool",
+						"name": "active",
+						"type": "bool"
+					}
+				],
+				"name": "PartnerPoolSet",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "by",
+						"type": "address"
+					}
+				],
+				"name": "Paused",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "router",
+						"type": "address"
+					}
+				],
+				"name": "RouterSet",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "timbsToken",
+						"type": "address"
+					}
+				],
+				"name": "TimbsTokenSet",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "by",
+						"type": "address"
+					}
+				],
+				"name": "Unpaused",
+				"type": "event"
+			},
+			{
+				"inputs": [],
+				"name": "LP_FEE_BPS",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "PROTOCOL_FEE_BPS",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "TOTAL_FEE_BPS",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "allPairs",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "allPairsLength",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "tokenA",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "tokenB",
+						"type": "address"
+					}
+				],
+				"name": "createPair",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "emissionsWhitelist",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "feeTo",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "getFeeConfig",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "totalBps",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "lpBps",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "protocolBps",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "denominator",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "pure",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "getPair",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "tokenA",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "tokenB",
+						"type": "address"
+					}
+				],
+				"name": "getPairAddress",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					}
+				],
+				"name": "getPartnerConfig",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "active",
+						"type": "bool"
+					},
+					{
+						"internalType": "address",
+						"name": "destination",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					}
+				],
+				"name": "isPairEmissionsEligible",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "isPartnerPool",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "partnerDestination",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "pause",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "paused",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "renounceOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "router",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					},
+					{
+						"internalType": "bool",
+						"name": "whitelisted",
+						"type": "bool"
+					}
+				],
+				"name": "setEmissionsWhitelist",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_feeTo",
+						"type": "address"
+					}
+				],
+				"name": "setFeeTo",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "pair",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "destination",
+						"type": "address"
+					},
+					{
+						"internalType": "bool",
+						"name": "active",
+						"type": "bool"
+					}
+				],
+				"name": "setPartnerPool",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_router",
+						"type": "address"
+					}
+				],
+				"name": "setRouter",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_timbsToken",
+						"type": "address"
+					}
+				],
+				"name": "setTimbsToken",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "timbsToken",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "unpause",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"errors": {
+				"OwnableInvalidOwner(address)": [
+					{
+						"details": "The owner is not a valid owner account. (eg. `address(0)`)"
+					}
+				],
+				"OwnableUnauthorizedAccount(address)": [
+					{
+						"details": "The caller account is not authorized to perform an operation."
+					}
+				],
+				"ReentrancyGuardReentrantCall()": [
+					{
+						"details": "Unauthorized reentrant call."
+					}
+				]
+			},
+			"kind": "dev",
+			"methods": {
+				"constructor": {
+					"params": {
+						"_feeTo": "Address that receives protocol fees (TimbTreasury)."
+					}
+				},
+				"createPair(address,address)": {
+					"details": "Permissionless — anyone can create a pair.      Pair address is fully determined (CREATE2) before any external      calls, preventing bonding-curve / reentrancy manipulation.      Tokens are sorted so token0 < token1 (canonical ordering).",
+					"params": {
+						"tokenA": "First token address.",
+						"tokenB": "Second token address."
+					},
+					"returns": {
+						"pair": "The address of the newly created pair contract."
+					}
+				},
+				"getFeeConfig()": {
+					"details": "Useful for Router to calculate fee distribution without      hardcoding values."
+				},
+				"owner()": {
+					"details": "Returns the address of the current owner."
+				},
+				"renounceOwnership()": {
+					"details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
+				},
+				"setEmissionsWhitelist(address,bool)": {
+					"details": "Only whitelisted pairs receive TIMBS staking/farm emissions.      At launch: TIMBS/ETH only. Owner-extendable."
+				},
+				"setPartnerPool(address,address,bool)": {
+					"details": "When active, the pair routes LP fees to `destination`      instead of distributing pro-rata to LPs.      Use case: route fees to BlockpotDAO PrizeVault v3.      Not active at launch — opt-in per pool.",
+					"params": {
+						"active": "True to enable, false to disable.",
+						"destination": "Where LP fees are sent (e.g. PrizeVault).",
+						"pair": "The pair contract address."
+					}
+				},
+				"setTimbsToken(address)": {
+					"details": "Used to identify the TIMBS/ETH pair for emissions routing."
+				},
+				"transferOwnership(address)": {
+					"details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+				}
+			},
+			"title": "TimbSwapFactory",
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {
+				"LP_FEE_BPS()": {
+					"notice": "LP share of total fee in basis points (0.25% = 25 bps)."
+				},
+				"PROTOCOL_FEE_BPS()": {
+					"notice": "Protocol share of total fee in basis points (0.05% = 5 bps)."
+				},
+				"TOTAL_FEE_BPS()": {
+					"notice": "Total swap fee in basis points (0.3% = 30 bps)."
+				},
+				"allPairs(uint256)": {
+					"notice": "All created pairs in order of creation."
+				},
+				"allPairsLength()": {
+					"notice": "Total number of pairs created."
+				},
+				"createPair(address,address)": {
+					"notice": "Create a new AMM pair for tokenA and tokenB."
+				},
+				"emissionsWhitelist(address)": {
+					"notice": "Pairs eligible for TIMBS emissions rewards.         Only TIMBS/ETH LP at launch — owner-extendable."
+				},
+				"feeTo()": {
+					"notice": "Address that receives the protocol fee (TimbTreasury)."
+				},
+				"getFeeConfig()": {
+					"notice": "Returns protocol fee split in basis points."
+				},
+				"getPair(address,address)": {
+					"notice": "token0 => token1 => pair address.         token0 < token1 always (sorted on creation)."
+				},
+				"getPairAddress(address,address)": {
+					"notice": "Returns the pair address for two tokens (either order).         Returns address(0) if the pair doesn't exist."
+				},
+				"getPartnerConfig(address)": {
+					"notice": "Returns partner pool config for a pair."
+				},
+				"isPairEmissionsEligible(address)": {
+					"notice": "Returns whether a pair is eligible for TIMBS emissions."
+				},
+				"isPartnerPool(address)": {
+					"notice": "Partner pool flag — pair routes LP fees to an external         destination instead of distributing to LPs directly.         Opt-in, owner-set per pair. Not active at launch."
+				},
+				"partnerDestination(address)": {
+					"notice": "Partner destination per pair — where LP fees are routed         when isPartnerPool[pair] == true."
+				},
+				"pause()": {
+					"notice": "Pause pair creation. Emergency use only."
+				},
+				"paused()": {
+					"notice": "Pair creation paused (emergency)."
+				},
+				"router()": {
+					"notice": "Registered TimbSwapRouter — only address allowed to         call privileged factory functions."
+				},
+				"setEmissionsWhitelist(address,bool)": {
+					"notice": "Add or remove a pair from the TIMBS emissions whitelist."
+				},
+				"setFeeTo(address)": {
+					"notice": "Update the protocol fee recipient (TimbTreasury)."
+				},
+				"setPartnerPool(address,address,bool)": {
+					"notice": "Designate a pair as a partner pool."
+				},
+				"setRouter(address)": {
+					"notice": "Register the TimbSwapRouter. Required before any swaps."
+				},
+				"setTimbsToken(address)": {
+					"notice": "Set the TIMBS token address."
+				},
+				"timbsToken()": {
+					"notice": "TIMBS token address — used to identify the emissions pair."
+				},
+				"unpause()": {
+					"notice": "Unpause pair creation."
+				}
+			},
+			"notice": "Creates and indexes TimbSwap AMM pairs. Architecture:   - Uniswap v2-style factory: one pair per token0/token1 combination.   - 0.3% flat fee per swap (0.25% LP, 0.05% protocol).   - Partner pool flag: any pair can be designated to route LP fees     to an external destination (e.g. BlockpotDAO PrizeVault v3).     This is opt-in, owner-configurable per pair, not active at launch.   - Permissionless pair creation — anyone can create a pair.   - Emissions whitelist — only owner can add pairs to TIMBS rewards list. Security (defiSKILL):   - ReentrancyGuard on createPair() — pair address determined before     any external calls (prevents bonding-curve / phi H-06 pattern).   - Pair stored atomically: allPairs + getPair updated in same tx.   - No TOCTOU on pair creation (existence check before CREATE2).   - Emergency pause on pair creation.   - Router authorization stored here — Router must be registered     before it can call privileged factory functions. Deployment order:   1. Deploy TimbSwapFactory(feeTo, protocolFeeBps)   2. Deploy TimbSwapRouter(factory)   3. Call factory.setRouter(router)   4. Deploy TIMBSToken, then call setTimbsToken(address)   5. createPair(TIMBS, WETH) — seeds the emissions pair   6. addToEmissionsWhitelist(pair) for TIMBS/ETH pair only",
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"contracts/TimbSwapFactory.sol": "TimbSwapFactory"
+		},
+		"evmVersion": "shanghai",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"@openzeppelin/contracts/access/Ownable.sol": {
+			"keccak256": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6",
+				"dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a"
+			]
+		},
+		"@openzeppelin/contracts/utils/Context.sol": {
+			"keccak256": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
+				"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+			]
+		},
+		"@openzeppelin/contracts/utils/ReentrancyGuard.sol": {
+			"keccak256": "0xa516cbf1c7d15d3517c2d668601ce016c54395bf5171918a14e2686977465f53",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://1e1d079e8edfb58efd23a311e315a4807b01b5d1cf153f8fa2d0608b9dec3e99",
+				"dweb:/ipfs/QmTBExeX2SDTkn5xbk5ssbYSx7VqRp9H4Ux1CY4uQM4b9N"
+			]
+		},
+		"@openzeppelin/contracts/utils/StorageSlot.sol": {
+			"keccak256": "0xcf74f855663ce2ae00ed8352666b7935f6cddea2932fdf2c3ecd30a9b1cd0e97",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://9f660b1f351b757dfe01438e59888f31f33ded3afcf5cb5b0d9bf9aa6f320a8b",
+				"dweb:/ipfs/QmarDJ5hZEgBtCmmrVzEZWjub9769eD686jmzb2XpSU1cM"
+			]
+		},
+		"contracts/TimbSwapFactory.sol": {
+			"keccak256": "0x8765b6f69948fb2783e17ee1e221520ec5a329bca6356f3ec64d65128d032504",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://70586322ec6ece40dc6a8b02eeecbfcd999a59cd883ccbabe1c5723ab26dcf2b",
+				"dweb:/ipfs/QmZtYqmrSHfPrKZSAyxhe1tpyjqFonwDna9gTAXGuatQ1q"
+			]
+		}
+	},
+	"version": 1
+}
