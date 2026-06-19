@@ -6,6 +6,34 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+using SafeERC20 for IERC20;
+
+    // ─── Interfaces ──────────────────────────────────────────────────────────
+
+    interface IFactory {
+        function getPair(address, address) external view returns (address);
+        function getPairAddress(address, address) external view returns (address);
+        function feeTo() external view returns (address);
+    }
+
+    interface IPair {
+        function getReserves() external view returns (uint112, uint112, uint32);
+        function swap(uint256, uint256, address) external;
+        function mint(address) external returns (uint256);
+        function burn(address) external returns (uint256, uint256);
+        function token0() external view returns (address);
+        function token1() external view returns (address);
+    }
+
+    interface IEligibleTokenRegistry {
+        function isEligible(address token) external view returns (bool);
+    }
+
+    interface ITimbPrize {
+        function nudgeScroll() external;
+        function isSettlementWindow() external view returns (bool);
+    }
+
 /**
  * @title TimbSwapRouter
  * @notice Routes swaps and liquidity operations through TimbSwap AMM pairs.
@@ -40,34 +68,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *   5. After EligibleTokenRegistry deployed: setEligibleRegistry(address)
  */
 contract TimbSwapRouter is Ownable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
-
-    // ─── Interfaces ──────────────────────────────────────────────────────────
-
-    interface IFactory {
-        function getPair(address, address) external view returns (address);
-        function getPairAddress(address, address) external view returns (address);
-        function feeTo() external view returns (address);
-    }
-
-    interface IPair {
-        function getReserves() external view returns (uint112, uint112, uint32);
-        function swap(uint256, uint256, address) external;
-        function mint(address) external returns (uint256);
-        function burn(address) external returns (uint256, uint256);
-        function token0() external view returns (address);
-        function token1() external view returns (address);
-    }
-
-    interface IEligibleTokenRegistry {
-        function isEligible(address token) external view returns (bool);
-    }
-
-    interface ITimbPrize {
-        function nudgeScroll() external;
-        function isSettlementWindow() external view returns (bool);
-    }
-
+    
     // ─── Immutables ──────────────────────────────────────────────────────────
 
     /// @notice TimbSwapFactory — source of truth for pair addresses.
