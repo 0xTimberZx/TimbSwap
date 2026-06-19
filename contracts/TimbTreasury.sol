@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────
+using SafeERC20 for IERC20;
 
     interface ITimbsToken is IERC20 {
         function burn(uint256 amount) external;
@@ -60,8 +61,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *   5. Verify on Sourcify
  */
 contract TimbTreasury is Ownable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
-
+    
     // ─── State ───────────────────────────────────────────────────────────────
 
     /// @notice TIMBS token — purchased in buybacks, burned or distributed.
