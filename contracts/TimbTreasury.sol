@@ -6,27 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-// ─── Interfaces ──────────────────────────────────────────────────────────
-using SafeERC20 for IERC20;
 
-    interface ITimbsToken is IERC20 {
-    function burn(uint256 amount) external;
-    function safeTransfer(address to, uint256 amount) external;
-}
-
-    interface ITimbStaking {
-        function notifyRewardAmount(uint256 amount, uint256 duration) external;
-    }
-
-    interface ITimbSwapPair {
-        function getReserves() external view returns (uint112, uint112, uint32);
-        function swap(uint256 amount0Out, uint256 amount1Out, address to) external;
-        function token0() external view returns (address);
-    }
-
-    interface IPrizeEscrow {
-        function deposit() external payable;
-    }
 
 /**
  * @title TimbTreasury
@@ -62,7 +42,28 @@ using SafeERC20 for IERC20;
  *   5. Verify on Sourcify
  */
 contract TimbTreasury is Ownable, ReentrancyGuard {
-    
+    // ─── Interfaces ──────────────────────────────────────────────────────────
+using SafeERC20 for IERC20;
+
+    interface ITimbsToken is IERC20 {
+    function burn(uint256 amount) external;
+    function safeTransfer(address to, uint256 amount) external;
+}
+
+    interface ITimbStaking {
+        function notifyRewardAmount(uint256 amount, uint256 duration) external;
+    }
+
+    interface ITimbSwapPair {
+        function getReserves() external view returns (uint112, uint112, uint32);
+        function swap(uint256 amount0Out, uint256 amount1Out, address to) external;
+        function token0() external view returns (address);
+    }
+
+    interface IPrizeEscrow {
+        function deposit() external payable;
+    }
+
     // ─── State ───────────────────────────────────────────────────────────────
 
     /// @notice TIMBS token — purchased in buybacks, burned or distributed.
