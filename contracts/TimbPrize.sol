@@ -6,6 +6,39 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+    using SafeERC20 for IERC20;
+
+    // ─── Interfaces ──────────────────────────────────────────────────────────
+
+    interface IPrizeEscrow {
+        function pay(address to, uint256 amount) external;
+        function balance() external view returns (uint256);
+        function deposit() external payable;
+    }
+
+    interface IGameRegistry {
+        function verifyEntryExisted(address player, uint256 round)
+            external view returns (bool, bytes6);
+        function verifyEntryValid(address player, uint256 round)
+            external view returns (bool, bytes6);
+        function getStringEntrants(uint256 round, bytes6 string6)
+            external view returns (address[] memory);
+        function getRoundEntrants(uint256 round)
+            external view returns (address[] memory);
+        function activateRoundEntries(uint256 round, address[] calldata players) external;
+        function expireEntry(address player, uint256 round) external;
+        function markInactive(address player, uint256 round) external;
+        function setCurrentRound(uint256 round) external;
+        function getEntry(address player, uint256 round)
+            external view returns (
+                bytes6, uint256, uint256, uint256, address, uint8, bool
+            );
+    }
+
+    interface IEligibleTokenRegistry {
+        function isEligible(address token) external view returns (bool);
+    }
+
 /**
  * @title TimbPrize
  * @notice Prize game round logic, scroll mechanic, settlement, and payouts.
@@ -43,38 +76,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *   6. startGame() — begins round #1
  */
 contract TimbPrize is Ownable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
-
-    // ─── Interfaces ──────────────────────────────────────────────────────────
-
-    interface IPrizeEscrow {
-        function pay(address to, uint256 amount) external;
-        function balance() external view returns (uint256);
-        function deposit() external payable;
-    }
-
-    interface IGameRegistry {
-        function verifyEntryExisted(address player, uint256 round)
-            external view returns (bool, bytes6);
-        function verifyEntryValid(address player, uint256 round)
-            external view returns (bool, bytes6);
-        function getStringEntrants(uint256 round, bytes6 string6)
-            external view returns (address[] memory);
-        function getRoundEntrants(uint256 round)
-            external view returns (address[] memory);
-        function activateRoundEntries(uint256 round, address[] calldata players) external;
-        function expireEntry(address player, uint256 round) external;
-        function markInactive(address player, uint256 round) external;
-        function setCurrentRound(uint256 round) external;
-        function getEntry(address player, uint256 round)
-            external view returns (
-                bytes6, uint256, uint256, uint256, address, uint8, bool
-            );
-    }
-
-    interface IEligibleTokenRegistry {
-        function isEligible(address token) external view returns (bool);
-    }
 
     // ─── Constants ───────────────────────────────────────────────────────────
 
