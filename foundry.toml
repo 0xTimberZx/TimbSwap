@@ -10,7 +10,12 @@ cache_path     = "cache"
 solc_version   = "0.8.20"
 optimizer      = true
 optimizer_runs = 200
-via_ir         = false
+via_ir = false
+optimizer = true
+optimizer_runs = 200
+
+[profile.default.fuzz]
+runs = 10000
 
 # EVM
 evm_version    = "paris"
