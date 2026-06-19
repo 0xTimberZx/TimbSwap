@@ -38,7 +38,7 @@ contract TIMBSToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
     // ─── Constants ───────────────────────────────────────────────────────────
 
     /// @notice Absolute hard cap on total supply (initial + all future emissions).
-    uint256 public constant HARD_CAP = 1_000_000_000 * 1e18; // 1 billion TIMBS
+    uint256 public constant HARD_CAP = 100_000_000 * 1e18; // 100 Million TIMBS
 
     // ─── State ───────────────────────────────────────────────────────────────
 
