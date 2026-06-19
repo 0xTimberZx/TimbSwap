@@ -10,8 +10,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 using SafeERC20 for IERC20;
 
     interface ITimbsToken is IERC20 {
-        function burn(uint256 amount) external;
-    }
+    function burn(uint256 amount) external;
+    function safeTransfer(address to, uint256 amount) external;
+}
 
     interface ITimbStaking {
         function notifyRewardAmount(uint256 amount, uint256 duration) external;
