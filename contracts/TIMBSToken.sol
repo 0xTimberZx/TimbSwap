@@ -261,7 +261,7 @@ contract TIMBSToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
      * @dev Placeholder — live implementation reads from TimbSwapPair.
      *      Returns 0 until pair is deployed and has liquidity.
      */
-    function entryCostETH() external view returns (uint256) {
+    function entryCostETH() external pure returns (uint256) {
         // TODO: integrate TimbSwapPair.getReserves() price feed post-deploy
         return 0;
     }

@@ -561,7 +561,7 @@
 						"type": "uint256"
 					}
 				],
-				"stateMutability": "view",
+				"stateMutability": "pure",
 				"type": "function"
 			},
 			{
@@ -1240,11 +1240,11 @@
 			]
 		},
 		"contracts/TIMBSToken.sol": {
-			"keccak256": "0xe31dbf5d4212db1efc1eb306dafb115c7a65a8d418560247f69dc4d55f925005",
+			"keccak256": "0xfeb9ded0636607783ea6af14a9a934ca09ddecb1f0f124ffd010e2aff687567e",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://3123cab629bc5572f148b00a069bcc9a167c255696b71e93387719d3795f0083",
-				"dweb:/ipfs/QmRzxsX6eyopHohKKbEUG9L5HsqTtuQZLPdBDzfJmMnj2V"
+				"bzz-raw://f87b1193a37bcd58554878992f28aa9f1dd2dc89544a8471da250af0b38bf0aa",
+				"dweb:/ipfs/QmNscfSgqW2h22ch9Tzp7ePV37RbboR7GiQFSudYSpaAwa"
 			]
 		}
 	},
