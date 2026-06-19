@@ -1,0 +1,22 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.20"
+
+# Fix 2 — stack-too-deep in TimbSwapRouter / TimbPrize (many locals across
+# nested try/catch + multi-return view functions). via_ir runs the Yul
+# pipeline instead of the legacy stack-slot allocator.
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
+[profile.default.fuzz]
+runs = 10000
+
+# via_ir makes `forge test` compile slower — local dev profile skips it
+# and falls back to a higher optimizer_runs count only when needed.
+[profile.dev]
+via_ir = false
+optimizer = true
+optimizer_runs = 200
