@@ -939,7 +939,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"/contractss/TimbGovernance.sol": "TimbGovernance"
+			"contractss/TimbGovernance.sol": "TimbGovernance"
 		},
 		"evmVersion": "london",
 		"libraries": {},
@@ -953,14 +953,6 @@
 		"remappings": []
 	},
 	"sources": {
-		"/contractss/TimbGovernance.sol": {
-			"keccak256": "0x5d61663804097dd7d76b5ae95e4a98a3aba000e31269c6dff37b315f0e26853e",
-			"license": "MIT",
-			"urls": [
-				"bzz-raw://c17730236dfc85fcb0f4d8fdee0cf241ce70149a55a560dcc70891d6f796815c",
-				"dweb:/ipfs/QmVL1HjdNzvuhoD2ayRoqP5uHk6spS196dNjtnhpk6Hsav"
-			]
-		},
 		"@openzeppelin/contracts/access/Ownable.sol": {
 			"keccak256": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
 			"license": "MIT",
@@ -999,6 +991,14 @@
 			"urls": [
 				"bzz-raw://9f660b1f351b757dfe01438e59888f31f33ded3afcf5cb5b0d9bf9aa6f320a8b",
 				"dweb:/ipfs/QmarDJ5hZEgBtCmmrVzEZWjub9769eD686jmzb2XpSU1cM"
+			]
+		},
+		"contractss/TimbGovernance.sol": {
+			"keccak256": "0x5d61663804097dd7d76b5ae95e4a98a3aba000e31269c6dff37b315f0e26853e",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://c17730236dfc85fcb0f4d8fdee0cf241ce70149a55a560dcc70891d6f796815c",
+				"dweb:/ipfs/QmVL1HjdNzvuhoD2ayRoqP5uHk6spS196dNjtnhpk6Hsav"
 			]
 		}
 	},

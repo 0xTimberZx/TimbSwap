@@ -492,7 +492,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"/contracts/EligibleTokenRegistry.sol": "EligibleTokenRegistry"
+			"contractss/EligibleTokenRegistry.sol": "EligibleTokenRegistry"
 		},
 		"evmVersion": "london",
 		"libraries": {},
@@ -506,14 +506,6 @@
 		"remappings": []
 	},
 	"sources": {
-		"/contracts/EligibleTokenRegistry.sol": {
-			"keccak256": "0x5f42dd157d87e183b23e95655b93c655630ac0c86c59fff882d535c6c64dfaf3",
-			"license": "MIT",
-			"urls": [
-				"bzz-raw://34463670b56f8f6287ac35d1da227547a34d1f74df1aa21318183c35c15e6b9d",
-				"dweb:/ipfs/QmRtiAkGyHxQqgqmtvShHKdqj6Ra6w1pJ2XrbBX3S9yZJY"
-			]
-		},
 		"@openzeppelin/contracts/access/Ownable.sol": {
 			"keccak256": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
 			"license": "MIT",
@@ -528,6 +520,14 @@
 			"urls": [
 				"bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
 				"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+			]
+		},
+		"contractss/EligibleTokenRegistry.sol": {
+			"keccak256": "0x5f42dd157d87e183b23e95655b93c655630ac0c86c59fff882d535c6c64dfaf3",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://34463670b56f8f6287ac35d1da227547a34d1f74df1aa21318183c35c15e6b9d",
+				"dweb:/ipfs/QmRtiAkGyHxQqgqmtvShHKdqj6Ra6w1pJ2XrbBX3S9yZJY"
 			]
 		}
 	},

@@ -37,48 +37,15 @@
 		},
 		"gasEstimates": null,
 		"methodIdentifiers": {
-			"balance()": "b69ef8a8",
-			"deposit()": "d0e30db0",
-			"pay(address,uint256)": "c4076876"
+			"deposit()": "d0e30db0"
 		}
 	},
 	"abi": [
 		{
 			"inputs": [],
-			"name": "balance",
-			"outputs": [
-				{
-					"internalType": "uint256",
-					"name": "",
-					"type": "uint256"
-				}
-			],
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"inputs": [],
 			"name": "deposit",
 			"outputs": [],
 			"stateMutability": "payable",
-			"type": "function"
-		},
-		{
-			"inputs": [
-				{
-					"internalType": "address",
-					"name": "to",
-					"type": "address"
-				},
-				{
-					"internalType": "uint256",
-					"name": "amount",
-					"type": "uint256"
-				}
-			],
-			"name": "pay",
-			"outputs": [],
-			"stateMutability": "nonpayable",
 			"type": "function"
 		}
 	]

@@ -1051,7 +1051,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"/contracts/TimbLockVault.sol": "TimbLockVault"
+			"contractss/TimbLockVault.sol": "TimbLockVault"
 		},
 		"evmVersion": "london",
 		"libraries": {},
@@ -1065,14 +1065,6 @@
 		"remappings": []
 	},
 	"sources": {
-		"/contracts/TimbLockVault.sol": {
-			"keccak256": "0x2215a50b3ed1a744f11cf41a49e61fc3d4c9bd0efee17115b4f17bbe57f49d3f",
-			"license": "MIT",
-			"urls": [
-				"bzz-raw://051f33a2ef33bad56079993f6e66b85a3b1f503cee65cc1db6f61aaf21ede6a6",
-				"dweb:/ipfs/QmT4y8RZyNPEiWACVBEEL2si2aexiTdppAq7TkSHEDaBkd"
-			]
-		},
 		"@openzeppelin/contracts/access/Ownable.sol": {
 			"keccak256": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
 			"license": "MIT",
@@ -1151,6 +1143,14 @@
 			"urls": [
 				"bzz-raw://971f954442df5c2ef5b5ebf1eb245d7105d9fbacc7386ee5c796df1d45b21617",
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
+			]
+		},
+		"contractss/TimbLockVault.sol": {
+			"keccak256": "0x2215a50b3ed1a744f11cf41a49e61fc3d4c9bd0efee17115b4f17bbe57f49d3f",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://051f33a2ef33bad56079993f6e66b85a3b1f503cee65cc1db6f61aaf21ede6a6",
+				"dweb:/ipfs/QmT4y8RZyNPEiWACVBEEL2si2aexiTdppAq7TkSHEDaBkd"
 			]
 		}
 	},
