@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.24+commit.e11b9ed9"
+		"version": "0.8.20+commit.a1b79de6"
 	},
 	"language": "Solidity",
 	"output": {
@@ -38,7 +38,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TimbSwapRouter.sol": "IEligibleTokenRegistry"
+			"contractss/TimbPrize.sol": "IEligibleTokenRegistry"
 		},
 		"evmVersion": "london",
 		"libraries": {},
@@ -132,12 +132,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/TimbSwapRouter.sol": {
-			"keccak256": "0xbf54775dc3ae97874d62d421bac37fcdcfdeab74514588fe7b28269f48f0b4ba",
+		"contractss/TimbPrize.sol": {
+			"keccak256": "0x44657baefbe7117ca9d9a6520f900ad5e511c350803562f5933c82adfbf357a3",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://a6e1b55bc2046362c378ee497726f8fdb2ba533f47460aec6945a0468eba5b34",
-				"dweb:/ipfs/QmQHKzSs2awwquWJBr6v4NL9GQcGT3FBcgM2NztCzLLMZp"
+				"bzz-raw://c3d34d79034517b8aeddc0298c76f1ceb8ab4c86f0872fc77066a3ca453a1bb8",
+				"dweb:/ipfs/QmX3hsmfrJxquVosoMsZvvqJz75SYMAKjAqzzJuktpWCG3"
 			]
 		}
 	},
