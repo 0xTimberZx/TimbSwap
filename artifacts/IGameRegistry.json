@@ -1,0 +1,275 @@
+{
+	"deploy": {
+		"VM:-": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"main:1": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"sepolia:11155111": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"Custom": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		}
+	},
+	"data": {
+		"bytecode": {
+			"functionDebugData": {},
+			"generatedSources": [],
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		},
+		"deployedBytecode": {
+			"functionDebugData": {},
+			"generatedSources": [],
+			"immutableReferences": {},
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		},
+		"gasEstimates": null,
+		"methodIdentifiers": {
+			"activateRoundEntries(uint256,address[])": "1330cd86",
+			"expireEntry(address,uint256)": "47f43ef2",
+			"getEntry(address,uint256)": "b8a740e0",
+			"getRoundEntrants(uint256)": "454ac84e",
+			"getStringEntrants(uint256,bytes6)": "9fd11627",
+			"markInactive(address,uint256)": "7a03ce4f",
+			"setCurrentRound(uint256)": "3bc91e28",
+			"verifyEntryExisted(address,uint256)": "a96de4f5",
+			"verifyEntryValid(address,uint256)": "c106aee3"
+		}
+	},
+	"abi": [
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				},
+				{
+					"internalType": "address[]",
+					"name": "players",
+					"type": "address[]"
+				}
+			],
+			"name": "activateRoundEntries",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "player",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				}
+			],
+			"name": "expireEntry",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "player",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				}
+			],
+			"name": "getEntry",
+			"outputs": [
+				{
+					"internalType": "bytes6",
+					"name": "",
+					"type": "bytes6"
+				},
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				},
+				{
+					"internalType": "address",
+					"name": "",
+					"type": "address"
+				},
+				{
+					"internalType": "uint8",
+					"name": "",
+					"type": "uint8"
+				},
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				}
+			],
+			"name": "getRoundEntrants",
+			"outputs": [
+				{
+					"internalType": "address[]",
+					"name": "",
+					"type": "address[]"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bytes6",
+					"name": "string6",
+					"type": "bytes6"
+				}
+			],
+			"name": "getStringEntrants",
+			"outputs": [
+				{
+					"internalType": "address[]",
+					"name": "",
+					"type": "address[]"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "player",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				}
+			],
+			"name": "markInactive",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				}
+			],
+			"name": "setCurrentRound",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "player",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				}
+			],
+			"name": "verifyEntryExisted",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				},
+				{
+					"internalType": "bytes6",
+					"name": "",
+					"type": "bytes6"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "player",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "round",
+					"type": "uint256"
+				}
+			],
+			"name": "verifyEntryValid",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				},
+				{
+					"internalType": "bytes6",
+					"name": "",
+					"type": "bytes6"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]
+}

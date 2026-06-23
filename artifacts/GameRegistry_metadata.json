@@ -1,0 +1,1569 @@
+{
+	"compiler": {
+		"version": "0.8.20+commit.a1b79de6"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_timbsToken",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "_protocolSink",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "_timbPrize",
+						"type": "address"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "playRound",
+						"type": "uint256"
+					}
+				],
+				"name": "ActiveEntryExists",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "AlreadyRefunded",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "lastEligibleRound",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "currentRound",
+						"type": "uint256"
+					}
+				],
+				"name": "ClaimWindowClosed",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ContractPaused",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "enum GameRegistry.EntryStatus",
+						"name": "status",
+						"type": "uint8"
+					}
+				],
+				"name": "EntryNotActive",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "enum GameRegistry.EntryStatus",
+						"name": "status",
+						"type": "uint8"
+					}
+				],
+				"name": "EntryNotExpired",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "required",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "available",
+						"type": "uint256"
+					}
+				],
+				"name": "InsufficientAllowance",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes1",
+						"name": "char",
+						"type": "bytes1"
+					}
+				],
+				"name": "InvalidCharacter",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "length",
+						"type": "uint256"
+					}
+				],
+				"name": "InvalidStringLength",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "NoEntryFound",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "NotTimbPrize",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"name": "OwnableInvalidOwner",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "account",
+						"type": "address"
+					}
+				],
+				"name": "OwnableUnauthorizedAccount",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ReentrancyGuardReentrantCall",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes1",
+						"name": "char",
+						"type": "bytes1"
+					}
+				],
+				"name": "RepeatingCharacter",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "SafeERC20FailedOperation",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "sent",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "required",
+						"type": "uint256"
+					}
+				],
+				"name": "WrongEscrowAmount",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ZeroAddress",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ZeroAmount",
+				"type": "error"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "timbsAmount",
+						"type": "uint256"
+					}
+				],
+				"name": "AdditionalRoundSinked",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "CurrentRoundUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "timbsCost",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "ethCost",
+						"type": "uint256"
+					}
+				],
+				"name": "EntryCostUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "uint256",
+						"name": "playRound",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "bytes6",
+						"name": "oldString",
+						"type": "bytes6"
+					},
+					{
+						"indexed": false,
+						"internalType": "bytes6",
+						"name": "newString",
+						"type": "bytes6"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "additionalTimbs",
+						"type": "uint256"
+					}
+				],
+				"name": "EntryReplaced",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "enum GameRegistry.EntryStatus",
+						"name": "newStatus",
+						"type": "uint8"
+					}
+				],
+				"name": "EntryStatusUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "uint256",
+						"name": "playRound",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "bytes6",
+						"name": "string6",
+						"type": "bytes6"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "escrowAmount",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "address",
+						"name": "escrowToken",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "lastEligibleRound",
+						"type": "uint256"
+					}
+				],
+				"name": "EntrySubmitted",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "EscrowRefunded",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "previousOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "by",
+						"type": "address"
+					}
+				],
+				"name": "Paused",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "sink",
+						"type": "address"
+					}
+				],
+				"name": "ProtocolSinkSet",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "timbPrize",
+						"type": "address"
+					}
+				],
+				"name": "TimbPrizeSet",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "by",
+						"type": "address"
+					}
+				],
+				"name": "Unpaused",
+				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address[]",
+						"name": "players",
+						"type": "address[]"
+					}
+				],
+				"name": "activateRoundEntries",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "extraRounds",
+						"type": "uint256"
+					}
+				],
+				"name": "additionalRoundCost",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "claimRefund",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "currentRound",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "entries",
+				"outputs": [
+					{
+						"internalType": "bytes6",
+						"name": "string6",
+						"type": "bytes6"
+					},
+					{
+						"internalType": "uint256",
+						"name": "entryRound",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "lastEligibleRound",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "escrowAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "escrowToken",
+						"type": "address"
+					},
+					{
+						"internalType": "enum GameRegistry.EntryStatus",
+						"name": "status",
+						"type": "uint8"
+					},
+					{
+						"internalType": "bool",
+						"name": "exists",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "entryCostETH",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "entryCostTIMBS",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "expireEntry",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "getEntry",
+				"outputs": [
+					{
+						"components": [
+							{
+								"internalType": "bytes6",
+								"name": "string6",
+								"type": "bytes6"
+							},
+							{
+								"internalType": "uint256",
+								"name": "entryRound",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "lastEligibleRound",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "escrowAmount",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "escrowToken",
+								"type": "address"
+							},
+							{
+								"internalType": "enum GameRegistry.EntryStatus",
+								"name": "status",
+								"type": "uint8"
+							},
+							{
+								"internalType": "bool",
+								"name": "exists",
+								"type": "bool"
+							}
+						],
+						"internalType": "struct GameRegistry.EntryData",
+						"name": "",
+						"type": "tuple"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes6",
+						"name": "string6",
+						"type": "bytes6"
+					}
+				],
+				"name": "getIdenticalCount",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					}
+				],
+				"name": "getPlayerHistory",
+				"outputs": [
+					{
+						"components": [
+							{
+								"internalType": "bytes6",
+								"name": "string6",
+								"type": "bytes6"
+							},
+							{
+								"internalType": "uint256",
+								"name": "entryRound",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "lastEligibleRound",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "escrowAmount",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "escrowToken",
+								"type": "address"
+							},
+							{
+								"internalType": "enum GameRegistry.EntryStatus",
+								"name": "status",
+								"type": "uint8"
+							},
+							{
+								"internalType": "bool",
+								"name": "exists",
+								"type": "bool"
+							}
+						],
+						"internalType": "struct GameRegistry.EntryData[]",
+						"name": "history",
+						"type": "tuple[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					}
+				],
+				"name": "getPlayerRounds",
+				"outputs": [
+					{
+						"internalType": "uint256[]",
+						"name": "",
+						"type": "uint256[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "getRoundEntrants",
+				"outputs": [
+					{
+						"internalType": "address[]",
+						"name": "",
+						"type": "address[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					},
+					{
+						"internalType": "bytes6",
+						"name": "string6",
+						"type": "bytes6"
+					}
+				],
+				"name": "getStringEntrants",
+				"outputs": [
+					{
+						"internalType": "address[]",
+						"name": "",
+						"type": "address[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "hasEntryInRound",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "markInactive",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "pause",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "paused",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "playerRounds",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "protocolSink",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "renounceOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes6",
+						"name": "newString6",
+						"type": "bytes6"
+					},
+					{
+						"internalType": "uint256",
+						"name": "extraRounds",
+						"type": "uint256"
+					}
+				],
+				"name": "replaceEntry",
+				"outputs": [],
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "roundEntrants",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "setCurrentRound",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "_timbsCost",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "_ethCost",
+						"type": "uint256"
+					}
+				],
+				"name": "setEntryCosts",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_sink",
+						"type": "address"
+					}
+				],
+				"name": "setProtocolSink",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_timbPrize",
+						"type": "address"
+					}
+				],
+				"name": "setTimbPrize",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"internalType": "bytes6",
+						"name": "",
+						"type": "bytes6"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "stringEntrants",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes6",
+						"name": "string6",
+						"type": "bytes6"
+					},
+					{
+						"internalType": "bool",
+						"name": "useETH",
+						"type": "bool"
+					},
+					{
+						"internalType": "uint256",
+						"name": "extraRounds",
+						"type": "uint256"
+					}
+				],
+				"name": "submitEntry",
+				"outputs": [],
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "timbPrize",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "timbsToken",
+				"outputs": [
+					{
+						"internalType": "contract IERC20",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "unpause",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes6",
+						"name": "s",
+						"type": "bytes6"
+					}
+				],
+				"name": "validateString",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "valid",
+						"type": "bool"
+					},
+					{
+						"internalType": "string",
+						"name": "reason",
+						"type": "string"
+					}
+				],
+				"stateMutability": "pure",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "verifyEntryExisted",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "exists",
+						"type": "bool"
+					},
+					{
+						"internalType": "bytes6",
+						"name": "string6",
+						"type": "bytes6"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "player",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "round",
+						"type": "uint256"
+					}
+				],
+				"name": "verifyEntryValid",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "valid",
+						"type": "bool"
+					},
+					{
+						"internalType": "bytes6",
+						"name": "string6",
+						"type": "bytes6"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"stateMutability": "payable",
+				"type": "receive"
+			}
+		],
+		"devdoc": {
+			"errors": {
+				"OwnableInvalidOwner(address)": [
+					{
+						"details": "The owner is not a valid owner account. (eg. `address(0)`)"
+					}
+				],
+				"OwnableUnauthorizedAccount(address)": [
+					{
+						"details": "The caller account is not authorized to perform an operation."
+					}
+				],
+				"ReentrancyGuardReentrantCall()": [
+					{
+						"details": "Unauthorized reentrant call."
+					}
+				],
+				"SafeERC20FailedOperation(address)": [
+					{
+						"details": "An operation with an ERC-20 token failed."
+					}
+				]
+			},
+			"kind": "dev",
+			"methods": {
+				"activateRoundEntries(uint256,address[])": {
+					"details": "Called by TimbPrize when a new round begins.      Sets all Pending entries for this round to Active.      Only TimbPrize can call.",
+					"params": {
+						"players": "Array of player addresses with entries in this round.",
+						"round": "The round number being activated."
+					}
+				},
+				"claimRefund(uint256)": {
+					"details": "Available after entry's lastEligibleRound has passed AND      claim window (2 rounds) has not closed.      Caller must be the original entry owner.",
+					"params": {
+						"round": "The round the entry was playing in."
+					}
+				},
+				"constructor": {
+					"params": {
+						"_protocolSink": "Address that receives additional-round TIMBS sinks.",
+						"_timbPrize": "TimbPrize contract (can be set later via setTimbPrize).",
+						"_timbsToken": "TIMBS ERC-20 address."
+					}
+				},
+				"expireEntry(address,uint256)": {
+					"details": "Called by TimbPrize at round close for entries past their window."
+				},
+				"getIdenticalCount(bytes6)": {
+					"details": "Frontend calls this after entry submission to show collision count."
+				},
+				"getStringEntrants(uint256,bytes6)": {
+					"details": "Used by TimbPrize at settlement to find winner candidates.      Returns raw list — settlement applies dual-layer filter."
+				},
+				"markInactive(address,uint256)": {
+					"details": "Called by TimbPrize when unclaimed window expires."
+				},
+				"owner()": {
+					"details": "Returns the address of the current owner."
+				},
+				"renounceOwnership()": {
+					"details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
+				},
+				"replaceEntry(bytes6,uint256)": {
+					"details": "All-in-one atomic transaction:   1. Pre-flight: verify contract can pull new fees.   2. Old initial deposit transfers to new string entry.   3. Old additional-round TIMBS already in sink — no action needed.   4. New string set on-chain.   5. New additional-round TIMBS pulled to sink if extraRounds > 0.      Pre-flight check happens BEFORE any state changes (defiSKILL).",
+					"params": {
+						"extraRounds": "New total extra rounds beyond N+1.",
+						"newString6": "New 6-char string."
+					}
+				},
+				"setCurrentRound(uint256)": {
+					"details": "Called by TimbPrize at each round start."
+				},
+				"setEntryCosts(uint256,uint256)": {
+					"details": "Called by owner when governance updates entryCostTIMBS or      when TIMBS/ETH price moves and ETH cost needs updating."
+				},
+				"submitEntry(bytes6,bool,uint256)": {
+					"details": "Entries set in currentRound play in currentRound + 1.      ETH entries: send msg.value == entryCostETH.      TIMBS entries: approve this contract for entryCostTIMBS first.      Additional rounds: must also approve        extraRounds × entryCostTIMBS additional TIMBS.",
+					"params": {
+						"extraRounds": "Additional rounds to keep string active beyond N+1.                      Each costs entryCostTIMBS TIMBS (non-refundable).",
+						"string6": "6-char entry string (A-Z, 0-9, no repeats, uppercase).",
+						"useETH": "True = pay initial cost in ETH, false = TIMBS."
+					}
+				},
+				"transferOwnership(address)": {
+					"details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+				},
+				"validateString(bytes6)": {
+					"returns": {
+						"reason": "Empty string if valid, human-readable reason if not.",
+						"valid": "True if the string passes all validation rules."
+					}
+				},
+				"verifyEntryExisted(address,uint256)": {
+					"params": {
+						"player": "Wallet address.",
+						"round": "Round number to check."
+					},
+					"returns": {
+						"exists": "True if entry was submitted for this round.",
+						"string6": "The entry string (bytes6(0) if not found)."
+					}
+				},
+				"verifyEntryValid(address,uint256)": {
+					"params": {
+						"player": "Wallet address.",
+						"round": "Round number."
+					},
+					"returns": {
+						"string6": "The current entry string.",
+						"valid": " True if entry is Active and round <= lastEligibleRound."
+					}
+				}
+			},
+			"title": "GameRegistry",
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {
+				"activateRoundEntries(uint256,address[])": {
+					"notice": "Activate entries for a round at round start."
+				},
+				"additionalRoundCost(uint256)": {
+					"notice": "Returns additional round cost for N extra rounds."
+				},
+				"claimRefund(uint256)": {
+					"notice": "Claim principal escrow refund for an expired entry."
+				},
+				"currentRound()": {
+					"notice": "Current active round number (set by TimbPrize)."
+				},
+				"entries(address,uint256)": {
+					"notice": "wallet → round → EntryData."
+				},
+				"entryCostETH()": {
+					"notice": "Entry cost in ETH wei (derived from TIMBS price, owner-updatable)."
+				},
+				"entryCostTIMBS()": {
+					"notice": "Entry cost in TIMBS (governance-set, mirrors TIMBSToken.entryCostTIMBS)."
+				},
+				"expireEntry(address,uint256)": {
+					"notice": "Mark an entry as expired after its lastEligibleRound passes."
+				},
+				"getEntry(address,uint256)": {
+					"notice": "Returns a player's entry for a specific round."
+				},
+				"getIdenticalCount(bytes6)": {
+					"notice": "Returns identical entry count for a string in the next round."
+				},
+				"getPlayerHistory(address)": {
+					"notice": "Returns a player's full entry history."
+				},
+				"getPlayerRounds(address)": {
+					"notice": "Returns all rounds a player has entries in."
+				},
+				"getRoundEntrants(uint256)": {
+					"notice": "Returns all wallet addresses with entries in a round."
+				},
+				"getStringEntrants(uint256,bytes6)": {
+					"notice": "Returns all wallets that submitted a given string for a round."
+				},
+				"hasEntryInRound(uint256,address)": {
+					"notice": "round → wallet → index in roundEntrants (for dedup check)."
+				},
+				"markInactive(address,uint256)": {
+					"notice": "Mark an entry as Inactive (claim window closed, no claim made)."
+				},
+				"paused()": {
+					"notice": "Emergency pause — blocks new entries, refunds always available."
+				},
+				"playerRounds(address,uint256)": {
+					"notice": "wallet → rounds they have active entries in (for history)."
+				},
+				"protocolSink()": {
+					"notice": "Protocol sink — receives additional-round TIMBS (out of circulation)."
+				},
+				"replaceEntry(bytes6,uint256)": {
+					"notice": "Replace an existing entry string and/or round count."
+				},
+				"roundEntrants(uint256,uint256)": {
+					"notice": "round → all wallets that submitted entries."
+				},
+				"setCurrentRound(uint256)": {
+					"notice": "Update current round number."
+				},
+				"setEntryCosts(uint256,uint256)": {
+					"notice": "Update entry costs."
+				},
+				"setProtocolSink(address)": {
+					"notice": "Update protocol sink address."
+				},
+				"setTimbPrize(address)": {
+					"notice": "Set or update TimbPrize address."
+				},
+				"stringEntrants(uint256,bytes6,uint256)": {
+					"notice": "round → string → wallets that submitted that string.         Used for settlement winner lookup."
+				},
+				"submitEntry(bytes6,bool,uint256)": {
+					"notice": "Submit a new entry for the next round."
+				},
+				"timbPrize()": {
+					"notice": "TimbPrize — only address allowed to call settlement updates."
+				},
+				"timbsToken()": {
+					"notice": "TIMBS token."
+				},
+				"validateString(bytes6)": {
+					"notice": "Public view to validate a string before submitting."
+				},
+				"verifyEntryExisted(address,uint256)": {
+					"notice": "Layer 1: Verify entry existed at round start."
+				},
+				"verifyEntryValid(address,uint256)": {
+					"notice": "Layer 2: Verify entry is still valid at settlement."
+				}
+			},
+			"notice": "Prize game entry storage, escrow, and lifecycle management. Responsibilities:   - Store player entries (6-char strings) for each round.   - Hold entry escrow (ETH or TIMBS) — ringfenced, never mingles     with protocol revenue or prize pool.   - Enforce string validation (6 chars, A-Z 0-9, no repeats, all caps).   - Manage entry lifecycle: Pending → Active → Expired → Claimed/Inactive.   - Handle entry replacement (all-in-one tx): old deposit transfers,     old additional-round TIMBS kept as protocol sink.   - Process principal refunds for expired entries.   - Expose dual-layer verification for TimbPrize settlement. Entry rules:   - 1 entry per wallet per round (replaceable).   - Entries set in round N play in round N+1.   - Initial entry cost: ETH (address(0)) or TIMBS — always refundable.   - Additional rounds: TIMBS only, non-refundable, protocol sink.   - ETH cost derived from TIMBSToken.entryCostTIMBS at entry time.   - No repeating characters in string.   - Claim window: 2 rounds after lastEligibleRound. Security (defiSKILL):   - ReentrancyGuard on all state-changing functions.   - msg.sender verified as entry owner before any escrow operation.   - ETH held as msg.value, TIMBS via safeTransferFrom.   - Additional-round TIMBS sent directly to protocol sink address     (never held in this contract).   - Pre-flight approval check on replacement before any state changes.   - Emergency pause on new entries — refunds always available.   - Only TimbPrize (authorised) can update entry status at settlement. Deployment:   1. Deploy GameRegistry(timbsToken, protocolSink, timbPrize)   2. setEntryCostParams(entryCostTIMBS, ethCostWei)   3. timbPrize.setGameRegistry(address(this))   4. Verify on Sourcify",
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"contractss/GameRegistry.sol": "GameRegistry"
+		},
+		"evmVersion": "london",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": true,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"@openzeppelin/contracts/access/Ownable.sol": {
+			"keccak256": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6",
+				"dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a"
+			]
+		},
+		"@openzeppelin/contracts/interfaces/IERC1363.sol": {
+			"keccak256": "0xd5ea07362ab630a6a3dee4285a74cf2377044ca2e4be472755ad64d7c5d4b69d",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://da5e832b40fc5c3145d3781e2e5fa60ac2052c9d08af7e300dc8ab80c4343100",
+				"dweb:/ipfs/QmTzf7N5ZUdh5raqtzbM11yexiUoLC9z3Ws632MCuycq1d"
+			]
+		},
+		"@openzeppelin/contracts/interfaces/IERC165.sol": {
+			"keccak256": "0x0afcb7e740d1537b252cb2676f600465ce6938398569f09ba1b9ca240dde2dfc",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://1c299900ac4ec268d4570ecef0d697a3013cd11a6eb74e295ee3fbc945056037",
+				"dweb:/ipfs/Qmab9owJoxcA7vJT5XNayCMaUR1qxqj1NDzzisduwaJMcZ"
+			]
+		},
+		"@openzeppelin/contracts/interfaces/IERC20.sol": {
+			"keccak256": "0x1a6221315ce0307746c2c4827c125d821ee796c74a676787762f4778671d4f44",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://1bb2332a7ee26dd0b0de9b7fe266749f54820c99ab6a3bcb6f7e6b751d47ee2d",
+				"dweb:/ipfs/QmcRWpaBeCYkhy68PR3B4AgD7asuQk7PwkWxrvJbZcikLF"
+			]
+		},
+		"@openzeppelin/contracts/token/ERC20/IERC20.sol": {
+			"keccak256": "0x74ed01eb66b923d0d0cfe3be84604ac04b76482a55f9dd655e1ef4d367f95bc2",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://5282825a626cfe924e504274b864a652b0023591fa66f06a067b25b51ba9b303",
+				"dweb:/ipfs/QmeCfPykghhMc81VJTrHTC7sF6CRvaA1FXVq2pJhwYp1dV"
+			]
+		},
+		"@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol": {
+			"keccak256": "0x304d732678032a9781ae85c8f204c8fba3d3a5e31c02616964e75cfdc5049098",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://299ced486011781dc98f638059678323c03079fefae1482abaa2135b22fa92d0",
+				"dweb:/ipfs/QmbZNbcPTBxNvwChavN2kkZZs7xHhYL7mv51KrxMhsMs3j"
+			]
+		},
+		"@openzeppelin/contracts/utils/Context.sol": {
+			"keccak256": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
+				"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+			]
+		},
+		"@openzeppelin/contracts/utils/ReentrancyGuard.sol": {
+			"keccak256": "0xa516cbf1c7d15d3517c2d668601ce016c54395bf5171918a14e2686977465f53",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://1e1d079e8edfb58efd23a311e315a4807b01b5d1cf153f8fa2d0608b9dec3e99",
+				"dweb:/ipfs/QmTBExeX2SDTkn5xbk5ssbYSx7VqRp9H4Ux1CY4uQM4b9N"
+			]
+		},
+		"@openzeppelin/contracts/utils/StorageSlot.sol": {
+			"keccak256": "0xcf74f855663ce2ae00ed8352666b7935f6cddea2932fdf2c3ecd30a9b1cd0e97",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://9f660b1f351b757dfe01438e59888f31f33ded3afcf5cb5b0d9bf9aa6f320a8b",
+				"dweb:/ipfs/QmarDJ5hZEgBtCmmrVzEZWjub9769eD686jmzb2XpSU1cM"
+			]
+		},
+		"@openzeppelin/contracts/utils/introspection/IERC165.sol": {
+			"keccak256": "0x8891738ffe910f0cf2da09566928589bf5d63f4524dd734fd9cedbac3274dd5c",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://971f954442df5c2ef5b5ebf1eb245d7105d9fbacc7386ee5c796df1d45b21617",
+				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
+			]
+		},
+		"contractss/GameRegistry.sol": {
+			"keccak256": "0x3c50572cd0c8d56bb5bb6d213b73429fae9dd341bbe9410f441dd78cb949454e",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://d32c575f9de1cb59dc2f8def43f0afb740f2f1027c2f204b1bc68d41d5c52657",
+				"dweb:/ipfs/QmZ2ubCG1TiECxrLdVnoMdWX9rypASACJazCghv36Fq6Zo"
+			]
+		}
+	},
+	"version": 1
+}

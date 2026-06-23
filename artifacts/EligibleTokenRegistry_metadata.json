@@ -1,0 +1,535 @@
+{
+	"compiler": {
+		"version": "0.8.20+commit.a1b79de6"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [
+					{
+						"internalType": "address[]",
+						"name": "initialTokens",
+						"type": "address[]"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "AlreadyEligible",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "consumer",
+						"type": "address"
+					}
+				],
+				"name": "AlreadyRegistered",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "NotEligible",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "consumer",
+						"type": "address"
+					}
+				],
+				"name": "NotRegistered",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"name": "OwnableInvalidOwner",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "account",
+						"type": "address"
+					}
+				],
+				"name": "OwnableUnauthorizedAccount",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ZeroAddress",
+				"type": "error"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "consumer",
+						"type": "address"
+					}
+				],
+				"name": "ConsumerRegistered",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "consumer",
+						"type": "address"
+					}
+				],
+				"name": "ConsumerRemoved",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "previousOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "TokenAdded",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "TokenRemoved",
+				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "addToken",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address[]",
+						"name": "tokens",
+						"type": "address[]"
+					}
+				],
+				"name": "addTokens",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address[]",
+						"name": "tokens",
+						"type": "address[]"
+					}
+				],
+				"name": "areEligible",
+				"outputs": [
+					{
+						"internalType": "bool[]",
+						"name": "results",
+						"type": "bool[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "consumerList",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "eligibleTokenList",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "getConsumers",
+				"outputs": [
+					{
+						"internalType": "address[]",
+						"name": "",
+						"type": "address[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "getEligibleTokens",
+				"outputs": [
+					{
+						"internalType": "address[]",
+						"name": "eligible",
+						"type": "address[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "isEligible",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "consumer",
+						"type": "address"
+					}
+				],
+				"name": "registerConsumer",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "registeredConsumers",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "consumer",
+						"type": "address"
+					}
+				],
+				"name": "removeConsumer",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "removeToken",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "renounceOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "totalTokensAdded",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"errors": {
+				"OwnableInvalidOwner(address)": [
+					{
+						"details": "The owner is not a valid owner account. (eg. `address(0)`)"
+					}
+				],
+				"OwnableUnauthorizedAccount(address)": [
+					{
+						"details": "The caller account is not authorized to perform an operation."
+					}
+				]
+			},
+			"kind": "dev",
+			"methods": {
+				"addToken(address)": {
+					"params": {
+						"token": "ERC-20 token address to add."
+					}
+				},
+				"addTokens(address[])": {
+					"params": {
+						"tokens": "Array of token addresses."
+					}
+				},
+				"areEligible(address[])": {
+					"details": "Useful for frontend to check multiple tokens in one call."
+				},
+				"constructor": {
+					"params": {
+						"initialTokens": "Array of token addresses eligible at deploy.                      Typically: [TIMBS, WETH, DAPP]."
+					}
+				},
+				"getEligibleTokens()": {
+					"details": "Filters out removed tokens. May be expensive for large lists —      use off-chain indexing for production UIs."
+				},
+				"owner()": {
+					"details": "Returns the address of the current owner."
+				},
+				"removeToken(address)": {
+					"details": "Does not remove from eligibleTokenList array (history preserved).      Sets isEligible[token] = false — takes effect immediately.",
+					"params": {
+						"token": "Token address to remove."
+					}
+				},
+				"renounceOwnership()": {
+					"details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
+				},
+				"transferOwnership(address)": {
+					"details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+				}
+			},
+			"title": "EligibleTokenRegistry",
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {
+				"addToken(address)": {
+					"notice": "Add a token to the eligible list."
+				},
+				"addTokens(address[])": {
+					"notice": "Add multiple tokens in one call."
+				},
+				"areEligible(address[])": {
+					"notice": "Batch eligibility check — returns bool array matching input."
+				},
+				"eligibleTokenList(uint256)": {
+					"notice": "Ordered list of all ever-added eligible tokens.         Tokens removed from eligibility remain in the array         but isEligible[token] == false."
+				},
+				"getConsumers()": {
+					"notice": "Returns all registered consumer contracts."
+				},
+				"getEligibleTokens()": {
+					"notice": "Returns all currently eligible token addresses."
+				},
+				"isEligible(address)": {
+					"notice": "token address → eligible for swap influence."
+				},
+				"registerConsumer(address)": {
+					"notice": "Register a consumer contract (Router, TimbPrize).         Informational — tracks which contracts read this registry."
+				},
+				"registeredConsumers(address)": {
+					"notice": "Registered consumer contracts (Router, TimbPrize).         Informational — reads are permissionless so no enforcement         needed, but tracked for transparency and frontend queries."
+				},
+				"removeConsumer(address)": {
+					"notice": "Remove a consumer from the registry."
+				},
+				"removeToken(address)": {
+					"notice": "Remove a token from the eligible list."
+				},
+				"totalTokensAdded()": {
+					"notice": "Returns total number of tokens ever added (including removed)."
+				}
+			},
+			"notice": "Shared registry of tokens eligible to influence the TimbSwap         prize game scroll position via swap activity. Purpose:   - Single source of truth for eligible token list.   - Consumed by TimbSwapRouter (before nudgeScroll call) and     TimbPrize (for validation at settlement).   - Decoupled from both contracts — list can be updated without     redeploying Router or TimbPrize. Eligible tokens at launch:   - TIMBS (TimbSwap native token)   - ETH / WETH   - DAPP (existing ecosystem token)   - Owner-extendable at any time. Authorised callers:   - Owner: add/remove tokens.   - Any address: read isEligible() — public view.   - Registered consumers (Router, TimbPrize): no special permissions     needed — reads are permissionless. Security:   - Owner-only writes. No reentrancy risk (no token transfers).   - Removing a token mid-round does not retroactively invalidate     scroll nudges already recorded — those are final on-chain.   - Adding a token takes effect immediately for future swaps. Deployment:   1. Deploy EligibleTokenRegistry(initialTokens[])   2. router.setEligibleRegistry(address(this))   3. timbPrize.setEligibleRegistry(address(this)) (after TimbPrize deploy)   4. Verify on Sourcify",
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"/contracts/EligibleTokenRegistry.sol": "EligibleTokenRegistry"
+		},
+		"evmVersion": "london",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": true,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"/contracts/EligibleTokenRegistry.sol": {
+			"keccak256": "0x5f42dd157d87e183b23e95655b93c655630ac0c86c59fff882d535c6c64dfaf3",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://34463670b56f8f6287ac35d1da227547a34d1f74df1aa21318183c35c15e6b9d",
+				"dweb:/ipfs/QmRtiAkGyHxQqgqmtvShHKdqj6Ra6w1pJ2XrbBX3S9yZJY"
+			]
+		},
+		"@openzeppelin/contracts/access/Ownable.sol": {
+			"keccak256": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6",
+				"dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a"
+			]
+		},
+		"@openzeppelin/contracts/utils/Context.sol": {
+			"keccak256": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
+				"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+			]
+		}
+	},
+	"version": 1
+}
