@@ -39,15 +39,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TimbSwapRouter.sol": "ITimbPrize"
+			"contracts/TimbSwapRouter.sol": "ITimbPrize"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -133,7 +133,7 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/TimbSwapRouter.sol": {
+		"contracts/TimbSwapRouter.sol": {
 			"keccak256": "0xbf54775dc3ae97874d62d421bac37fcdcfdeab74514588fe7b28269f48f0b4ba",
 			"license": "MIT",
 			"urls": [

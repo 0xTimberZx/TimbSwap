@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -1051,15 +1051,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TimbLockVault.sol": "TimbLockVault"
+			"contracts/TimbLockVault.sol": "TimbLockVault"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -1145,12 +1145,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/TimbLockVault.sol": {
-			"keccak256": "0x2215a50b3ed1a744f11cf41a49e61fc3d4c9bd0efee17115b4f17bbe57f49d3f",
+		"contracts/TimbLockVault.sol": {
+			"keccak256": "0x19b9650b1620b345014a8875e8d64cddf51e17c4a3614ff7b407ff550dc62aa4",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://051f33a2ef33bad56079993f6e66b85a3b1f503cee65cc1db6f61aaf21ede6a6",
-				"dweb:/ipfs/QmT4y8RZyNPEiWACVBEEL2si2aexiTdppAq7TkSHEDaBkd"
+				"bzz-raw://e72b3b5517ff945b2087b62182611add4c9adfee227a2eaae47b6ef0105919db",
+				"dweb:/ipfs/QmaDqea931kTjJBAqZGGwF9BEphGuW48AMTLjTkcaxRs1D"
 			]
 		}
 	},

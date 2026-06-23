@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -1462,15 +1462,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/GameRegistry.sol": "GameRegistry"
+			"contracts/GameRegistry.sol": "GameRegistry"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -1556,12 +1556,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/GameRegistry.sol": {
-			"keccak256": "0x3c50572cd0c8d56bb5bb6d213b73429fae9dd341bbe9410f441dd78cb949454e",
+		"contracts/GameRegistry.sol": {
+			"keccak256": "0xa09a5351eaa5d3f2c79e7f25c9af38b35380ea68921bc8bf85c86d8cc33ea2bf",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://d32c575f9de1cb59dc2f8def43f0afb740f2f1027c2f204b1bc68d41d5c52657",
-				"dweb:/ipfs/QmZ2ubCG1TiECxrLdVnoMdWX9rypASACJazCghv36Fq6Zo"
+				"bzz-raw://26f16270ace2bc7c3da4cd4b03d7e20e2b583aebb049d1892323cf76ec4c352c",
+				"dweb:/ipfs/QmZDhrZsBsfhDfcCFJ8CAxQZ7yTNVVy9b864bM79FELTtc"
 			]
 		}
 	},

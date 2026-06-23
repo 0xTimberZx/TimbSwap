@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -948,15 +948,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TimbFarm.sol": "TimbFarm"
+			"contracts/TimbFarm.sol": "TimbFarm"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -1042,12 +1042,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/TimbFarm.sol": {
-			"keccak256": "0x84730302e7a2c2a35713f1219e80ab626981768c4f65c9d5d2b98b7808b70a2e",
+		"contracts/TimbFarm.sol": {
+			"keccak256": "0xbac80ba276774a23eb2abbf8656336d90993550b5abd6b73c5f34762e8e2b56b",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://9e5d377e56dd1d72d874f92856f1a48f3358ffbc9b06daf522bf29f7b18603ea",
-				"dweb:/ipfs/QmQM9kYxgugD3ojQyqarxCcw557QZ9djTLA1dKUBsrNNWh"
+				"bzz-raw://79fa39d5d2f1a6dabf21607762766ec63de3446ce24cc724a3b4549bad904cc8",
+				"dweb:/ipfs/Qma1QuLvgbcP2AMt9MkPnnG7kbAzMWNSoWnmHW8EaXAFqm"
 			]
 		}
 	},

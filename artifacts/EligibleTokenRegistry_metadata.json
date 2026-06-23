@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -492,15 +492,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/EligibleTokenRegistry.sol": "EligibleTokenRegistry"
+			"contracts/EligibleTokenRegistry.sol": "EligibleTokenRegistry"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -522,12 +522,12 @@
 				"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
 			]
 		},
-		"contractss/EligibleTokenRegistry.sol": {
-			"keccak256": "0x5f42dd157d87e183b23e95655b93c655630ac0c86c59fff882d535c6c64dfaf3",
+		"contracts/EligibleTokenRegistry.sol": {
+			"keccak256": "0x94351003795e3d01b301a8d92aa4339ee21524d721846bd98dda6bc26e585b2f",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://34463670b56f8f6287ac35d1da227547a34d1f74df1aa21318183c35c15e6b9d",
-				"dweb:/ipfs/QmRtiAkGyHxQqgqmtvShHKdqj6Ra6w1pJ2XrbBX3S9yZJY"
+				"bzz-raw://0f8089272b2b60228fe39b49e294b8a06676d5d154d07fdb1ccb5631558012f0",
+				"dweb:/ipfs/QmXayDnZoniNyvhGpaie95vigZgdTg5gjFR3Nd2r1wERqg"
 			]
 		}
 	},

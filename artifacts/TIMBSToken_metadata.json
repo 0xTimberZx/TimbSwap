@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -1153,15 +1153,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TIMBSToken.sol": "TIMBSToken"
+			"contracts/TIMBSToken.sol": "TIMBSToken"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -1239,12 +1239,12 @@
 				"dweb:/ipfs/QmarDJ5hZEgBtCmmrVzEZWjub9769eD686jmzb2XpSU1cM"
 			]
 		},
-		"contractss/TIMBSToken.sol": {
-			"keccak256": "0xfeb9ded0636607783ea6af14a9a934ca09ddecb1f0f124ffd010e2aff687567e",
+		"contracts/TIMBSToken.sol": {
+			"keccak256": "0x0783236eef4f4be1b202655b7683726a1a37273de1520b056e47d405e69885cd",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://f87b1193a37bcd58554878992f28aa9f1dd2dc89544a8471da250af0b38bf0aa",
-				"dweb:/ipfs/QmNscfSgqW2h22ch9Tzp7ePV37RbboR7GiQFSudYSpaAwa"
+				"bzz-raw://47b80bdbe6bcc1deee2207adde7ee6587bd5207e53ad21bbf0a68a5777b108a0",
+				"dweb:/ipfs/QmefRwmY4QbWZhY7We3DzvRckRCpo55ViQ82YDJbHWRZiJ"
 			]
 		}
 	},

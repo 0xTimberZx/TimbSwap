@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -364,15 +364,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/PrizeEscrow.sol": "PrizeEscrow"
+			"contracts/PrizeEscrow.sol": "PrizeEscrow"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -410,12 +410,12 @@
 				"dweb:/ipfs/QmarDJ5hZEgBtCmmrVzEZWjub9769eD686jmzb2XpSU1cM"
 			]
 		},
-		"contractss/PrizeEscrow.sol": {
-			"keccak256": "0x0e2b6ee94e84dd4ba2d4f68eafe570bd2f211291eb7f8110f1ccbbd1b343bd0a",
+		"contracts/PrizeEscrow.sol": {
+			"keccak256": "0x978d07e327feecd0fb5cc4835c3d4b247adbb8e14d95ea9798402967d76bc57f",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://a5c0e1fcc3c2ad8d6bf3afc1fe2d9147e1fe4f33cb82d713dbcea943f99c467d",
-				"dweb:/ipfs/QmQvEZfu1vDuwaKy7dLGGCBxN62xFzjo7n5gy6kcqMFftj"
+				"bzz-raw://9c16ac0f04a673fd7fed5e41e1313e645b1ae6426e85542395d24062059b5803",
+				"dweb:/ipfs/QmXbDdqZZzLfrdv9L44MLo7XsViqZHNyJATxD87N4dZRKZ"
 			]
 		}
 	},

@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -26,15 +26,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TimbTreasury.sol": "IPrizeEscrow"
+			"contracts/TimbTreasury.sol": "IPrizeEscrow"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -120,12 +120,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/TimbTreasury.sol": {
-			"keccak256": "0x1ae25d4276728e1933970590643f3f9b7cb5ff39cd463921813496714efc150f",
+		"contracts/TimbTreasury.sol": {
+			"keccak256": "0xc94ef1613cc2b0fb954cbd753a4b70137a85633b98a9b5b7c0ab62be1ec2800d",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://743893304175ea4c16927e8f54e18ea4ded61b1dded2442c5d19014c51fd8c98",
-				"dweb:/ipfs/QmX74N2faV4P2c2AKstBr6sN4WV4ZCL129s7g1Zec6Fz7s"
+				"bzz-raw://e03183290e722b3397170d2a3c42e10dfac1c978df89415f31fa889513decd93",
+				"dweb:/ipfs/QmTbLtH5u6BCuKyfiUWRVwHefu6gg9vJCfsqSg2pXk8J7a"
 			]
 		}
 	},

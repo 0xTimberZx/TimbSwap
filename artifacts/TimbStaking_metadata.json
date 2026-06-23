@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -886,15 +886,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TimbStaking.sol": "TimbStaking"
+			"contracts/TimbStaking.sol": "TimbStaking"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -980,12 +980,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/TimbStaking.sol": {
-			"keccak256": "0x887a2a95212e13a1fa6f39432f04244b34d3715d4e4b213ecdd316fad3617caa",
+		"contracts/TimbStaking.sol": {
+			"keccak256": "0x9df0b29b9b14d17f1a3e52b144741c4f122b7c5c4a2acf8b493849d419387bdf",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://03fff1c56be688c73dd7bcec22994ba44693717b286dbf44cfd9f3e23e947ff6",
-				"dweb:/ipfs/QmVDA5D8499tzH3pFDrNfuFbSk9yBnaEZCJ4sCcWLXp65V"
+				"bzz-raw://3da5342b45ce117ae7633500dd81c5dddc31055bfe6df8f1e0eb79d75ed5bd5e",
+				"dweb:/ipfs/QmZaW55X3nnXtDU8iR5fZtY9BXpBcPuqMiNEtmy8zCoEkk"
 			]
 		}
 	},

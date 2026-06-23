@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.20+commit.a1b79de6"
+		"version": "0.8.24+commit.e11b9ed9"
 	},
 	"language": "Solidity",
 	"output": {
@@ -38,15 +38,15 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contractss/TimbPrize.sol": "IEligibleTokenRegistry"
+			"contracts/TimbPrize.sol": "IEligibleTokenRegistry"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
@@ -132,12 +132,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contractss/TimbPrize.sol": {
-			"keccak256": "0x44657baefbe7117ca9d9a6520f900ad5e511c350803562f5933c82adfbf357a3",
+		"contracts/TimbPrize.sol": {
+			"keccak256": "0x20097576dc7687d5f2e82523ed951110bffecbdde9a51c421d3045560e274a33",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://c3d34d79034517b8aeddc0298c76f1ceb8ab4c86f0872fc77066a3ca453a1bb8",
-				"dweb:/ipfs/QmX3hsmfrJxquVosoMsZvvqJz75SYMAKjAqzzJuktpWCG3"
+				"bzz-raw://ee69df4ccb0c86ef5c2779fb9c34c16a816053c6f03a6210cf826448cfb40377",
+				"dweb:/ipfs/QmPgExX4ar7fnaZ1WUy7nDzeKSQ3oyehVFArNc2vsFsvBU"
 			]
 		}
 	},
