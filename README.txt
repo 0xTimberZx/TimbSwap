@@ -56,3 +56,5 @@ TimbGovernance:       0x1f4C522E55FfE336eD474e6deAAc3a4bBe3Fd117
 TIMBS/ETH Pair:       0xefFea3C2D1aA32eE9D93Cc0E888647E6A168293f ..... I haven't started the game yet. 
 
 //I did make a deposit of eth into the contract yes, tx/0x0e03bc015b64df175a932f5129d4ebc9f23fe5bd48afbb7a0866cb456510b808. I don't know what values to put in for notify calls
+
+ I have sent eth. Notified farm with 50000000000000000000 and staking 25000000000000000000 with a second parameter of 2592000. I started game at timbprize.startgame().
