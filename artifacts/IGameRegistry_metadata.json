@@ -243,13 +243,13 @@
 		"compilationTarget": {
 			"contracts/TimbPrize.sol": "IGameRegistry"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "london",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": false,
+			"enabled": true,
 			"runs": 200
 		},
 		"remappings": []
@@ -336,11 +336,11 @@
 			]
 		},
 		"contracts/TimbPrize.sol": {
-			"keccak256": "0x20097576dc7687d5f2e82523ed951110bffecbdde9a51c421d3045560e274a33",
+			"keccak256": "0x27708ca8c60d0c75e2e7f30d3dfd311399c90dbac8f56231f3f4fd1a9b1ea6f5",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://ee69df4ccb0c86ef5c2779fb9c34c16a816053c6f03a6210cf826448cfb40377",
-				"dweb:/ipfs/QmPgExX4ar7fnaZ1WUy7nDzeKSQ3oyehVFArNc2vsFsvBU"
+				"bzz-raw://b8ec16a32088eb282d77c6d40007222a7b599e9fb6fa007b90f0b52152924a26",
+				"dweb:/ipfs/QmNWrWuhPNKmbEhUrjBGYX6wY65JhRr6yqjMHCnsCcLQks"
 			]
 		}
 	},
