@@ -45,7 +45,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contracts/TimbSwapFactory (2).sol": "ITimbSwapPair"
+			"contracts/TimbSwapFactory.sol": "ITimbSwapPair"
 		},
 		"evmVersion": "london",
 		"libraries": {},
@@ -187,7 +187,7 @@
 				"dweb:/ipfs/QmdGPcvptHN7UBCbUYBbRX3hiRVRFLRwno8b4uga6uFNif"
 			]
 		},
-		"contracts/TimbSwapFactory (2).sol": {
+		"contracts/TimbSwapFactory.sol": {
 			"keccak256": "0x7aaed2f1238d7cb5fd6a2f87ce759bab5d9b3f8e475c2cb21ab2bd6095c83755",
 			"license": "MIT",
 			"urls": [

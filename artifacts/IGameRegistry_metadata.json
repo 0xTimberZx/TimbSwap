@@ -336,11 +336,11 @@
 			]
 		},
 		"contracts/TimbPrize.sol": {
-			"keccak256": "0x27708ca8c60d0c75e2e7f30d3dfd311399c90dbac8f56231f3f4fd1a9b1ea6f5",
+			"keccak256": "0x05cd95236016788ad0a180330f36ded26ec91685c6b011292b0027678d93333f",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://b8ec16a32088eb282d77c6d40007222a7b599e9fb6fa007b90f0b52152924a26",
-				"dweb:/ipfs/QmNWrWuhPNKmbEhUrjBGYX6wY65JhRr6yqjMHCnsCcLQks"
+				"bzz-raw://58d0aef0fcecb037a44b2c3e0b73a6456cc85405da546834af7b96af1056bc5d",
+				"dweb:/ipfs/QmWi3sJKsiGZMNryd7iwxYBpiLT36RFhfDWDgGXNEZopVn"
 			]
 		}
 	},
