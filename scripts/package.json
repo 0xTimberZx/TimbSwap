@@ -1,0 +1,12 @@
+{
+  "name": "timbswap-settler",
+  "version": "1.0.0",
+  "description": "TimbSwap automated segment settler",
+  "main": "settler.js",
+  "scripts": {
+    "settle": "node settler.js"
+  },
+  "dependencies": {
+    "ethers": "^6.0.0"
+  }
+}
