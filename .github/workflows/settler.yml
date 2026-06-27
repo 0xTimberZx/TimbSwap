@@ -1,0 +1,36 @@
+name: TimbSwap Settler
+
+on:
+  schedule:
+    # Runs every 10 minutes
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  settle:
+    name: Settle segment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: script
+
+      - name: Run settler
+        working-directory: script
+        env:
+          ARB_SEPOLIA_RPC:      ${{ secrets.ARB_SEPOLIA_RPC }}
+          SETTLER_PRIVATE_KEY:  ${{ secrets.SETTLER_PRIVATE_KEY }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node settler.js
