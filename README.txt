@@ -59,3 +59,7 @@ TIMBS/ETH Pair:       0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95
 0xefFea3C2D1aA32eE9D93Cc0E888647E6A168293f(deprecated) .....game has started 
 
  I have sent eth. Notified farm with 50000000000000000000 and staking 25000000000000000000 with a second parameter of 2592000. 
+
+
+Telegram bot : https://api.telegram.org/botYOUR_TOKEN/getUpdates
+Timbswap_settler_bot
