@@ -7,7 +7,7 @@
 **Docs site:** docs.timbswap.xyz (separate)  
 **DebugHub appName:** `TimbSwap` (section-tagged checkpoints per module)  
 **Verification:** Sourcify preferred over Etherscan  
-**Pragma:** `pragma solidity 0.8.20` — exact, never `^`  
+**Pragma:** `pragma solidity 0.8.24` — exact, never `^`  
 **Last updated:** June 2026
 
 ---
@@ -47,7 +47,7 @@
 - [x] TimbGovernance deployed + verified
 - [x] TIMBS/ETH Pair created via factory (real bytecode: 0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95)
 - [x] All contracts wired (setters called)
-- [x] PrizeEscrow seeded with ETH (tx: 0x0e03bc015b64df175a932f5129d4ebc9f23fe5bd48afbb7a0866cb456510b808)
+- [x] PrizeEscrow seeded with ETH 
 - [x] notifyRewardAmount() — TimbStaking (25000000000000000000 TIMBS, 2592000s)
 - [x] notifyRewardAmount() — TimbFarm (50000000000000000000 TIMBS, 2592000s)
 - [x] All contracts rewired after factory/router/pair/prize redeploy
