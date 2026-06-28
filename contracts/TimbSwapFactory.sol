@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./TimbSwapPair.sol";
-// ─── Interfaces ───────────────────────────────────────────────────────────────
+// ─── Intercfaces ───────────────────────────────────────────────────────────────
 
 interface ITimbSwapPair {
     function token0() external view returns (address);
