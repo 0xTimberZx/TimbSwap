@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimbSwap — Trade. Influence. Win.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="https://0xtimberzx.github.io/MyDapp/debughub/sdk/debugger.js"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ─── Nav ─────────────────────────────────────────────────────────────── -->
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">TimbSwap</span>
+    </a>
+
+    <div class="nav-links">
+      <!-- Dashboard group -->
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="swap/">Swap</a>
+          <a href="analytics/">Analytics</a>
+          <a href="gov/">Governance</a>
+        </div>
+      </div>
+
+      <!-- Earn group -->
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="farm/">Farm</a>
+          <a href="compete/">Compete</a>
+          <a href="#" class="nav-soon">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+
+      <!-- Tools group -->
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="lock/">Lock Vault</a>
+          <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <span id="wallet-addr" class="wallet-addr"></span>
+        <button class="btn-disconnect" onclick="handleDisconnect()">✕</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ─── Hero ─────────────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="hero-inner">
+
+      <div class="hero-eyebrow">Arbitrum Sepolia Testnet</div>
+
+      <h1 class="hero-headline">
+        Trade.<br />
+        <span class="headline-accent">Influence.</span><br />
+        Win.
+      </h1>
+
+      <p class="hero-sub">
+        Every eligible swap nudges the prize scroll.
+        Your trade is your entry.
+      </p>
+
+      <div class="hero-actions">
+        <a href="swap/" class="btn-primary">Start Swapping</a>
+        <a href="compete/" class="btn-secondary">Enter the Prize Game</a>
+      </div>
+    </div>
+
+    <!-- Live scroll window — the signature element -->
+    <div class="scroll-display">
+      <div class="scroll-label">LIVE PRIZE SCROLL</div>
+      <div class="scroll-window" id="scroll-chars">
+        <span class="scroll-char" id="c0">·</span>
+        <span class="scroll-char" id="c1">·</span>
+        <span class="scroll-char" id="c2">·</span>
+        <span class="scroll-char" id="c3">·</span>
+        <span class="scroll-char" id="c4">·</span>
+        <span class="scroll-char" id="c5">·</span>
+      </div>
+      <div class="scroll-meta">
+        <span id="scroll-round">Round —</span>
+        <span id="scroll-seg">Seg —/6</span>
+        <span id="scroll-timer">——:——</span>
+      </div>
+      <div class="scroll-pot" id="scroll-pot">Prize Pot: loading…</div>
+    </div>
+  </section>
+
+  <!-- ─── Stats Bar ──────────────────────────────────────────────────────────── -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-label">TIMBS Supply</span>
+      <span class="stat-val" id="stat-supply">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Total Staked</span>
+      <span class="stat-val" id="stat-staked">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">LP Staked</span>
+      <span class="stat-val" id="stat-lp">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Total Locks</span>
+      <span class="stat-val" id="stat-locks">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Prize Pot</span>
+      <span class="stat-val" id="stat-pot">—</span>
+    </div>
+  </div>
+
+  <!-- ─── Features ─────────────────────────────────────────────────────────── -->
+  <section class="features">
+    <div class="feature-card">
+      <div class="feature-icon">⇄</div>
+      <h3>AMM Swap</h3>
+      <p>Trade tokens at 0.3% fee. 0.25% to LPs, 0.05% to the protocol treasury powering buybacks and the prize pot.</p>
+      <a href="swap/" class="feature-link">Open Swap →</a>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">◎</div>
+      <h3>Prize Game</h3>
+      <p>Set a 6-character string. Every eligible swap nudges the scroll. Match the frozen window at settlement to win the pot.</p>
+      <a href="compete/" class="feature-link">Compete →</a>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⬡</div>
+      <h3>Farm & Stake</h3>
+      <p>Single-asset TIMBS staking or LP farming. Earn TIMBS distributions and a share of buyback proceeds.</p>
+      <a href="farm/" class="feature-link">Earn →</a>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⌛</div>
+      <h3>Lock Vault</h3>
+      <p>Lock any whitelisted token for 24–320 hours. Public registry. TIMBS locks get a badge in the UI.</p>
+      <a href="lock/" class="feature-link">Lock →</a>
+    </div>
+  </section>
+
+  <!-- ─── Footer ───────────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗</a>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="landing.js"></script>
+</body>
+</html>
