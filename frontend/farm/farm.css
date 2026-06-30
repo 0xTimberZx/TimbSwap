@@ -1,0 +1,200 @@
+.farm-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+.page-h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+
+.page-sub {
+  color: var(--text-2);
+  font-size: 15px;
+  margin-bottom: 36px;
+  max-width: 480px;
+}
+
+.pool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.pool-card {
+  position: relative;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.pool-card-featured {
+  border-color: rgba(20,241,149,0.25);
+  background: linear-gradient(180deg, rgba(20,241,149,0.04), var(--bg2) 60%);
+}
+
+.featured-badge {
+  position: absolute;
+  top: -10px;
+  right: 20px;
+  background: var(--green);
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.pool-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pool-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.pool-icon-dual { font-size: 13px; }
+
+.pool-name { font-size: 16px; font-weight: 600; }
+.pool-type { font-size: 12px; color: var(--text-3); }
+
+.pool-apr {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.pool-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.pool-stat {
+  background: var(--bg3);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pool-stat-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+}
+
+.pool-stat-val {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.pool-stat-green { color: var(--green); }
+
+.pool-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pool-input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+}
+.pool-input:focus { border-color: var(--green); }
+
+.pool-max-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: var(--radius);
+  padding: 0 14px;
+  cursor: pointer;
+}
+.pool-max-btn:hover { border-color: var(--green); }
+
+.pool-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.btn-pool {
+  flex: 1;
+  border-radius: var(--radius);
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+}
+
+.btn-pool-primary { background: var(--green); color: #000; border-color: var(--green); }
+.btn-pool-primary:hover:not(:disabled) { opacity: 0.85; }
+
+.btn-pool-secondary { background: transparent; color: var(--text-2); }
+.btn-pool-secondary:hover:not(:disabled) { border-color: var(--text-2); color: var(--text); }
+
+.btn-pool-claim {
+  width: 100%;
+  background: var(--bg3);
+  color: var(--green);
+  border-color: rgba(20,241,149,0.2);
+}
+.btn-pool-claim:hover:not(:disabled) { border-color: var(--green); }
+
+.btn-pool:disabled {
+  background: var(--bg3) !important;
+  color: var(--text-3) !important;
+  border-color: var(--border) !important;
+  cursor: not-allowed;
+}
+
+.get-lp-link {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  color: var(--blue);
+  margin-top: 12px;
+}
+.get-lp-link:hover { text-decoration: underline; }
+
+@media (max-width: 800px) {
+  .pool-grid { grid-template-columns: 1fr; }
+}
