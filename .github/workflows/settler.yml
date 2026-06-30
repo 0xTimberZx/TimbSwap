@@ -27,7 +27,7 @@ jobs:
         working-directory: script
 
       - name: Run settler
-        working-directory: script
+        working-directory: scripts
         env:
           ARB_SEPOLIA_RPC:      ${{ secrets.ARB_SEPOLIA_RPC }}
           SETTLER_PRIVATE_KEY:  ${{ secrets.SETTLER_PRIVATE_KEY }}
