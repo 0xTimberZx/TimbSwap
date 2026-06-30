@@ -1,0 +1,51 @@
+
+/* ─── Prize Indicators (React mount) ─────────────────────────────────────── */
+.pi-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pi-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.pi-pot {
+  border-color: rgba(20,241,149,0.2);
+  background: rgba(20,241,149,0.04);
+}
+
+.pi-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+
+.pi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.pi-mono { font-family: var(--mono); }
+.pi-green { color: var(--green); }
+.pi-settling { color: var(--blue); font-size: 16px; }
+
+.pi-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
+.pi-loading, .pi-error {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+  padding: 24px;
+}
