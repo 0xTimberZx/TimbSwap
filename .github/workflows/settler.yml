@@ -24,7 +24,7 @@ jobs:
 
       - name: Install dependencies
         run: npm install ethers
-        working-directory: script
+        working-directory: scripts
 
       - name: Run settler
         working-directory: scripts
