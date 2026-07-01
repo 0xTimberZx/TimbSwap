@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compete — TimbSwap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="https://0xtimberzx.github.io/MyDapp/debughub/sdk/debugger.js"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="compete.css" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="../" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">TimbSwap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a href="../gov/">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/" class="nav-active">Compete</a>
+          <a href="#" class="nav-soon">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../lock/">Lock Vault</a>
+          <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <span id="wallet-addr" class="wallet-addr"></span>
+        <button class="btn-disconnect" onclick="handleDisconnect()">✕</button>
+      </div>
+            <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile nav overlay -->
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="../gov/">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a href="../lock/">Lock Vault</a>
+    <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+  </div>
+
+  <div class="compete-page">
+
+    <!-- ─── Round Header ──────────────────────────────────────────────────── -->
+    <div class="round-header">
+      <div class="round-header-left">
+        <div class="round-label">CURRENT ROUND</div>
+        <div class="round-num" id="hdr-round">—</div>
+      </div>
+
+      <div class="scroll-window-lg" id="scroll-chars-lg">
+        <span class="scroll-char-lg" id="lc0">·</span>
+        <span class="scroll-char-lg" id="lc1">·</span>
+        <span class="scroll-char-lg" id="lc2">·</span>
+        <span class="scroll-char-lg" id="lc3">·</span>
+        <span class="scroll-char-lg" id="lc4">·</span>
+        <span class="scroll-char-lg" id="lc5">·</span>
+      </div>
+
+      <div class="round-header-right">
+        <div class="round-label">SEGMENT</div>
+        <div class="round-num" id="hdr-segment">—/6</div>
+      </div>
+    </div>
+
+    <div class="round-substats">
+      <span id="sub-timer">Loading…</span>
+      <span class="dot-sep">·</span>
+      <span id="sub-pot">Pot: —</span>
+      <span class="dot-sep">·</span>
+      <span id="sub-entries">— entries</span>
+    </div>
+
+    <div class="page-grid">
+
+      <!-- ─── Entry Card ────────────────────────────────────────────────── -->
+      <div class="compete-card">
+        <h2 class="card-title">Set Your Entry</h2>
+        <p class="card-sub">6 characters. A-Z and 0-9 only. No repeats. Entry plays next round.</p>
+
+        <div class="entry-input-row">
+          <input
+            id="entry-string"
+            class="entry-input"
+            type="text"
+            maxlength="6"
+            placeholder="ABC123"
+            oninput="onEntryInput()"
+          />
+        </div>
+        <div id="entry-validation" class="entry-validation"></div>
+
+        <div class="cost-row">
+          <div class="cost-left">
+            <span class="cost-label">Entry cost</span>
+            <span class="cost-val" id="entry-cost-val">—</span>
+          </div>
+          <div class="token-select-wrap">
+            <button class="token-select-btn" id="token-select-btn" onclick="toggleTokenDropdown()">
+              <span id="selected-token-label">ETH</span>
+              <span class="token-caret">▾</span>
+            </button>
+            <div class="token-dropdown hidden" id="token-dropdown"></div>
+          </div>
+        </div>
+
+        <div class="extra-rounds-wrap">
+          <div class="extra-rounds-inline">
+            <span class="extra-rounds-label">Extra rounds</span>
+            <div class="extra-stepper-mini">
+              <button onclick="adjustExtraRounds(-1)">−</button>
+              <span id="extra-rounds-val">0</span>
+              <button onclick="adjustExtraRounds(1)">+</button>
+            </div>
+          </div>
+          <div id="extra-cost-note" class="extra-cost-note hidden"></div>
+        </div>
+
+        <button id="entry-btn" class="btn-entry" onclick="handleSubmitEntry()" disabled>
+          Connect wallet to enter
+        </button>
+      </div>
+
+      <!-- ─── My Entries Card ───────────────────────────────────────────── -->
+      <div class="compete-card">
+        <h2 class="card-title">My Entries</h2>
+        <div id="my-entries-list" class="my-entries-list">
+          <div class="empty-state">Connect wallet to view your entries</div>
+        </div>
+      </div>
+
+      <!-- ─── How It Works Card ─────────────────────────────────────────── -->
+      <div class="compete-card compete-card-info">
+        <h2 class="card-title">How It Works</h2>
+        <div class="how-step">
+          <span class="how-num">1</span>
+          <span>Set a 6-character string. It plays in the next round.</span>
+        </div>
+        <div class="how-step">
+          <span class="how-num">2</span>
+          <span>Every eligible swap nudges the scroll position +1.</span>
+        </div>
+        <div class="how-step">
+          <span class="how-num">3</span>
+          <span>At round end, the position freezes and a winning string is revealed.</span>
+        </div>
+        <div class="how-step">
+          <span class="how-num">4</span>
+          <span>Exact match wins a share of the pot. Your principal is always refundable.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ─── Past Rounds ───────────────────────────────────────────────────── -->
+    <div class="past-rounds-section">
+      <h2 class="section-title">Recent Rounds</h2>
+      <div id="past-rounds-list" class="past-rounds-list">
+        <div class="empty-state">Loading round history…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="compete.js"></script>
+</body>
+</html>
