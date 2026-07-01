@@ -33,6 +33,14 @@ interface ITimbPrize {
     function isSettlementWindow() external view returns (bool);
 }
 
+
+interface IWETH {
+    function deposit() external payable;
+    function withdraw(uint256 amount) external;
+    function transfer(address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
 // ─── Contract ────────────────────────────────────────────────────────────────
 
 /**
@@ -51,6 +59,7 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
     address public eligibleRegistry;
     address public timbPrize;
     bool    public paused;
+    address public weth; // WETH address on Arbitrum Sepolia
 
     // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -81,6 +90,9 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
     error InsufficientBAmount(uint256 amountB, uint256 amountBMin);
     error ExcessiveInputAmount();
     error ZeroAmount();
+    error WethNotSet();
+    error RefundFailed();
+    error InsufficientLiquidity();
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
 
@@ -130,6 +142,11 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
     function pause()   external onlyOwner { paused = true;  emit Paused(msg.sender); }
     function unpause() external onlyOwner { paused = false; emit Unpaused(msg.sender); }
+
+    function setWeth(address _weth) external onlyOwner {
+        if (_weth == address(0)) revert ZeroAddress();
+        weth = _weth;
+    }
 
     // ─── Internal: Pair Helpers ───────────────────────────────────────────────
 
@@ -332,4 +349,230 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
         _executeSwap(tokenIn, tokenOut, amountIn, amountOut, to, influencePrize);
     }
+    // ─── Internal: Liquidity Helpers ─────────────────────────────────────────
+
+    /// @dev Wrap native ETH into WETH and send to pair.
+    function _wrapAndSend(address pair, uint256 amount) internal {
+        if (weth == address(0)) revert WethNotSet();
+        IWETH(weth).deposit{value: amount}();
+        IWETH(weth).transfer(pair, amount);
+    }
+
+    /// @dev Compute optimal token amounts for adding liquidity.
+    ///      Returns (amountA, amountB) to deposit given desired and min amounts.
+    function _optimalAmounts(
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 amountAMin,
+        uint256 amountBMin,
+        uint256 reserveA,
+        uint256 reserveB
+    ) internal pure returns (uint256 amountA, uint256 amountB) {
+        if (reserveA == 0 && reserveB == 0) {
+            // First liquidity — use exact desired amounts
+            return (amountADesired, amountBDesired);
+        }
+        uint256 amountBOptimal = _quote(amountADesired, reserveA, reserveB);
+        if (amountBOptimal <= amountBDesired) {
+            if (amountBOptimal < amountBMin) revert InsufficientBAmount(amountBOptimal, amountBMin);
+            return (amountADesired, amountBOptimal);
+        }
+        uint256 amountAOptimal = _quote(amountBDesired, reserveB, reserveA);
+        if (amountAOptimal < amountAMin) revert InsufficientAAmount(amountAOptimal, amountAMin);
+        return (amountAOptimal, amountBDesired);
+    }
+
+    // ─── Add Liquidity: Token/Token ───────────────────────────────────────────
+
+    /**
+     * @notice Add liquidity to a token/token pair.
+     * @param tokenA        First token address.
+     * @param tokenB        Second token address.
+     * @param amountADesired  Desired amount of tokenA.
+     * @param amountBDesired  Desired amount of tokenB.
+     * @param amountAMin    Minimum tokenA (slippage protection).
+     * @param amountBMin    Minimum tokenB (slippage protection).
+     * @param to            Recipient of LP tokens.
+     * @param deadline      Unix timestamp.
+     * @return amountA      tokenA actually deposited.
+     * @return amountB      tokenB actually deposited.
+     * @return liquidity    LP tokens minted.
+     */
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 amountAMin,
+        uint256 amountBMin,
+        address to,
+        uint256 deadline
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        ensure(deadline)
+        returns (uint256 amountA, uint256 amountB, uint256 liquidity)
+    {
+        if (to == address(0)) revert ZeroAddress();
+        address pair = _getPair(tokenA, tokenB);
+        (uint256 resA, uint256 resB) = _getReserves(pair, tokenA);
+        (amountA, amountB) = _optimalAmounts(
+            amountADesired, amountBDesired, amountAMin, amountBMin, resA, resB
+        );
+        IERC20(tokenA).safeTransferFrom(msg.sender, pair, amountA);
+        IERC20(tokenB).safeTransferFrom(msg.sender, pair, amountB);
+        liquidity = IPair(pair).mint(to);
+        emit LiquidityAdded(pair, msg.sender, amountA, amountB, liquidity);
+    }
+
+    // ─── Add Liquidity: ETH/Token ─────────────────────────────────────────────
+
+    /**
+     * @notice Add liquidity to a WETH/token pair using native ETH.
+     *         ETH is wrapped to WETH automatically. Excess ETH is refunded.
+     * @param token           ERC-20 token paired with ETH/WETH.
+     * @param amountTokenDesired  Desired token amount.
+     * @param amountTokenMin  Minimum token (slippage).
+     * @param amountETHMin    Minimum ETH (slippage).
+     * @param to              Recipient of LP tokens.
+     * @param deadline        Unix timestamp.
+     * @return amountToken    Token actually deposited.
+     * @return amountETH      ETH actually deposited.
+     * @return liquidity      LP tokens minted.
+     */
+    function addLiquidityETH(
+        address token,
+        uint256 amountTokenDesired,
+        uint256 amountTokenMin,
+        uint256 amountETHMin,
+        address to,
+        uint256 deadline
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        ensure(deadline)
+        returns (uint256 amountToken, uint256 amountETH, uint256 liquidity)
+    {
+        if (weth == address(0)) revert WethNotSet();
+        if (to == address(0))   revert ZeroAddress();
+        if (msg.value == 0)     revert ZeroAmount();
+
+        address pair = _getPair(token, weth);
+        (uint256 resToken, uint256 resETH) = _getReserves(pair, token);
+
+        (amountToken, amountETH) = _optimalAmounts(
+            amountTokenDesired, msg.value, amountTokenMin, amountETHMin, resToken, resETH
+        );
+
+        IERC20(token).safeTransferFrom(msg.sender, pair, amountToken);
+        _wrapAndSend(pair, amountETH);
+        liquidity = IPair(pair).mint(to);
+
+        // Refund excess ETH
+        if (msg.value > amountETH) {
+            uint256 refund = msg.value - amountETH;
+            (bool ok,) = payable(msg.sender).call{value: refund}("");
+            if (!ok) revert RefundFailed();
+        }
+
+        emit LiquidityAdded(pair, msg.sender, amountToken, amountETH, liquidity);
+    }
+
+    // ─── Remove Liquidity: Token/Token ───────────────────────────────────────
+
+    /**
+     * @notice Remove liquidity from a token/token pair.
+     * @param tokenA      First token.
+     * @param tokenB      Second token.
+     * @param liquidity   LP tokens to burn.
+     * @param amountAMin  Minimum tokenA to receive.
+     * @param amountBMin  Minimum tokenB to receive.
+     * @param to          Recipient of underlying tokens.
+     * @param deadline    Unix timestamp.
+     * @return amountA    tokenA received.
+     * @return amountB    tokenB received.
+     */
+    function removeLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 liquidity,
+        uint256 amountAMin,
+        uint256 amountBMin,
+        address to,
+        uint256 deadline
+    )
+        external
+        nonReentrant
+        ensure(deadline)
+        returns (uint256 amountA, uint256 amountB)
+    {
+        if (to == address(0)) revert ZeroAddress();
+        address pair = _getPair(tokenA, tokenB);
+        IERC20(pair).safeTransferFrom(msg.sender, pair, liquidity);
+        (uint256 amount0, uint256 amount1) = IPair(pair).burn(to);
+        bool aIsToken0 = tokenA == IPair(pair).token0();
+        (amountA, amountB) = aIsToken0 ? (amount0, amount1) : (amount1, amount0);
+        if (amountA < amountAMin) revert InsufficientAAmount(amountA, amountAMin);
+        if (amountB < amountBMin) revert InsufficientBAmount(amountB, amountBMin);
+        emit LiquidityRemoved(pair, msg.sender, amountA, amountB, liquidity);
+    }
+
+    // ─── Remove Liquidity: ETH/Token ─────────────────────────────────────────
+
+    /**
+     * @notice Remove liquidity from a WETH/token pair, receiving native ETH.
+     *         WETH is unwrapped automatically before sending.
+     * @param token       ERC-20 token paired with ETH/WETH.
+     * @param liquidity   LP tokens to burn.
+     * @param amountTokenMin  Minimum token to receive.
+     * @param amountETHMin    Minimum ETH to receive.
+     * @param to          Recipient of token and ETH.
+     * @param deadline    Unix timestamp.
+     * @return amountToken  Token received.
+     * @return amountETH    ETH received.
+     */
+    function removeLiquidityETH(
+        address token,
+        uint256 liquidity,
+        uint256 amountTokenMin,
+        uint256 amountETHMin,
+        address to,
+        uint256 deadline
+    )
+        external
+        nonReentrant
+        ensure(deadline)
+        returns (uint256 amountToken, uint256 amountETH)
+    {
+        if (weth == address(0)) revert WethNotSet();
+        if (to == address(0))   revert ZeroAddress();
+
+        address pair = _getPair(token, weth);
+        IERC20(pair).safeTransferFrom(msg.sender, pair, liquidity);
+
+        // Burn sends both tokens to this contract first so we can unwrap ETH
+        (uint256 amount0, uint256 amount1) = IPair(pair).burn(address(this));
+        bool tokenIsToken0 = token == IPair(pair).token0();
+        (amountToken, amountETH) = tokenIsToken0
+            ? (amount0, amount1)
+            : (amount1, amount0);
+
+        if (amountToken < amountTokenMin) revert InsufficientAAmount(amountToken, amountTokenMin);
+        if (amountETH   < amountETHMin)   revert InsufficientBAmount(amountETH, amountETHMin);
+
+        // Send token to recipient
+        IERC20(token).safeTransfer(to, amountToken);
+
+        // Unwrap WETH and send native ETH to recipient
+        IWETH(weth).withdraw(amountETH);
+        (bool ok,) = payable(to).call{value: amountETH}("");
+        if (!ok) revert RefundFailed();
+
+        emit LiquidityRemoved(pair, msg.sender, amountToken, amountETH, liquidity);
+    }
+
+    receive() external payable {}
 }

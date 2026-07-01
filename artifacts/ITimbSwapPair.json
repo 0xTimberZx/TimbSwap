@@ -37,27 +37,61 @@
 		},
 		"gasEstimates": null,
 		"methodIdentifiers": {
-			"token0()": "0dfe1681",
-			"token1()": "d21220a7"
+			"getReserves()": "0902f1ac",
+			"swap(uint256,uint256,address)": "6d9a640a",
+			"token0()": "0dfe1681"
 		}
 	},
 	"abi": [
 		{
 			"inputs": [],
-			"name": "token0",
+			"name": "getReserves",
 			"outputs": [
 				{
-					"internalType": "address",
+					"internalType": "uint112",
 					"name": "",
-					"type": "address"
+					"type": "uint112"
+				},
+				{
+					"internalType": "uint112",
+					"name": "",
+					"type": "uint112"
+				},
+				{
+					"internalType": "uint32",
+					"name": "",
+					"type": "uint32"
 				}
 			],
 			"stateMutability": "view",
 			"type": "function"
 		},
 		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "amount0Out",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "amount1Out",
+					"type": "uint256"
+				},
+				{
+					"internalType": "address",
+					"name": "to",
+					"type": "address"
+				}
+			],
+			"name": "swap",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
 			"inputs": [],
-			"name": "token1",
+			"name": "token0",
 			"outputs": [
 				{
 					"internalType": "address",
