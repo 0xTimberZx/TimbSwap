@@ -28,7 +28,7 @@
 		"compilationTarget": {
 			"contracts/TimbTreasury.sol": "IPrizeEscrow"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"

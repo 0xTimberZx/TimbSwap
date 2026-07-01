@@ -262,7 +262,7 @@
 		"compilationTarget": {
 			"contracts/TimbTreasury.sol": "ITimbsToken"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"

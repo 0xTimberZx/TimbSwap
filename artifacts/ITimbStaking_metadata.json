@@ -39,7 +39,7 @@
 		"compilationTarget": {
 			"contracts/TimbTreasury.sol": "ITimbStaking"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"

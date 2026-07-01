@@ -741,7 +741,7 @@
 		"compilationTarget": {
 			"contracts/TimbSwapFactory.sol": "TimbSwapFactory"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
@@ -882,11 +882,11 @@
 			]
 		},
 		"contracts/TimbSwapFactory.sol": {
-			"keccak256": "0x7aaed2f1238d7cb5fd6a2f87ce759bab5d9b3f8e475c2cb21ab2bd6095c83755",
+			"keccak256": "0x9113abce2d8ec4360deb93e8f792d04e4e7c67538c89a02fde62c04efde039c0",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://02e14791612d2c28f9d028dfee8d7ad5e6388cd01e0c1615e7e7bd6c1e0e6e86",
-				"dweb:/ipfs/QmNSJeZVDiQAZt7VfoidJnwjYVU6w4SiiaKstgovH7DENj"
+				"bzz-raw://b68304b945164c70bbcc7ac5c74573df5bb5bb413ed5d46502e16ad71fa38d06",
+				"dweb:/ipfs/QmQwtCSCUdNBV8YFhRzpzr5KCm41rSgqv6TdXJiihSm5me"
 			]
 		},
 		"contracts/TimbSwapPair.sol": {
