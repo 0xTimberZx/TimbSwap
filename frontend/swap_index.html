@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swap — TimbSwap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="https://0xtimberzx.github.io/MyDapp/debughub/sdk/debugger.js"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="swap.css" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="../" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">TimbSwap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/" class="nav-active">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a href="../gov/">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="#" class="nav-soon">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../lock/">Lock Vault</a>
+          <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <span id="wallet-addr" class="wallet-addr"></span>
+        <button class="btn-disconnect" onclick="handleDisconnect()">✕</button>
+      </div>
+            <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile nav overlay -->
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="../gov/">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a href="../lock/">Lock Vault</a>
+    <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+  </div>
+
+  <div class="swap-page">
+
+    <div class="swap-col">
+      <div class="swap-card">
+        <div class="swap-card-header">
+          <h2 class="swap-title">Swap</h2>
+          <div class="swap-settings">
+            <button class="settings-btn" onclick="toggleSettings()" title="Slippage settings">⚙</button>
+          </div>
+        </div>
+
+        <div id="settings-panel" class="settings-panel hidden">
+          <div class="settings-label">Slippage Tolerance</div>
+          <div class="slippage-options">
+            <button class="slip-btn" onclick="setSlippage(0.5)">0.5%</button>
+            <button class="slip-btn slip-active" onclick="setSlippage(1)">1%</button>
+            <button class="slip-btn" onclick="setSlippage(3)">3%</button>
+            <input id="slip-custom" class="slip-input" type="number" placeholder="Custom %" min="0.1" max="50" />
+          </div>
+        </div>
+
+        <div class="token-box">
+          <div class="token-box-top">
+            <span class="token-box-label">You pay</span>
+            <span class="token-box-bal" id="bal-in">Balance: —</span>
+          </div>
+          <div class="token-box-row">
+            <input id="amount-in" class="amount-input" type="number" placeholder="0.0" oninput="onAmountInChange()" />
+            <button class="token-picker-btn" id="token-in-btn" onclick="openTokenPicker('in')">
+              <span id="token-in-symbol">Select</span>
+              <span class="picker-caret">▾</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="swap-arrow-row">
+          <button class="swap-arrow-btn" onclick="flipTokens()" title="Flip tokens">⇅</button>
+        </div>
+
+        <div class="token-box">
+          <div class="token-box-top">
+            <span class="token-box-label">You receive</span>
+            <span class="token-box-bal" id="bal-out">Balance: —</span>
+          </div>
+          <div class="token-box-row">
+            <input id="amount-out" class="amount-input" type="number" placeholder="0.0" oninput="onAmountOutChange()" />
+            <button class="token-picker-btn" id="token-out-btn" onclick="openTokenPicker('out')">
+              <span id="token-out-symbol">Select</span>
+              <span class="picker-caret">▾</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="influence-row" class="influence-row hidden">
+          <div class="influence-left">
+            <span class="influence-label">Influence Prize Scroll</span>
+            <span class="influence-sub">This pair is eligible. Toggle to nudge the scroll on swap.</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="influence-toggle" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="swap-info" class="swap-info hidden">
+          <div class="info-row">
+            <span class="info-label">Rate</span>
+            <span class="info-val" id="info-rate">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Price impact</span>
+            <span class="info-val" id="info-impact">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Protocol fee (0.05%)</span>
+            <span class="info-val" id="info-fee">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Min received</span>
+            <span class="info-val" id="info-min">—</span>
+          </div>
+        </div>
+
+        <button id="swap-btn" class="btn-swap" onclick="handleSwap()" disabled>
+          Connect wallet to swap
+        </button>
+      </div>
+    </div>
+
+    <div class="prize-col" id="prize-panel" style="display:none">
+      <div id="prize-indicators-root"></div>
+    </div>
+
+  </div>
+
+  <div id="token-picker-modal" class="modal-overlay hidden" onclick="closeTokenPicker(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">Select Token</span>
+        <button class="modal-close" onclick="closeTokenPickerDirect()">✕</button>
+      </div>
+      <input id="token-search" class="token-search" placeholder="Search name or paste address…" oninput="filterTokens()" />
+      <div id="token-list" class="token-list"></div>
+    </div>
+  </div>
+
+  <script src="../config.js"></script> 
+  <script src="swap.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="influence.js"></script>
+</body>
+</html>
