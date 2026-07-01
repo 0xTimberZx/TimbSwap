@@ -343,6 +343,19 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
     }
 
     /// @dev Compute optimal token amounts for adding liquidity.
+    struct LiquidityParams {
+        uint256 amountADesired;
+        uint256 amountBDesired;
+        uint256 amountAMin;
+        uint256 amountBMin;
+    }
+
+    struct LiquidityState {
+        address pair;
+        uint256 amountA;
+        uint256 amountB;
+    }
+
     function _optimalAmounts(
         uint256 amountADesired,
         uint256 amountBDesired,
@@ -362,6 +375,22 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
         uint256 amountAOptimal = _quote(amountBDesired, reserveB, reserveA);
         if (amountAOptimal < amountAMin) revert InsufficientAAmount(amountAOptimal, amountAMin);
         return (amountAOptimal, amountBDesired);
+    }
+
+    function _optimalLiquidityAmounts(
+        address pair,
+        address tokenA,
+        LiquidityParams memory p
+    ) internal view returns (uint256 amountA, uint256 amountB) {
+        (uint256 reserveA, uint256 reserveB) = _getReserves(pair, tokenA);
+        return _optimalAmounts(
+            p.amountADesired,
+            p.amountBDesired,
+            p.amountAMin,
+            p.amountBMin,
+            reserveA,
+            reserveB
+        );
     }
 
     // ─── Add Liquidity: Token/Token ───────────────────────────────────────────
@@ -386,15 +415,40 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
         returns (uint256 amountA, uint256 amountB, uint256 liquidity)
     {
         if (to == address(0)) revert ZeroAddress();
-        address pair = _getPair(tokenA, tokenB);
-        (uint256 resA, uint256 resB) = _getReserves(pair, tokenA);
-        (amountA, amountB) = _optimalAmounts(
-            amountADesired, amountBDesired, amountAMin, amountBMin, resA, resB
-        );
-        IERC20(tokenA).safeTransferFrom(msg.sender, pair, amountA);
-        IERC20(tokenB).safeTransferFrom(msg.sender, pair, amountB);
-        liquidity = IPair(pair).mint(to);
-        emit LiquidityAdded(pair, msg.sender, amountA, amountB, liquidity);
+
+        LiquidityParams memory p = LiquidityParams({
+            amountADesired: amountADesired,
+            amountBDesired: amountBDesired,
+            amountAMin: amountAMin,
+            amountBMin: amountBMin
+        });
+
+        LiquidityState memory s = _prepareAddLiquidity(tokenA, tokenB, p);
+        amountA = s.amountA;
+        amountB = s.amountB;
+        liquidity = _finalizeAddLiquidity(tokenA, tokenB, s, to);
+    }
+
+    /// @dev Internal logic for addLiquidity — isolated to reduce stack depth.
+    function _prepareAddLiquidity(
+        address tokenA,
+        address tokenB,
+        LiquidityParams memory p
+    ) internal view returns (LiquidityState memory s) {
+        s.pair = _getPair(tokenA, tokenB);
+        (s.amountA, s.amountB) = _optimalLiquidityAmounts(s.pair, tokenA, p);
+    }
+
+    function _finalizeAddLiquidity(
+        address tokenA,
+        address tokenB,
+        LiquidityState memory s,
+        address to
+    ) internal returns (uint256 liquidity) {
+        IERC20(tokenA).safeTransferFrom(msg.sender, s.pair, s.amountA);
+        IERC20(tokenB).safeTransferFrom(msg.sender, s.pair, s.amountB);
+        liquidity = IPair(s.pair).mint(to);
+        emit LiquidityAdded(s.pair, msg.sender, s.amountA, s.amountB, liquidity);
     }
 
     // ─── Add Liquidity: ETH/Token ─────────────────────────────────────────────
@@ -418,27 +472,58 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
         returns (uint256 amountToken, uint256 amountETH, uint256 liquidity)
     {
         if (weth == address(0)) revert WethNotSet();
-        if (to == address(0))   revert ZeroAddress();
-        if (msg.value == 0)     revert ZeroAmount();
+        if (to == address(0)) revert ZeroAddress();
+        if (msg.value == 0) revert ZeroAmount();
 
-        address pair = _getPair(token, weth);
-        (uint256 resToken, uint256 resETH) = _getReserves(pair, token);
-
-        (amountToken, amountETH) = _optimalAmounts(
-            amountTokenDesired, msg.value, amountTokenMin, amountETHMin, resToken, resETH
+        LiquidityState memory s = _prepareAddLiquidityETH(
+            token,
+            amountTokenDesired,
+            msg.value,
+            amountTokenMin,
+            amountETHMin
         );
 
-        IERC20(token).safeTransferFrom(msg.sender, pair, amountToken);
-        _wrapAndSend(pair, amountETH);
-        liquidity = IPair(pair).mint(to);
+        amountToken = s.amountA;
+        amountETH = s.amountB;
+        liquidity = _finalizeAddLiquidityETH(token, s, to);
+        _refundExcessETH(amountETH);
+    }
 
+    function _prepareAddLiquidityETH(
+        address token,
+        uint256 amountTokenDesired,
+        uint256 ethDesired,
+        uint256 amountTokenMin,
+        uint256 amountETHMin
+    ) internal view returns (LiquidityState memory s) {
+        s.pair = _getPair(token, weth);
+        (uint256 resToken, uint256 resETH) = _getReserves(s.pair, token);
+        (s.amountA, s.amountB) = _optimalAmounts(
+            amountTokenDesired,
+            ethDesired,
+            amountTokenMin,
+            amountETHMin,
+            resToken,
+            resETH
+        );
+    }
+
+    function _finalizeAddLiquidityETH(
+        address token,
+        LiquidityState memory s,
+        address to
+    ) internal returns (uint256 liquidity) {
+        IERC20(token).safeTransferFrom(msg.sender, s.pair, s.amountA);
+        _wrapAndSend(s.pair, s.amountB);
+        liquidity = IPair(s.pair).mint(to);
+        emit LiquidityAdded(s.pair, msg.sender, s.amountA, s.amountB, liquidity);
+    }
+
+    function _refundExcessETH(uint256 amountETH) internal {
         if (msg.value > amountETH) {
-            uint256 refund = msg.value - amountETH;
-            (bool ok,) = payable(msg.sender).call{value: refund}("");
+            (bool ok,) = payable(msg.sender).call{value: msg.value - amountETH}("");
             if (!ok) revert RefundFailed();
         }
-
-        emit LiquidityAdded(pair, msg.sender, amountToken, amountETH, liquidity);
     }
 
     // ─── Remove Liquidity: Token/Token ───────────────────────────────────────
