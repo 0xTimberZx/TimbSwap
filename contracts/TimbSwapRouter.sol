@@ -33,7 +33,6 @@ interface ITimbPrize {
     function isSettlementWindow() external view returns (bool);
 }
 
-
 interface IWETH {
     function deposit() external payable;
     function withdraw(uint256 amount) external;
@@ -48,7 +47,7 @@ interface IWETH {
  * @notice Routes swaps and liquidity through TimbSwap AMM pairs.
  */
 contract TimbSwapRouter is Ownable, ReentrancyGuard {
-    
+
     // ─── Immutables ──────────────────────────────────────────────────────────
 
     address public immutable factory;
@@ -59,7 +58,7 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
     address public eligibleRegistry;
     address public timbPrize;
     bool    public paused;
-    address public weth; // WETH address on Arbitrum Sepolia
+    address public weth;
 
     // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -122,7 +121,7 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
         timbPrize        = _timbPrize;
     }
 
-    // ─── Owner Config ─────────────────────────────────────────────────────────
+    // ─── Owner Config ────────────────────────────────────────────────────────
 
     function setTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert ZeroAddress();
@@ -166,7 +165,7 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
             : (uint256(r1), uint256(r0));
     }
 
-    // ─── Internal: Math ───────────────────────────────────────────────────────
+    // ─── Internal: Math ──────────────────────────────────────────────────────
 
     function _getAmountOut(
         uint256 amountIn,
@@ -275,14 +274,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
     /**
      * @notice Swap an exact amount of tokenIn for as much tokenOut as possible.
-     * @param amountIn       Exact input amount.
-     * @param amountOutMin   Minimum output (slippage protection).
-     * @param tokenIn        Token being sold.
-     * @param tokenOut       Token being bought.
-     * @param to             Recipient of output tokens.
-     * @param deadline       Unix timestamp.
-     * @param influencePrize If true, nudge prize scroll after swap.
-     * @return amountOut     Actual output received.
      */
     function swapExactTokensForTokens(
         uint256 amountIn,
@@ -315,14 +306,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
     /**
      * @notice Swap as little tokenIn as possible for an exact tokenOut amount.
-     * @param amountOut      Exact output desired.
-     * @param amountInMax    Maximum input (slippage protection).
-     * @param tokenIn        Token being sold.
-     * @param tokenOut       Token being bought.
-     * @param to             Recipient of output tokens.
-     * @param deadline       Unix timestamp.
-     * @param influencePrize If true, nudge prize scroll after swap.
-     * @return amountIn      Actual input spent.
      */
     function swapTokensForExactTokens(
         uint256 amountOut,
@@ -349,6 +332,7 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
         _executeSwap(tokenIn, tokenOut, amountIn, amountOut, to, influencePrize);
     }
+
     // ─── Internal: Liquidity Helpers ─────────────────────────────────────────
 
     /// @dev Wrap native ETH into WETH and send to pair.
@@ -359,7 +343,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
     }
 
     /// @dev Compute optimal token amounts for adding liquidity.
-    ///      Returns (amountA, amountB) to deposit given desired and min amounts.
     function _optimalAmounts(
         uint256 amountADesired,
         uint256 amountBDesired,
@@ -369,7 +352,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
         uint256 reserveB
     ) internal pure returns (uint256 amountA, uint256 amountB) {
         if (reserveA == 0 && reserveB == 0) {
-            // First liquidity — use exact desired amounts
             return (amountADesired, amountBDesired);
         }
         uint256 amountBOptimal = _quote(amountADesired, reserveA, reserveB);
@@ -386,17 +368,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
     /**
      * @notice Add liquidity to a token/token pair.
-     * @param tokenA        First token address.
-     * @param tokenB        Second token address.
-     * @param amountADesired  Desired amount of tokenA.
-     * @param amountBDesired  Desired amount of tokenB.
-     * @param amountAMin    Minimum tokenA (slippage protection).
-     * @param amountBMin    Minimum tokenB (slippage protection).
-     * @param to            Recipient of LP tokens.
-     * @param deadline      Unix timestamp.
-     * @return amountA      tokenA actually deposited.
-     * @return amountB      tokenB actually deposited.
-     * @return liquidity    LP tokens minted.
      */
     function addLiquidity(
         address tokenA,
@@ -430,16 +401,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
     /**
      * @notice Add liquidity to a WETH/token pair using native ETH.
-     *         ETH is wrapped to WETH automatically. Excess ETH is refunded.
-     * @param token           ERC-20 token paired with ETH/WETH.
-     * @param amountTokenDesired  Desired token amount.
-     * @param amountTokenMin  Minimum token (slippage).
-     * @param amountETHMin    Minimum ETH (slippage).
-     * @param to              Recipient of LP tokens.
-     * @param deadline        Unix timestamp.
-     * @return amountToken    Token actually deposited.
-     * @return amountETH      ETH actually deposited.
-     * @return liquidity      LP tokens minted.
      */
     function addLiquidityETH(
         address token,
@@ -471,7 +432,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
         _wrapAndSend(pair, amountETH);
         liquidity = IPair(pair).mint(to);
 
-        // Refund excess ETH
         if (msg.value > amountETH) {
             uint256 refund = msg.value - amountETH;
             (bool ok,) = payable(msg.sender).call{value: refund}("");
@@ -483,17 +443,18 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
     // ─── Remove Liquidity: Token/Token ───────────────────────────────────────
 
+    /// @dev Burns LP and returns sorted (amountA, amountB) relative to tokenA.
+    function _burnAndSort(address pair, address tokenA, uint256 liquidity, address to)
+        internal
+        returns (uint256 amountA, uint256 amountB)
+    {
+        IERC20(pair).safeTransferFrom(msg.sender, pair, liquidity);
+        (uint256 a0, uint256 a1) = IPair(pair).burn(to);
+        (amountA, amountB) = (tokenA == IPair(pair).token0()) ? (a0, a1) : (a1, a0);
+    }
+
     /**
      * @notice Remove liquidity from a token/token pair.
-     * @param tokenA      First token.
-     * @param tokenB      Second token.
-     * @param liquidity   LP tokens to burn.
-     * @param amountAMin  Minimum tokenA to receive.
-     * @param amountBMin  Minimum tokenB to receive.
-     * @param to          Recipient of underlying tokens.
-     * @param deadline    Unix timestamp.
-     * @return amountA    tokenA received.
-     * @return amountB    tokenB received.
      */
     function removeLiquidity(
         address tokenA,
@@ -511,10 +472,7 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
     {
         if (to == address(0)) revert ZeroAddress();
         address pair = _getPair(tokenA, tokenB);
-        IERC20(pair).safeTransferFrom(msg.sender, pair, liquidity);
-        (uint256 amount0, uint256 amount1) = IPair(pair).burn(to);
-        bool aIsToken0 = tokenA == IPair(pair).token0();
-        (amountA, amountB) = aIsToken0 ? (amount0, amount1) : (amount1, amount0);
+        (amountA, amountB) = _burnAndSort(pair, tokenA, liquidity, to);
         if (amountA < amountAMin) revert InsufficientAAmount(amountA, amountAMin);
         if (amountB < amountBMin) revert InsufficientBAmount(amountB, amountBMin);
         emit LiquidityRemoved(pair, msg.sender, amountA, amountB, liquidity);
@@ -524,15 +482,6 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
 
     /**
      * @notice Remove liquidity from a WETH/token pair, receiving native ETH.
-     *         WETH is unwrapped automatically before sending.
-     * @param token       ERC-20 token paired with ETH/WETH.
-     * @param liquidity   LP tokens to burn.
-     * @param amountTokenMin  Minimum token to receive.
-     * @param amountETHMin    Minimum ETH to receive.
-     * @param to          Recipient of token and ETH.
-     * @param deadline    Unix timestamp.
-     * @return amountToken  Token received.
-     * @return amountETH    ETH received.
      */
     function removeLiquidityETH(
         address token,
@@ -549,29 +498,36 @@ contract TimbSwapRouter is Ownable, ReentrancyGuard {
     {
         if (weth == address(0)) revert WethNotSet();
         if (to == address(0))   revert ZeroAddress();
+        return _doRemoveLiquidityETH(token, liquidity, amountTokenMin, amountETHMin, to);
+    }
 
+    /// @dev Internal logic for removeLiquidityETH — isolated to reduce stack depth.
+    function _doRemoveLiquidityETH(
+        address token,
+        uint256 liquidity,
+        uint256 amountTokenMin,
+        uint256 amountETHMin,
+        address to
+    ) internal returns (uint256 amountToken, uint256 amountETH) {
         address pair = _getPair(token, weth);
-        IERC20(pair).safeTransferFrom(msg.sender, pair, liquidity);
 
-        // Burn sends both tokens to this contract first so we can unwrap ETH
-        (uint256 amount0, uint256 amount1) = IPair(pair).burn(address(this));
-        bool tokenIsToken0 = token == IPair(pair).token0();
-        (amountToken, amountETH) = tokenIsToken0
-            ? (amount0, amount1)
-            : (amount1, amount0);
+        // Burn LP; receive both tokens here so we can unwrap WETH
+        (amountToken, amountETH) = _burnAndSort(pair, token, liquidity, address(this));
 
         if (amountToken < amountTokenMin) revert InsufficientAAmount(amountToken, amountTokenMin);
-        if (amountETH   < amountETHMin)   revert InsufficientBAmount(amountETH, amountETHMin);
+        if (amountETH   < amountETHMin)   revert InsufficientBAmount(amountETH,   amountETHMin);
 
-        // Send token to recipient
         IERC20(token).safeTransfer(to, amountToken);
-
-        // Unwrap WETH and send native ETH to recipient
-        IWETH(weth).withdraw(amountETH);
-        (bool ok,) = payable(to).call{value: amountETH}("");
-        if (!ok) revert RefundFailed();
+        _unwrapAndSendETH(to, amountETH);
 
         emit LiquidityRemoved(pair, msg.sender, amountToken, amountETH, liquidity);
+    }
+
+    /// @dev Unwraps WETH and forwards native ETH to recipient.
+    function _unwrapAndSendETH(address to, uint256 amount) internal {
+        IWETH(weth).withdraw(amount);
+        (bool ok,) = payable(to).call{value: amount}("");
+        if (!ok) revert RefundFailed();
     }
 
     receive() external payable {}
