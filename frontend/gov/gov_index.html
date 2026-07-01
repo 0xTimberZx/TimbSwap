@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Governance — TimbSwap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="https://0xtimberzx.github.io/MyDapp/debughub/sdk/debugger.js"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="gov.css" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/TimbSwap/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">TimbSwap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a href="../gov/" class="nav-active">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="#" class="nav-soon">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../lock/">Lock Vault</a>
+          <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <span id="wallet-addr" class="wallet-addr"></span>
+        <button class="btn-disconnect" onclick="handleDisconnect()">✕</button>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="../gov/">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a href="../lock/">Lock Vault</a>
+    <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+  </div>
+
+  <div class="gov-page">
+
+    <!-- ─── Stats Bar ─────────────────────────────────────────────────────── -->
+    <div class="gov-stats">
+      <div class="gov-stat">
+        <span class="gov-stat-label">Total Proposals</span>
+        <span class="gov-stat-val" id="g-proposals">—</span>
+      </div>
+      <div class="gov-stat">
+        <span class="gov-stat-label">Total Voting Power</span>
+        <span class="gov-stat-val" id="g-total-power">—</span>
+      </div>
+      <div class="gov-stat">
+        <span class="gov-stat-label">Your Voting Power</span>
+        <span class="gov-stat-val" id="g-my-power">—</span>
+      </div>
+      <div class="gov-stat">
+        <span class="gov-stat-label">Quorum Required</span>
+        <span class="gov-stat-val" id="g-quorum">—</span>
+      </div>
+    </div>
+
+    <div class="gov-grid">
+
+      <!-- ─── Voting Power Card ──────────────────────────────────────────── -->
+      <div class="gov-card">
+        <h2 class="card-title">Voting Power</h2>
+        <p class="card-sub">Deposit TIMBS to participate in governance. Your TIMBS are locked while you have active votes.</p>
+
+        <div class="vp-display" id="vp-display">
+          <span class="vp-amount" id="vp-amount">—</span>
+          <span class="vp-label">TIMBS deposited</span>
+        </div>
+
+        <div class="gov-input-row">
+          <input id="vp-input" class="gov-input" type="number" placeholder="Amount" />
+          <button class="gov-max-btn" onclick="setVPMax()">MAX</button>
+        </div>
+
+        <div class="vp-actions">
+          <button class="btn-gov-primary" id="vp-deposit-btn" onclick="handleDeposit()" disabled>
+            Connect wallet
+          </button>
+          <button class="btn-gov-secondary" id="vp-withdraw-btn" onclick="handleWithdraw()" disabled>
+            Withdraw
+          </button>
+        </div>
+      </div>
+
+      <!-- ─── Proposals List ────────────────────────────────────────────── -->
+      <div class="gov-card gov-card-wide">
+        <div class="proposals-header">
+          <h2 class="card-title">Proposals</h2>
+        </div>
+        <div id="proposals-list" class="proposals-list">
+          <div class="empty-state">Loading proposals…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="gov.js"></script>
+  <script>
+    function toggleMobileNav() {
+      document.getElementById("mobile-nav").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove("open");
+      }
+    });
+  </script>
+</body>
+</html>
