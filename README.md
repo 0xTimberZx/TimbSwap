@@ -131,4 +131,4 @@ forge script scripts/Deploy.s.sol \
 ## Ecosystem
 
 Part of the 0xTimberZx ecosystem alongside BlockpotDAO, MessageBoard, and 0xFaucet.  
-All four share the [DebugHub](https://0xtimberzx.github.io/MyDapp/debughub/) dashboard.
+All four share the [DebugHub](https://0xtimberzx.github.io/MyDapp/debughub/) dashboard. 
