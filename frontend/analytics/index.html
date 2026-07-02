@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics — TimbSwap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="https://0xtimberzx.github.io/MyDapp/debughub/sdk/debugger.js"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="analytics.css" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/TimbSwap/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">TimbSwap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/" class="nav-active">Analytics</a>
+          <a href="../gov/">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="#" class="nav-soon">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../lock/">Lock Vault</a>
+          <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <span id="wallet-addr" class="wallet-addr"></span>
+        <button class="btn-disconnect" onclick="handleDisconnect()">✕</button>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="../gov/">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a href="../lock/">Lock Vault</a>
+  </div>
+
+  <div class="analytics-page">
+
+    <!-- ─── Live Metrics ───────────────────────────────────────────────── -->
+    <div class="section-label">LIVE</div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">TIMBS Price</div>
+        <div class="metric-val" id="m-price">—</div>
+        <div class="metric-sub" id="m-price-sub">per ETH</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Pool Reserves</div>
+        <div class="metric-val" id="m-timbs-reserve">—</div>
+        <div class="metric-sub" id="m-weth-reserve">— WETH</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Prize Pot</div>
+        <div class="metric-val metric-green" id="m-pot">—</div>
+        <div class="metric-sub" id="m-pot-sub">Round — · Seg —/6</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Scroll Position</div>
+        <div class="metric-val metric-mono" id="m-scroll">—</div>
+        <div class="metric-sub">nudges since genesis</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Staked</div>
+        <div class="metric-val" id="m-staked">—</div>
+        <div class="metric-sub">TIMBS single-asset</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">LP Staked</div>
+        <div class="metric-val" id="m-lp-staked">—</div>
+        <div class="metric-sub">TIMBS/ETH LP tokens</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Circulating Supply</div>
+        <div class="metric-val" id="m-supply">—</div>
+        <div class="metric-sub">of 100M hard cap</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Locks</div>
+        <div class="metric-val" id="m-locks">—</div>
+        <div class="metric-sub">across all tokens</div>
+      </div>
+    </div>
+
+    <!-- ─── Round History ──────────────────────────────────────────────── -->
+    <div class="section-label">ROUND HISTORY</div>
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">Settled Rounds</span>
+        <span class="data-refresh" id="rounds-status">Loading…</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="rounds-table">
+          <thead>
+            <tr>
+              <th>Round</th>
+              <th>Winning String</th>
+              <th>Pot</th>
+              <th>Winners</th>
+              <th>Remainder</th>
+              <th>Entries</th>
+            </tr>
+          </thead>
+          <tbody id="rounds-tbody">
+            <tr><td colspan="6" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── Recent Swaps ───────────────────────────────────────────────── -->
+    <div class="section-label">RECENT SWAPS</div>
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">Last 50 Swaps</span>
+        <span class="data-refresh" id="swaps-status">Loading…</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="swaps-table">
+          <thead>
+            <tr>
+              <th>Block</th>
+              <th>Sender</th>
+              <th>Direction</th>
+              <th>Amount In</th>
+              <th>Amount Out</th>
+            </tr>
+          </thead>
+          <tbody id="swaps-tbody">
+            <tr><td colspan="5" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── Claims History ─────────────────────────────────────────────── -->
+    <div class="section-label">CLAIMS</div>
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">Winnings Claimed</span>
+        <span class="data-refresh" id="claims-status">Loading…</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Round</th>
+              <th>Winner</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody id="claims-tbody">
+            <tr><td colspan="3" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="analytics.js"></script>
+  <script>
+    function toggleMobileNav() {
+      document.getElementById("mobile-nav").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove("open");
+      }
+    });
+  </script>
+</body>
+</html>
