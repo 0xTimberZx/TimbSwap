@@ -1,4 +1,7 @@
 name: TimbSwap Settler
+uses: actions/upload-pages-artifact@v3
+with:
+    path: './timbswap'
 
 on:
   schedule:
