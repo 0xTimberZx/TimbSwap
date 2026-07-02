@@ -1432,13 +1432,13 @@
 		"compilationTarget": {
 			"contracts/TimbPrize.sol": "TimbPrize"
 		},
-		"evmVersion": "london",
+		"evmVersion": "shanghai",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": true,
+			"enabled": false,
 			"runs": 200
 		},
 		"remappings": []
