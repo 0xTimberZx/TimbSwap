@@ -25,7 +25,7 @@ const ADDRESSES = {
   TimbSwapRouter:       "0x781833D60800b93C3a9EFf234b15934F9AE0C5E7",
   EligibleTokenRegistry:"0xbFF59a3408B2574AcE948F130f0fA2f2CB149F04",
   GameRegistry:         "0xf6fC4c726071Bd2Ce32826324E52dfC5A24FCb97",
-  TimbPrize:            "0x257F3658e29a7026CeebdcB352509d82A0993e4b",
+  TimbPrize:            "0xB42fC21808Eb2b6ff0A9B50654185e496EC6cDa4",
   TimbStaking:          "0xe776c7b700B190ED8248741F9b518B08d8733C8F",
   TimbFarm:             "0xE319E2206F71A5cD8dd2c411C6F29712935f9011",
   TimbLockVault:        "0x0157086E7670D1eFb15DC6b5158eE78279927a41",
@@ -90,9 +90,7 @@ async function _initProvider() {
 
 async function _ensureChain() {
   const network = await provider.getNetwork();
-  if (Number(network.chainId) === CHAIN_ID) return;
-
-  // Wrong chain — try to switch
+  if (network.chainId === CHAIN_ID) return;
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
@@ -100,23 +98,11 @@ async function _ensureChain() {
     });
   } catch (switchErr) {
     if (switchErr.code === 4902) {
-      // Chain not added yet — add it
-      try {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [CHAIN_CONFIG]
-        });
-      } catch (addErr) {
-        alert("Could not add Arbitrum Sepolia to your wallet.\nPlease add it manually:\nChain ID: 421614\nRPC: https://sepolia-rollup.arbitrum.io/rpc");
-        throw addErr;
-      }
-    } else if (switchErr.code === 4001) {
-      // User rejected the switch
-      alert("Please switch to Arbitrum Sepolia (Chain ID: 421614) in your wallet before connecting.");
-      throw switchErr;
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [CHAIN_CONFIG]
+      });
     } else {
-      // Silent switch failures (common on mobile) — alert with manual instruction
-      alert("Please switch your wallet to Arbitrum Sepolia (Chain ID: 421614) and tap Connect again.\n\nIf Arbitrum Sepolia is not in your wallet, add it:\nRPC: https://sepolia-rollup.arbitrum.io/rpc\nChain ID: 421614");
       throw switchErr;
     }
   }
@@ -137,11 +123,6 @@ async function connectWallet() {
     return true;
   } catch (err) {
     console.error("connectWallet failed:", err);
-    // Log chain ID at point of failure for DebugHub diagnosis
-    try {
-      const failNet = await provider.getNetwork();
-      console.warn("connectWallet: wallet was on chainId", failNet.chainId.toString(), "— needs 421614");
-    } catch {}
     return false;
   }
 }
