@@ -2,8 +2,20 @@ name: TimbSwap Settler
 
 on:
   schedule:
+    # Settle check every 10 minutes
     - cron: "*/10 * * * *"
+    # Health check every day at noon UTC
+    - cron: "0 12 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: false
+        default: "settle"
+        type: choice
+        options:
+          - settle
+          - health
 
 jobs:
   settle:
@@ -18,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies
         run: npm install ethers
@@ -31,4 +43,10 @@ jobs:
           SETTLER_PRIVATE_KEY:  ${{ secrets.SETTLER_PRIVATE_KEY }}
           TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node settler.js
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "health" ] || \
+             [ "${{ github.event.schedule }}" = "0 12 * * *" ]; then
+            node settler.js --health
+          else
+            node settler.js
+          fi
