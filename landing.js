@@ -164,6 +164,7 @@ function handleDisconnect() {
 
 (async () => {
   // Auto-reconnect if wallet was connected before navigation
+    DebugHub.logCheckpoint("Landing:Page Loaded", "pass");
   const _reconnected = await autoReconnect();
   if (_reconnected) {
     document.getElementById("connect-btn")?.classList.add("hidden");

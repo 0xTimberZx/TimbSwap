@@ -331,6 +331,7 @@ document.getElementById("lock-amount")?.addEventListener("input", updateLockButt
 
 (async () => {
   // Auto-reconnect if wallet was connected before navigation
+    DebugHub.logCheckpoint("Lock:Page Loaded", "pass");
   const _reconnected = await autoReconnect();
   if (_reconnected) {
     document.getElementById("connect-btn")?.classList.add("hidden");

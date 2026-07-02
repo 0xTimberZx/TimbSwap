@@ -4,10 +4,7 @@ const TIMBPRIZE_ABI = [
   "function getRoundState() external view returns (uint256 round, uint256 segment, uint256 segmentStart, uint256 counter, bytes6 currentWindow, uint256 pot, uint256 unclaimedPool, bool inSettlement)",
   "function gameStarted() external view returns (bool)",
   "function getRoundResult(uint256 round) external view returns (bytes6 winningString, uint256 potAmount, address[] winners, uint256 perWinner, uint256 remainder)",
-  "function claimWinnings(uint256 round) external",
-  "function hasClaimed(uint256 round, address winner) external view returns (bool)",
-  "function roundWinners(uint256 round, uint256 index) external view returns (address)",
-  "function roundPerWinnerAmount(uint256 round) external view returns (uint256)"
+  "function claimWinnings(uint256 round) external"
 ];
 const GAME_REGISTRY_ABI = [
   "function currentRound() external view returns (uint256)",
@@ -442,32 +439,6 @@ async function handleClaimRefund(round) {
   }
 }
 
-// ─── Claim Winnings ──────────────────────────────────────────────────────────
-
-async function handleClaimWinnings(round) {
-  const btn = document.getElementById("claim-btn-" + round);
-  if (btn) { btn.disabled = true; btn.textContent = "Claiming…"; }
-  try {
-    DebugHub.logCheckpoint("Prize:Claim Requested", "pass");
-    const prize = new ethers.Contract(ADDRESSES.TimbPrize, TIMBPRIZE_ABI, signer);
-    const gas   = await getGasParams();
-    const nonce = await getPendingNonce();
-    const tx    = await prize.claimWinnings(round, { ...gas, nonce });
-    DebugHub.logCheckpoint("Prize:Claim Submitted", "pass");
-    await tx.wait();
-    DebugHub.logCheckpoint("Prize:Claim Confirmed", "pass");
-    if (btn) { btn.textContent = "Claimed ✓"; }
-    await loadPastRounds();
-  } catch (err) {
-    const msg = err?.reason || err?.message || String(err);
-    console.error("claimWinnings failed:", msg);
-    DebugHub.logError("handleClaimWinnings", err);
-    DebugHub.logCheckpoint("Prize:Claim Failed", "fail");
-    if (btn) { btn.textContent = "Failed"; btn.disabled = false; }
-    alert("Claim failed: " + msg);
-  }
-}
-
 // ─── Past Rounds ──────────────────────────────────────────────────────────────
 
 async function loadPastRounds() {
@@ -478,51 +449,22 @@ async function loadPastRounds() {
   }
 
   try {
-    const prize   = new ethers.Contract(ADDRESSES.TimbPrize, TIMBPRIZE_ABI, readProv());
+    const prize = new ethers.Contract(ADDRESSES.TimbPrize, TIMBPRIZE_ABI, readProv());
     list.innerHTML = "";
-    const start   = Math.max(1, currentRoundNum - 10);
+    const start = Math.max(1, currentRoundNum - 5);
 
     for (let r = currentRoundNum - 1; r >= start; r--) {
       try {
         const result = await prize.getRoundResult(r);
         if (result.winningString === "0x000000000000") continue;
 
-        const chars      = bytes6ToChars(result.winningString);
-        const numWinners = result.winners.length;
-        const potFmt     = fmt(result.potAmount) + " ETH";
-        const perWinner  = numWinners > 0 ? fmt(result.perWinner) + " ETH each" : "";
-
-        // Check if connected wallet won and hasn't claimed
-        let claimHtml = "";
-        if (userAddress && numWinners > 0) {
-          const isWinner = result.winners
-            .map(w => w.toLowerCase())
-            .includes(userAddress.toLowerCase());
-          if (isWinner) {
-            const claimed = await prize.hasClaimed(r, userAddress).catch(() => true);
-            // Claim window: currentRound <= round + 3
-            const inWindow = currentRoundNum <= r + 3;
-            if (!claimed && inWindow) {
-              claimHtml = `<button id="claim-btn-${r}" class="btn-claim-round" onclick="handleClaimWinnings(${r})">Claim ${perWinner}</button>`;
-            } else if (claimed) {
-              claimHtml = `<span class="claimed-badge">Claimed ✓</span>`;
-            } else {
-              claimHtml = `<span class="expired-badge">Window closed</span>`;
-            }
-          }
-        }
-
+        const chars = bytes6ToChars(result.winningString);
         const row = document.createElement("div");
-        row.className = "past-round-row" + (claimHtml.includes("btn-claim") ? " past-round-winner" : "");
+        row.className = "past-round-row";
         row.innerHTML = `
-          <div class="past-round-left">
-            <span class="past-round-num">Round ${r}</span>
-            <span class="past-round-string">${chars.join("")}</span>
-          </div>
-          <div class="past-round-right">
-            <span class="past-round-meta">${numWinners} winner${numWinners !== 1 ? "s" : ""} · ${potFmt}</span>
-            ${claimHtml}
-          </div>
+          <span class="past-round-num">Round ${r}</span>
+          <span class="past-round-string">${chars.join("")}</span>
+          <span class="past-round-meta">${result.winners.length} winner${result.winners.length !== 1 ? "s" : ""} · ${fmt(result.potAmount)} ETH pot</span>
         `;
         list.appendChild(row);
       } catch {}
@@ -533,7 +475,6 @@ async function loadPastRounds() {
     }
   } catch (e) {
     console.warn("loadPastRounds:", e.message);
-    DebugHub.logError("loadPastRounds", e);
   }
 }
 
@@ -555,14 +496,12 @@ async function handleConnect() {
 
   updateEntryButton();
   await loadMyEntries();
-  await loadPastRounds(); // refresh so claim buttons appear
 
   listenForAccountChanges(async (newAddr) => {
     if (!newAddr) { handleDisconnect(); return; }
     document.getElementById("wallet-addr").textContent = fmtAddr(newAddr);
     updateEntryButton();
     await loadMyEntries();
-    await loadPastRounds();
   });
 }
 
@@ -580,6 +519,7 @@ function handleDisconnect() {
 
 (async () => {
   // Auto-reconnect if wallet was connected before navigation
+    DebugHub.logCheckpoint("Compete:Page Loaded", "pass");
   const _reconnected = await autoReconnect();
   if (_reconnected) {
     document.getElementById("connect-btn")?.classList.add("hidden");
