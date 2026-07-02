@@ -358,3 +358,104 @@
   .swap-page { flex-direction: column; align-items: center; padding: 20px 16px; }
   .prize-col { max-width: 460px; }
 }
+
+/* ─── Swap Tabs ──────────────────────────────────────────────────────────── */
+.swap-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 16px;
+  background: var(--bg3);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+
+.swap-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.swap-tab:hover   { color: var(--text); background: var(--bg2); }
+.swap-tab.tab-active { color: var(--text); background: var(--bg2); }
+
+.swap-tabs .swap-settings { margin-left: auto; }
+
+/* ─── Liquidity UI ───────────────────────────────────────────────────────── */
+.liq-plus {
+  text-align: center;
+  font-size: 18px;
+  color: var(--text-3);
+  margin: 4px 0;
+  line-height: 1;
+}
+
+.token-tag {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Remove Liquidity ───────────────────────────────────────────────────── */
+.remove-lp-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 12px;
+}
+
+.remove-lp-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.remove-lp-label { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.remove-lp-bal   { font-size: 12px; color: var(--text-2); font-family: var(--mono); }
+
+.remove-pct-display {
+  font-family: var(--mono);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--green);
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+/* ─── Footer ─────────────────────────────────────────────────────────────── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 48px;
+  font-size: 13px;
+  color: var(--text-3);
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
+}
+
+.footer-links { display: flex; gap: 20px; }
+.footer-links a { color: var(--text-3); transition: color 0.15s; }
+.footer-links a:hover { color: var(--text-2); }
+.footer-left { display: flex; align-items: center; gap: 8px; }
+.footer-left .nav-logo-mark { color: var(--green); }
+
+@media (max-width: 600px) {
+  .footer { flex-direction: column; gap: 10px; padding: 20px; text-align: center; }
+}

@@ -20,7 +20,7 @@
 <body>
 
   <nav class="nav">
-    <a href="/TimbSwap/" class="nav-logo">
+    <a href="../" class="nav-logo">
       <span class="nav-logo-mark">⬡</span>
       <span class="nav-logo-text">TimbSwap</span>
     </a>
@@ -57,25 +57,8 @@
         <span id="wallet-addr" class="wallet-addr"></span>
         <button class="btn-disconnect" onclick="handleDisconnect()">✕</button>
       </div>
-            <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
-        <span></span><span></span><span></span>
-      </button>
     </div>
   </nav>
-
-  <!-- Mobile nav overlay -->
-  <div class="nav-mobile-overlay" id="mobile-nav">
-    <div class="nav-mobile-section">DASHBOARD</div>
-    <a href="../swap/">Swap</a>
-    <a href="../analytics/">Analytics</a>
-    <a href="../gov/">Governance</a>
-    <div class="nav-mobile-section">EARN TIMBS</div>
-    <a href="../farm/">Farm</a>
-    <a href="../compete/">Compete</a>
-    <div class="nav-mobile-section">TOOLS</div>
-    <a href="../lock/">Lock Vault</a>
-    <a href="https://docs.timbswap.xyz" target="_blank">Docs ↗</a>
-  </div>
 
   <div class="compete-page">
 
@@ -128,30 +111,23 @@
         </div>
         <div id="entry-validation" class="entry-validation"></div>
 
-        <div class="cost-row">
-          <div class="cost-left">
-            <span class="cost-label">Entry cost</span>
-            <span class="cost-val" id="entry-cost-val">—</span>
-          </div>
-          <div class="token-select-wrap">
-            <button class="token-select-btn" id="token-select-btn" onclick="toggleTokenDropdown()">
-              <span id="selected-token-label">ETH</span>
-              <span class="token-caret">▾</span>
-            </button>
-            <div class="token-dropdown hidden" id="token-dropdown"></div>
-          </div>
+        <div class="entry-cost-row">
+          <button class="cost-toggle active" id="cost-eth-btn" onclick="setCostMode('eth')">Pay in ETH</button>
+          <button class="cost-toggle" id="cost-timbs-btn" onclick="setCostMode('timbs')">Pay in TIMBS</button>
         </div>
 
-        <div class="extra-rounds-wrap">
-          <div class="extra-rounds-inline">
-            <span class="extra-rounds-label">Extra rounds</span>
-            <div class="extra-stepper-mini">
-              <button onclick="adjustExtraRounds(-1)">−</button>
-              <span id="extra-rounds-val">0</span>
-              <button onclick="adjustExtraRounds(1)">+</button>
-            </div>
+        <div class="entry-cost-display">
+          <span class="cost-label">Entry cost</span>
+          <span class="cost-val" id="entry-cost-val">—</span>
+        </div>
+
+        <div class="extra-rounds-row">
+          <span class="extra-label">Extra rounds <span class="extra-hint">(TIMBS, non-refundable)</span></span>
+          <div class="extra-stepper">
+            <button onclick="adjustExtraRounds(-1)">−</button>
+            <span id="extra-rounds-val">0</span>
+            <button onclick="adjustExtraRounds(1)">+</button>
           </div>
-          <div id="extra-cost-note" class="extra-cost-note hidden"></div>
         </div>
 
         <button id="entry-btn" class="btn-entry" onclick="handleSubmitEntry()" disabled>
@@ -202,17 +178,16 @@
 
   <script src="../config.js"></script>
   <script src="compete.js"></script>
-  <script>
-    function toggleMobileNav() {
-      document.getElementById("mobile-nav").classList.toggle("open");
-    }
-    document.addEventListener("click", function(e) {
-      const nav = document.getElementById("mobile-nav");
-      const btn = document.querySelector(".nav-hamburger");
-      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
-        nav.classList.remove("open");
-      }
-    });
-  </script>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/TimbSwap/frontend/swap/">Swap ↗</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗</a>
+    </div>
+  </footer>
 </body>
 </html>

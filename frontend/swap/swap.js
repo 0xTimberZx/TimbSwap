@@ -396,6 +396,10 @@ function handleDisconnect() {
   document.getElementById("network-badge").classList.add("hidden");
   updateSwapButton("Connect wallet to swap");
   refreshBalances();
+  const liqAddBtn = document.getElementById("liq-add-btn");
+  const liqRemBtn = document.getElementById("liq-remove-btn");
+  if (liqAddBtn) { liqAddBtn.disabled = true; liqAddBtn.textContent = "Connect wallet"; }
+  if (liqRemBtn) { liqRemBtn.disabled = true; liqRemBtn.textContent = "Connect wallet"; }
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -429,3 +433,205 @@ function handleDisconnect() {
     });
   }
 })();
+
+// ─── Liquidity Tab ────────────────────────────────────────────────────────────
+
+const ROUTER_LIQ_ABI = [
+  "function addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external returns (uint256 amountA, uint256 amountB, uint256 liquidity)",
+  "function addLiquidityETH(address token, uint256 amountTokenDesired, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline) external payable returns (uint256 amountToken, uint256 amountETH, uint256 liquidity)",
+  "function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external returns (uint256 amountA, uint256 amountB)",
+  "function removeLiquidityETH(address token, uint256 liquidity, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline) external returns (uint256 amountToken, uint256 amountETH)",
+  "function getReserves(address tokenA, address tokenB) external view returns (uint256 reserveA, uint256 reserveB)",
+  "function quote(uint256 amountA, uint256 reserveA, uint256 reserveB) external pure returns (uint256)"
+];
+
+const PAIR_LP_ABI = [
+  "function balanceOf(address account) external view returns (uint256)",
+  "function totalSupply() external view returns (uint256)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
+  "function approve(address spender, uint256 amount) external returns (bool)"
+];
+
+const ERC20_LIQ_ABI = [
+  "function allowance(address owner, address spender) external view returns (uint256)",
+  "function approve(address spender, uint256 amount) external returns (bool)"
+];
+
+// ─── Tab Switcher ─────────────────────────────────────────────────────────────
+
+let activeTab = "swap"; // "swap" | "add" | "remove"
+
+function switchTab(tab) {
+  activeTab = tab;
+  ["swap", "add", "remove"].forEach(t => {
+    document.getElementById("tab-" + t)?.classList.toggle("tab-active", t === tab);
+    document.getElementById("panel-" + t)?.classList.toggle("hidden", t !== tab);
+  });
+}
+
+// ─── Add Liquidity ────────────────────────────────────────────────────────────
+
+async function onAddTokenAChange() {
+  const amtA = document.getElementById("liq-amount-a").value;
+  if (!amtA || parseFloat(amtA) <= 0) {
+    document.getElementById("liq-amount-b").value = "";
+    return;
+  }
+  try {
+    const router = new ethers.Contract(ADDRESSES.TimbSwapRouter, ROUTER_LIQ_ABI,
+      provider || new ethers.providers.JsonRpcProvider(RPC_URL));
+    const [resA, resB] = await router.getReserves(ADDRESSES.TIMBSToken, ADDRESSES.WETH);
+    if (resA.eq(0) || resB.eq(0)) return;
+    const amtAWei  = ethers.utils.parseUnits(amtA, 18);
+    const amtBWei  = await router.quote(amtAWei, resA, resB);
+    document.getElementById("liq-amount-b").value = ethers.utils.formatUnits(amtBWei, 18);
+    updateLiquidityInfo(amtAWei, amtBWei, resA, resB);
+  } catch (e) { console.warn("onAddTokenAChange:", e.message); }
+}
+
+function updateLiquidityInfo(amtA, amtB, resA, resB) {
+  const infoEl = document.getElementById("liq-info");
+  if (!infoEl) return;
+  const tShare = resA.gt(0) ? (parseFloat(ethers.utils.formatUnits(amtA, 18)) /
+    (parseFloat(ethers.utils.formatUnits(resA, 18)) + parseFloat(ethers.utils.formatUnits(amtA, 18))) * 100).toFixed(2) : "100.00";
+  infoEl.innerHTML = `
+    <div class="info-row"><span class="info-label">Pool share</span><span class="info-val">${tShare}%</span></div>
+    <div class="info-row"><span class="info-label">Rate</span><span class="info-val">1 TIMBS = ${(parseFloat(ethers.utils.formatUnits(resB,18))/parseFloat(ethers.utils.formatUnits(resA,18))).toFixed(6)} WETH</span></div>
+  `;
+  infoEl.classList.remove("hidden");
+}
+
+async function handleAddLiquidity() {
+  if (!userAddress) return;
+  const amtA = document.getElementById("liq-amount-a").value;
+  const amtB = document.getElementById("liq-amount-b").value;
+  if (!amtA || !amtB || parseFloat(amtA) <= 0 || parseFloat(amtB) <= 0) return;
+
+  const btn    = document.getElementById("liq-add-btn");
+  const amtAWei = ethers.utils.parseUnits(amtA, 18);
+  const amtBWei = ethers.utils.parseUnits(amtB, 18);
+  const slip    = 0.98; // 2% slippage
+  const minA    = amtAWei.mul(98).div(100);
+  const minB    = amtBWei.mul(98).div(100);
+  const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+  try {
+    // Approve TIMBS
+    const timbs = new ethers.Contract(ADDRESSES.TIMBSToken, ERC20_LIQ_ABI, signer);
+    const allow = await timbs.allowance(userAddress, ADDRESSES.TimbSwapRouter);
+    if (allow.lt(amtAWei)) {
+      btn.disabled = true; btn.textContent = "Approving TIMBS…";
+      DebugHub.logCheckpoint("Swap:AddLiq Approve Requested", "pass");
+      const gas = await getGasParams(); const nonce = await getPendingNonce();
+      await (await timbs.approve(ADDRESSES.TimbSwapRouter, ethers.constants.MaxUint256, { ...gas, nonce })).wait();
+      DebugHub.logCheckpoint("Swap:AddLiq Approve Confirmed", "pass");
+    }
+    // Approve WETH
+    const weth = new ethers.Contract(ADDRESSES.WETH, ERC20_LIQ_ABI, signer);
+    const allowW = await weth.allowance(userAddress, ADDRESSES.TimbSwapRouter);
+    if (allowW.lt(amtBWei)) {
+      btn.textContent = "Approving WETH…";
+      const gas = await getGasParams(); const nonce = await getPendingNonce();
+      await (await weth.approve(ADDRESSES.TimbSwapRouter, ethers.constants.MaxUint256, { ...gas, nonce })).wait();
+      DebugHub.logCheckpoint("Swap:AddLiq WETH Approve Confirmed", "pass");
+    }
+
+    btn.textContent = "Adding liquidity…";
+    DebugHub.logCheckpoint("Swap:AddLiquidity Requested", "pass");
+    const router = new ethers.Contract(ADDRESSES.TimbSwapRouter, ROUTER_LIQ_ABI, signer);
+    const gas = await getGasParams(); const nonce = await getPendingNonce();
+    const tx = await router.addLiquidity(
+      ADDRESSES.TIMBSToken, ADDRESSES.WETH,
+      amtAWei, amtBWei, minA, minB,
+      userAddress, deadline, { ...gas, nonce }
+    );
+    DebugHub.logCheckpoint("Swap:AddLiquidity Submitted", "pass");
+    await tx.wait();
+    DebugHub.logCheckpoint("Swap:AddLiquidity Confirmed", "pass");
+
+    document.getElementById("liq-amount-a").value = "";
+    document.getElementById("liq-amount-b").value = "";
+    btn.textContent = "Added ✓";
+    await refreshLpBalance();
+    setTimeout(() => { btn.textContent = "Add Liquidity"; btn.disabled = false; }, 2000);
+
+  } catch (err) {
+    const msg = err?.reason || err?.message || String(err);
+    console.error("addLiquidity failed:", msg);
+    DebugHub.logError("handleAddLiquidity", err);
+    DebugHub.logCheckpoint("Swap:AddLiquidity Failed", "fail");
+    btn.textContent = "Failed — retry"; btn.disabled = false;
+    setTimeout(() => { btn.textContent = "Add Liquidity"; }, 2000);
+  }
+}
+
+// ─── Remove Liquidity ─────────────────────────────────────────────────────────
+
+async function refreshLpBalance() {
+  const el = document.getElementById("lp-balance-display");
+  if (!el || !userAddress) return;
+  try {
+    const lp = new ethers.Contract(ADDRESSES.TimbsEthPair, PAIR_LP_ABI,
+      provider || new ethers.providers.JsonRpcProvider(RPC_URL));
+    const bal = await lp.balanceOf(userAddress);
+    el.textContent = "Balance: " + fmt(bal, 18, 6) + " LP";
+    document.getElementById("remove-pct-display").textContent = "0%";
+    document.getElementById("lp-remove-amount").dataset.total = bal.toString();
+  } catch (e) { el.textContent = "Balance: —"; }
+}
+
+function onRemoveSlider() {
+  const pct = document.getElementById("remove-slider").value;
+  document.getElementById("remove-pct-display").textContent = pct + "%";
+}
+
+async function handleRemoveLiquidity() {
+  if (!userAddress) return;
+  const pct = parseInt(document.getElementById("remove-slider").value);
+  if (pct === 0) return;
+
+  const btn = document.getElementById("liq-remove-btn");
+  const totalStr = document.getElementById("lp-remove-amount").dataset.total || "0";
+  const total    = ethers.BigNumber.from(totalStr);
+  if (total.eq(0)) { btn.textContent = "No LP tokens"; return; }
+
+  const lpAmt   = total.mul(pct).div(100);
+  const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+  try {
+    // Approve LP
+    const lp = new ethers.Contract(ADDRESSES.TimbsEthPair, PAIR_LP_ABI, signer);
+    const allow = await lp.allowance(userAddress, ADDRESSES.TimbSwapRouter);
+    if (allow.lt(lpAmt)) {
+      btn.disabled = true; btn.textContent = "Approving LP…";
+      DebugHub.logCheckpoint("Swap:RemoveLiq Approve Requested", "pass");
+      const gas = await getGasParams(); const nonce = await getPendingNonce();
+      await (await lp.approve(ADDRESSES.TimbSwapRouter, ethers.constants.MaxUint256, { ...gas, nonce })).wait();
+      DebugHub.logCheckpoint("Swap:RemoveLiq Approve Confirmed", "pass");
+    }
+
+    btn.textContent = "Removing…";
+    DebugHub.logCheckpoint("Swap:RemoveLiquidity Requested", "pass");
+    const router = new ethers.Contract(ADDRESSES.TimbSwapRouter, ROUTER_LIQ_ABI, signer);
+    const gas = await getGasParams(); const nonce = await getPendingNonce();
+    const tx = await router.removeLiquidity(
+      ADDRESSES.TIMBSToken, ADDRESSES.WETH,
+      lpAmt, 0, 0, userAddress, deadline, { ...gas, nonce }
+    );
+    DebugHub.logCheckpoint("Swap:RemoveLiquidity Submitted", "pass");
+    await tx.wait();
+    DebugHub.logCheckpoint("Swap:RemoveLiquidity Confirmed", "pass");
+
+    btn.textContent = "Removed ✓";
+    await refreshLpBalance();
+    setTimeout(() => { btn.textContent = "Remove Liquidity"; btn.disabled = false; }, 2000);
+
+  } catch (err) {
+    const msg = err?.reason || err?.message || String(err);
+    console.error("removeLiquidity failed:", msg);
+    DebugHub.logError("handleRemoveLiquidity", err);
+    DebugHub.logCheckpoint("Swap:RemoveLiquidity Failed", "fail");
+    btn.textContent = "Failed — retry"; btn.disabled = false;
+    setTimeout(() => { btn.textContent = "Remove Liquidity"; }, 2000);
+  }
+}
