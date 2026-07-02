@@ -47,13 +47,13 @@
 		"compilationTarget": {
 			"contracts/TimbSwapFactory.sol": "ITimbSwapPair"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "london",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": false,
+			"enabled": true,
 			"runs": 200
 		},
 		"remappings": []

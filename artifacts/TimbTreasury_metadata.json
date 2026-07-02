@@ -853,7 +853,7 @@
 		"compilationTarget": {
 			"contracts/TimbTreasury.sol": "TimbTreasury"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "london",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"

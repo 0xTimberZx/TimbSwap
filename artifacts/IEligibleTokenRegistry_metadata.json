@@ -38,7 +38,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contracts/TimbPrize.sol": "IEligibleTokenRegistry"
+			"contracts/TimbSwapRouter.sol": "IEligibleTokenRegistry"
 		},
 		"evmVersion": "london",
 		"libraries": {},
@@ -132,12 +132,12 @@
 				"dweb:/ipfs/QmadRjHbkicwqwwh61raUEapaVEtaLMcYbQZWs9gUkgj3u"
 			]
 		},
-		"contracts/TimbPrize.sol": {
-			"keccak256": "0x34ae1e4312c67c44a0c86a43bc81fc67c2e8234ab7b6b10be914b2f1b69630b6",
+		"contracts/TimbSwapRouter.sol": {
+			"keccak256": "0x312e4979faf74f705e3b927a105ec8e7cd85e7a7c0c2df6debc5e8919bd0f416",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://e6158f6b3376adc1589277d50472561c2707a61e43f36ad267a3ce46dbe03b06",
-				"dweb:/ipfs/QmVoNNthAT6PBtZhz6pEDiBP1TgwfvLfXRbvG2NJSZE5pG"
+				"bzz-raw://77a716ea477d6ade26d143348d915a7bb0d52a2e4d2e4f53f7ce212e3db9c9d1",
+				"dweb:/ipfs/QmeWVkpYhP256f4P26UwZvstyYkvnFR5ypuufZFKdwJaRq"
 			]
 		}
 	},
