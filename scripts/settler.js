@@ -19,7 +19,7 @@ const RPC_URL        = process.env.ARB_SEPOLIA_RPC;
 const PRIVATE_KEY    = process.env.SETTLER_PRIVATE_KEY;
 const TG_TOKEN       = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT_ID     = process.env.TELEGRAM_CHAT_ID;
-const TIMBPRIZE_ADDR = "0x257F3658e29a7026CeebdcB352509d82A0993e4b";
+const TIMBPRIZE_ADDR = "0xB42fC21808Eb2b6ff0A9B50654185e496EC6cDa4";
 
 const MAX_RETRIES    = 3;
 const RETRY_DELAY_MS = 8000; // 8s between retries
