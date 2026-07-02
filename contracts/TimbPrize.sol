@@ -120,6 +120,12 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     /// @notice Scroll position counter — increments +1 per eligible swap.
     uint256 public positionCounter;
 
+    /// @notice Per-segment digit nudge counters. Index = segment number (1-6).
+    mapping(uint256 => uint256) public segmentDigitCounter;
+
+    /// @notice Whether each segment's digit is locked (settled).
+    mapping(uint256 => bool) public segmentDigitLocked;
+
     /// @notice Shuffle enabled — if true, alphabet reseeded each round.
     bool public shuffleEnabled;
 
@@ -208,11 +214,9 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     error NotAWinner(address caller, uint256 round);
     error ClaimWindowExpired(uint256 round);
     error EntriesPaused();
-    error SettlementPaused();
-    error InvalidWinnersCount();
-    error InsufficientPotBalance();
+    error SettlingDigit();
 
-    // ─── Modifiers ───────────────────────────────────────────────────────────
+    // ─── Modifiers ────────────────────────────────────────────────────────────
 
     modifier onlySettler() {
         if (msg.sender != settler) revert NotSettler();
@@ -229,42 +233,39 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────────
+    // ─── Constructor ──────────────────────────────────────────────────────────
 
-    /**
-     * @param _prizeEscrow    PrizeEscrow contract address.
-     * @param _gameRegistry   GameRegistry contract address.
-     * @param _router         TimbSwapRouter address.
-     */
     constructor(
         address _prizeEscrow,
         address _gameRegistry,
         address _router
     ) Ownable(msg.sender) {
-        if (_prizeEscrow   == address(0)) revert ZeroAddress();
-        if (_gameRegistry  == address(0)) revert ZeroAddress();
-        if (_router        == address(0)) revert ZeroAddress();
+        if (_prizeEscrow  == address(0)) revert ZeroAddress();
+        if (_gameRegistry == address(0)) revert ZeroAddress();
+        if (_router       == address(0)) revert ZeroAddress();
 
         prizeEscrow  = _prizeEscrow;
         gameRegistry = _gameRegistry;
         router       = _router;
         settler      = msg.sender;
         winnersPerRound = 3;
-        protocolCutBps  = 200; // 2% default protocol cut per round
+        protocolCutBps  = 200;
     }
 
     // ─── Game Lifecycle ───────────────────────────────────────────────────────
 
-    /**
-     * @notice Start the prize game. Begins round #1.
-     * @dev Owner-only. Called once after all contracts are deployed and funded.
-     */
     function startGame() external onlyOwner {
         if (gameStarted) revert GameAlreadyStarted();
         gameStarted      = true;
         currentRound     = 1;
         currentSegment   = 1;
         segmentStartTime = block.timestamp;
+
+        // Reset digit counters for round 1
+        for (uint256 i = 1; i <= SEGMENTS_PER_ROUND; i++) {
+            segmentDigitCounter[i] = 0;
+            segmentDigitLocked[i]  = false;
+        }
 
         IGameRegistry(gameRegistry).setCurrentRound(currentRound);
         _activateRoundEntries(currentRound);
@@ -277,10 +278,10 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     // ─── Scroll Mechanic ──────────────────────────────────────────────────────
 
     /**
-     * @notice Nudge the scroll position +1.
-     * @dev Called by TimbSwapRouter after a confirmed eligible swap.
-     *      Blocked during the 0:15 settlement window.
-     *      Router checks EligibleTokenRegistry before calling.
+     * @notice Nudge the active digit +1.
+     * @dev Only affects the current segment's digit counter.
+     *      Global positionCounter also increments (for entropy + analytics).
+     *      Blocked during settlement window.
      */
     function nudgeScroll()
         external
@@ -290,12 +291,10 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     {
         if (_isInSettlementWindow()) revert InSettlementWindow();
         positionCounter++;
+        segmentDigitCounter[currentSegment]++;
         emit ScrollNudged(positionCounter, currentRound, currentSegment);
     }
 
-    /**
-     * @notice Returns whether we are currently in the 0:15 settlement window.
-     */
     function isSettlementWindow() external view returns (bool) {
         return _isInSettlementWindow();
     }
@@ -306,42 +305,41 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         return elapsed >= INTERACTION_WINDOW;
     }
 
-    // ─── Scroll Window Derivation ─────────────────────────────────────────────
+    // ─── Digit Window Derivation ──────────────────────────────────────────────
 
     /**
-     * @notice Returns the current 6-char display window from positionCounter.
-     * @dev alphabet[(positionCounter + i) % 36] for i = 0..5.
-     *      Frontend also computes this — contract provides it for verification.
+     * @notice Returns the current 6-char display.
+     * @dev Past segments: locked digit. Current segment: live digit. Future: 0x00.
      */
     function getCurrentWindow() public view returns (bytes6 window) {
         bytes memory result = new bytes(6);
-        for (uint256 i = 0; i < 6; i++) {
-            result[i] = ALPHABET[(positionCounter + i) % 36];
+        for (uint256 i = 1; i <= SEGMENTS_PER_ROUND; i++) {
+            uint8 idx = i - 1;
+            if (i < currentSegment) {
+                // Locked digit
+                result[idx] = ALPHABET[segmentDigitCounter[i] % 36];
+            } else if (i == currentSegment) {
+                // Live digit — current nudge state
+                result[idx] = ALPHABET[segmentDigitCounter[i] % 36];
+            } else {
+                // Future digit — not yet active
+                result[idx] = 0x00;
+            }
         }
         window = bytes6(bytes(result));
     }
 
     /**
-     * @notice Returns the 6-char window at any arbitrary counter value.
-     * @dev Used for historical replay and frontend simulation.
+     * @notice Returns the locked digit for a specific segment.
+     * @dev Returns 0x00 if segment hasn't been settled yet.
      */
-    function getWindowAt(uint256 counter) public pure returns (bytes6 window) {
-        bytes memory result = new bytes(6);
-        for (uint256 i = 0; i < 6; i++) {
-            result[i] = ALPHABET[(counter + i) % 36];
-        }
-        window = bytes6(bytes(result));
+    function getSegmentDigit(uint256 segment) external view returns (bytes1) {
+        if (segment > currentSegment) return 0x00;
+        return ALPHABET[segmentDigitCounter[segment] % 36];
     }
 
     // ─── Settlement ───────────────────────────────────────────────────────────
 
-    /**
-     * @notice Advance to the next segment or settle the final segment.
-     * @dev Settler calls this after INTERACTION_WINDOW has elapsed.
-     *      On segments 1–5: advances to next segment.
-     *      On segment 6: freezes position, finds winners, settles round.
-     *      Reverts if called too early (on-chain timing enforcement).
-     */
     function settleSegment()
         external
         nonReentrant
@@ -356,37 +354,31 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         }
 
         if (currentSegment < SEGMENTS_PER_ROUND) {
-            // Advance to next segment
+            // Lock current segment digit and advance
+            segmentDigitLocked[currentSegment] = true;
             currentSegment++;
             segmentStartTime = block.timestamp;
+            // Reset new segment's counter
+            segmentDigitCounter[currentSegment] = 0;
             emit SegmentAdvanced(currentRound, currentSegment, block.timestamp);
         } else {
-            // Final segment — freeze and settle
+            // Final segment — lock and settle round
+            segmentDigitLocked[currentSegment] = true;
             _settleRound();
         }
     }
 
-    /**
-     * @dev Internal round settlement logic.
-     */
-    /**
-     * @dev Internal round settlement logic. Orchestrates three steps that
-     *      used to all live in this one function — that crowding (entropy,
-     *      candidates, verified, pot math, winners array, etc. all sharing
-     *      one stack frame) was the actual stack-too-deep cause, separate
-     *      from anything via_ir-related.
-     */
     function _settleRound() internal {
         uint256 round = currentRound;
 
-        bytes6 winningString = _freezeWinningString(round);
+        bytes6 winningString = _buildWinningString();
+        roundWinningString[round] = winningString;
+        emit PositionFrozen(round, positionCounter, winningString);
 
         (address[] memory winners, uint256 winnerCount) =
             _findVerifiedWinners(round, winningString);
 
         _distributePotAndRecord(round, winners, winnerCount);
-
-        // ── Expire entries past their lastEligibleRound ───────────────────────
         _processExpiredEntries(round);
 
         uint256 totalEntries =
@@ -402,10 +394,14 @@ contract TimbPrize is Ownable, ReentrancyGuard {
             block.timestamp
         );
 
-        // ── Auto-queue next round ─────────────────────────────────────────────
+        // Auto-queue next round — reset all digit counters
         currentRound++;
         currentSegment   = 1;
         segmentStartTime = block.timestamp;
+        for (uint256 i = 1; i <= SEGMENTS_PER_ROUND; i++) {
+            segmentDigitCounter[i] = 0;
+            segmentDigitLocked[i]  = false;
+        }
 
         IGameRegistry(gameRegistry).setCurrentRound(currentRound);
         _activateRoundEntries(currentRound);
@@ -415,25 +411,16 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Step 1 — freeze position: entropy from blockhash + positionCounter
-     *      + round, random 3-second offset within the 0:15 window, records
-     *      and emits the winning string for this round.
+     * @dev Build winning string from the 6 locked segment digit counters.
      */
-    function _freezeWinningString(uint256 round) internal returns (bytes6 winningString) {
-        uint256 entropy = uint256(keccak256(abi.encodePacked(
-            blockhash(block.number - 1),
-            positionCounter,
-            round
-        )));
-
-        uint256 offset        = entropy % 3;
-        uint256 frozenCounter = positionCounter + offset;
-
-        winningString = getWindowAt(frozenCounter);
-        roundWinningString[round] = winningString;
-
-        emit PositionFrozen(round, frozenCounter, winningString);
+    function _buildWinningString() internal view returns (bytes6) {
+        bytes memory result = new bytes(6);
+        for (uint256 i = 1; i <= SEGMENTS_PER_ROUND; i++) {
+            result[i - 1] = ALPHABET[segmentDigitCounter[i] % 36];
+        }
+        return bytes6(bytes(result));
     }
+
 
     /**
      * @dev Step 2 — dual-layer verification. Both verifyEntryExisted() AND
@@ -555,33 +542,17 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         }
     }
 
-    // ─── Winner Claim ─────────────────────────────────────────────────────────
+    // ─── Claims ───────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Claim winnings for a round the caller won.
-     * @dev Dual-layer verification: entry existed at round start AND
-     *      string matched AND claim window still open.
-     *      ETH paid from PrizeEscrow.
-     * @param round Round number to claim from.
-     */
     function claimWinnings(uint256 round)
         external
         nonReentrant
         whenGameStarted
     {
-        // Round must be settled
         if (roundWinningString[round] == bytes6(0)) revert RoundNotSettled(round);
-
-        // Not already claimed
         if (hasClaimed[round][msg.sender]) revert AlreadyClaimed(msg.sender, round);
+        if (currentRound > round + CLAIM_WINDOW_ROUNDS + 1) revert ClaimWindowExpired(round);
 
-        // Claim window check: within CLAIM_WINDOW_ROUNDS of settlement
-        // (approximated as currentRound <= round + CLAIM_WINDOW_ROUNDS + 1)
-        if (currentRound > round + CLAIM_WINDOW_ROUNDS + 1) {
-            revert ClaimWindowExpired(round);
-        }
-
-        // Verify caller is a documented winner
         bool isWinner = false;
         address[] memory winners = roundWinners[round];
         for (uint256 i = 0; i < winners.length; i++) {
@@ -595,18 +566,12 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         hasClaimed[round][msg.sender] = true;
         gameUnclaimed_winningsPool -= payout;
 
-        // Instruct PrizeEscrow to pay
         IPrizeEscrow(prizeEscrow).pay(msg.sender, payout);
-
         emit WinningsClaimed(msg.sender, round, payout);
     }
 
-    // ─── Pot Funding ─────────────────────────────────────────────────────────
+    // ─── Pot Funding ──────────────────────────────────────────────────────────
 
-    /**
-     * @notice Fund the prize pot directly (owner seeding).
-     * @dev Forwards ETH to PrizeEscrow and adds to accumulated rewards.
-     */
     function fundPot() external payable onlyOwner {
         if (msg.value == 0) revert ZeroAmount();
         currentAccumulatedRewards += msg.value;
@@ -614,9 +579,6 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         emit PotFunded(msg.value, msg.sender);
     }
 
-    /**
-     * @notice Add protocol fees to the pot (called by TimbTreasury).
-     */
     function addToPot() external payable {
         if (msg.value == 0) revert ZeroAmount();
         currentAccumulatedRewards += msg.value;
@@ -627,7 +589,8 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     // ─── View: Round State ────────────────────────────────────────────────────
 
     /**
-     * @notice Returns all live state needed by the frontend in one call.
+     * @notice Full live state for frontend. Includes per-segment digit counters
+     *         and lock status so the UI can display locked vs live vs pending digits.
      */
     function getRoundState()
         external
@@ -640,22 +603,26 @@ contract TimbPrize is Ownable, ReentrancyGuard {
             bytes6  currentWindow,
             uint256 pot,
             uint256 unclaimedPool,
-            bool    inSettlement
+            bool    inSettlement,
+            uint256[6] memory digitCounters,
+            bool[6]    memory digitLocked
         )
     {
-        round          = currentRound;
-        segment        = currentSegment;
-        segmentStart   = segmentStartTime;
-        counter        = positionCounter;
-        currentWindow  = getCurrentWindow();
-        pot            = currentAccumulatedRewards;
-        unclaimedPool  = gameUnclaimed_winningsPool;
-        inSettlement   = _isInSettlementWindow();
+        round         = currentRound;
+        segment       = currentSegment;
+        segmentStart  = segmentStartTime;
+        counter       = positionCounter;
+        currentWindow = getCurrentWindow();
+        pot           = currentAccumulatedRewards;
+        unclaimedPool = gameUnclaimed_winningsPool;
+        inSettlement  = _isInSettlementWindow();
+
+        for (uint256 i = 0; i < SEGMENTS_PER_ROUND; i++) {
+            digitCounters[i] = segmentDigitCounter[i + 1];
+            digitLocked[i]   = segmentDigitLocked[i + 1];
+        }
     }
 
-    /**
-     * @notice Returns settlement data for a completed round.
-     */
     function getRoundResult(uint256 round)
         external
         view
@@ -674,10 +641,6 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         remainder     = roundRemainder[round];
     }
 
-    /**
-     * @notice Time remaining in current segment interaction window.
-     *         Returns 0 if in settlement window.
-     */
     function timeRemainingInSegment() external view returns (uint256) {
         uint256 elapsed = block.timestamp - segmentStartTime;
         if (elapsed >= INTERACTION_WINDOW) return 0;
@@ -718,7 +681,7 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     }
 
     function setProtocolCutBps(uint256 _bps) external onlyOwner {
-        if (_bps > 1000) revert ZeroAmount(); // max 10%
+        if (_bps > 1000) revert ZeroAmount();
         protocolCutBps = _bps;
         emit ProtocolCutSet(_bps);
     }
@@ -727,8 +690,8 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         shuffleEnabled = _enabled;
     }
 
-    function pauseEntries()    external onlyOwner { entriesPaused    = true; }
-    function unpauseEntries()  external onlyOwner { entriesPaused    = false; }
-    function pauseSettlement() external onlyOwner { settlementPaused = true; }
+    function pauseEntries()      external onlyOwner { entriesPaused    = true; }
+    function unpauseEntries()    external onlyOwner { entriesPaused    = false; }
+    function pauseSettlement()   external onlyOwner { settlementPaused = true; }
     function unpauseSettlement() external onlyOwner { settlementPaused = false; }
 }
