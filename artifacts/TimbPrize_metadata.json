@@ -175,6 +175,11 @@
 			},
 			{
 				"inputs": [],
+				"name": "SettlingDigit",
+				"type": "error"
+			},
+			{
+				"inputs": [],
 				"name": "ZeroAddress",
 				"type": "error"
 			},
@@ -758,6 +763,16 @@
 						"internalType": "bool",
 						"name": "inSettlement",
 						"type": "bool"
+					},
+					{
+						"internalType": "uint256[6]",
+						"name": "digitCounters",
+						"type": "uint256[6]"
+					},
+					{
+						"internalType": "bool[6]",
+						"name": "digitLocked",
+						"type": "bool[6]"
 					}
 				],
 				"stateMutability": "view",
@@ -767,19 +782,19 @@
 				"inputs": [
 					{
 						"internalType": "uint256",
-						"name": "counter",
+						"name": "segment",
 						"type": "uint256"
 					}
 				],
-				"name": "getWindowAt",
+				"name": "getSegmentDigit",
 				"outputs": [
 					{
-						"internalType": "bytes6",
-						"name": "window",
-						"type": "bytes6"
+						"internalType": "bytes1",
+						"name": "",
+						"type": "bytes1"
 					}
 				],
-				"stateMutability": "pure",
+				"stateMutability": "view",
 				"type": "function"
 			},
 			{
@@ -1007,6 +1022,44 @@
 						"internalType": "address",
 						"name": "",
 						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "segmentDigitCounter",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "segmentDigitLocked",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
 					}
 				],
 				"stateMutability": "view",
@@ -1256,42 +1309,20 @@
 			},
 			"kind": "dev",
 			"methods": {
-				"claimWinnings(uint256)": {
-					"details": "Dual-layer verification: entry existed at round start AND      string matched AND claim window still open.      ETH paid from PrizeEscrow.",
-					"params": {
-						"round": "Round number to claim from."
-					}
-				},
-				"constructor": {
-					"params": {
-						"_gameRegistry": "GameRegistry contract address.",
-						"_prizeEscrow": "PrizeEscrow contract address.",
-						"_router": "TimbSwapRouter address."
-					}
-				},
-				"fundPot()": {
-					"details": "Forwards ETH to PrizeEscrow and adds to accumulated rewards."
-				},
 				"getCurrentWindow()": {
-					"details": "alphabet[(positionCounter + i) % 36] for i = 0..5.      Frontend also computes this — contract provides it for verification."
+					"details": "Past segments: locked digit. Current segment: live digit. Future: 0x00."
 				},
-				"getWindowAt(uint256)": {
-					"details": "Used for historical replay and frontend simulation."
+				"getSegmentDigit(uint256)": {
+					"details": "Returns 0x00 if segment hasn't been settled yet."
 				},
 				"nudgeScroll()": {
-					"details": "Called by TimbSwapRouter after a confirmed eligible swap.      Blocked during the 0:15 settlement window.      Router checks EligibleTokenRegistry before calling."
+					"details": "Only affects the current segment's digit counter.      Global positionCounter also increments (for entropy + analytics).      Blocked during settlement window."
 				},
 				"owner()": {
 					"details": "Returns the address of the current owner."
 				},
 				"renounceOwnership()": {
 					"details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
-				},
-				"settleSegment()": {
-					"details": "Settler calls this after INTERACTION_WINDOW has elapsed.      On segments 1–5: advances to next segment.      On segment 6: freezes position, finds winners, settles round.      Reverts if called too early (on-chain timing enforcement)."
-				},
-				"startGame()": {
-					"details": "Owner-only. Called once after all contracts are deployed and funded."
 				},
 				"transferOwnership(address)": {
 					"details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
@@ -1321,12 +1352,6 @@
 				"SETTLEMENT_WINDOW()": {
 					"notice": "Settlement window: 15 seconds."
 				},
-				"addToPot()": {
-					"notice": "Add protocol fees to the pot (called by TimbTreasury)."
-				},
-				"claimWinnings(uint256)": {
-					"notice": "Claim winnings for a round the caller won."
-				},
 				"currentAccumulatedRewards()": {
 					"notice": "Current accumulated rewards (live prize pot, in ETH wei)."
 				},
@@ -1342,9 +1367,6 @@
 				"entriesPaused()": {
 					"notice": "Per-function pause flags."
 				},
-				"fundPot()": {
-					"notice": "Fund the prize pot directly (owner seeding)."
-				},
 				"gameRegistry()": {
 					"notice": "GameRegistry — entry storage and verification."
 				},
@@ -1355,25 +1377,19 @@
 					"notice": "Undistributed winnings documented for winners pending claim."
 				},
 				"getCurrentWindow()": {
-					"notice": "Returns the current 6-char display window from positionCounter."
-				},
-				"getRoundResult(uint256)": {
-					"notice": "Returns settlement data for a completed round."
+					"notice": "Returns the current 6-char display."
 				},
 				"getRoundState()": {
-					"notice": "Returns all live state needed by the frontend in one call."
+					"notice": "Full live state for frontend. Includes per-segment digit counters         and lock status so the UI can display locked vs live vs pending digits."
 				},
-				"getWindowAt(uint256)": {
-					"notice": "Returns the 6-char window at any arbitrary counter value."
+				"getSegmentDigit(uint256)": {
+					"notice": "Returns the locked digit for a specific segment."
 				},
 				"hasClaimed(uint256,address)": {
 					"notice": "Whether a winner has claimed for a round."
 				},
-				"isSettlementWindow()": {
-					"notice": "Returns whether we are currently in the 0:15 settlement window."
-				},
 				"nudgeScroll()": {
-					"notice": "Nudge the scroll position +1."
+					"notice": "Nudge the active digit +1."
 				},
 				"positionCounter()": {
 					"notice": "Scroll position counter — increments +1 per eligible swap."
@@ -1402,23 +1418,20 @@
 				"router()": {
 					"notice": "TimbSwapRouter — authorised to call nudgeScroll()."
 				},
+				"segmentDigitCounter(uint256)": {
+					"notice": "Per-segment digit nudge counters. Index = segment number (1-6)."
+				},
+				"segmentDigitLocked(uint256)": {
+					"notice": "Whether each segment's digit is locked (settled)."
+				},
 				"segmentStartTime()": {
 					"notice": "Timestamp when the current segment started."
-				},
-				"settleSegment()": {
-					"notice": "Advance to the next segment or settle the final segment."
 				},
 				"settler()": {
 					"notice": "Settler address — authorised to call settleSegment()."
 				},
 				"shuffleEnabled()": {
 					"notice": "Shuffle enabled — if true, alphabet reseeded each round."
-				},
-				"startGame()": {
-					"notice": "Start the prize game. Begins round #1."
-				},
-				"timeRemainingInSegment()": {
-					"notice": "Time remaining in current segment interaction window.         Returns 0 if in settlement window."
 				},
 				"winnersPerRound()": {
 					"notice": "Number of winners per round (owner-configurable)."
@@ -1432,13 +1445,13 @@
 		"compilationTarget": {
 			"contracts/TimbPrize.sol": "TimbPrize"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "london",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": false,
+			"enabled": true,
 			"runs": 200
 		},
 		"remappings": []
@@ -1525,11 +1538,11 @@
 			]
 		},
 		"contracts/TimbPrize.sol": {
-			"keccak256": "0x05cd95236016788ad0a180330f36ded26ec91685c6b011292b0027678d93333f",
+			"keccak256": "0x34ae1e4312c67c44a0c86a43bc81fc67c2e8234ab7b6b10be914b2f1b69630b6",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://58d0aef0fcecb037a44b2c3e0b73a6456cc85405da546834af7b96af1056bc5d",
-				"dweb:/ipfs/QmWi3sJKsiGZMNryd7iwxYBpiLT36RFhfDWDgGXNEZopVn"
+				"bzz-raw://e6158f6b3376adc1589277d50472561c2707a61e43f36ad267a3ce46dbe03b06",
+				"dweb:/ipfs/QmVoNNthAT6PBtZhz6pEDiBP1TgwfvLfXRbvG2NJSZE5pG"
 			]
 		}
 	},

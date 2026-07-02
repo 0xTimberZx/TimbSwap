@@ -214,6 +214,9 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     error NotAWinner(address caller, uint256 round);
     error ClaimWindowExpired(uint256 round);
     error EntriesPaused();
+    error SettlementPaused();
+    error InvalidWinnersCount();
+    error InsufficientPotBalance();
     error SettlingDigit();
 
     // ─── Modifiers ────────────────────────────────────────────────────────────
@@ -314,7 +317,7 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     function getCurrentWindow() public view returns (bytes6 window) {
         bytes memory result = new bytes(6);
         for (uint256 i = 1; i <= SEGMENTS_PER_ROUND; i++) {
-            uint8 idx = i - 1;
+            uint8 idx = uint8(i - 1);
             if (i < currentSegment) {
                 // Locked digit
                 result[idx] = ALPHABET[segmentDigitCounter[i] % 36];

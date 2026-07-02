@@ -40,13 +40,13 @@
 		"compilationTarget": {
 			"contracts/TimbPrize.sol": "IEligibleTokenRegistry"
 		},
-		"evmVersion": "shanghai",
+		"evmVersion": "london",
 		"libraries": {},
 		"metadata": {
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": false,
+			"enabled": true,
 			"runs": 200
 		},
 		"remappings": []
@@ -133,11 +133,11 @@
 			]
 		},
 		"contracts/TimbPrize.sol": {
-			"keccak256": "0x05cd95236016788ad0a180330f36ded26ec91685c6b011292b0027678d93333f",
+			"keccak256": "0x34ae1e4312c67c44a0c86a43bc81fc67c2e8234ab7b6b10be914b2f1b69630b6",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://58d0aef0fcecb037a44b2c3e0b73a6456cc85405da546834af7b96af1056bc5d",
-				"dweb:/ipfs/QmWi3sJKsiGZMNryd7iwxYBpiLT36RFhfDWDgGXNEZopVn"
+				"bzz-raw://e6158f6b3376adc1589277d50472561c2707a61e43f36ad267a3ce46dbe03b06",
+				"dweb:/ipfs/QmVoNNthAT6PBtZhz6pEDiBP1TgwfvLfXRbvG2NJSZE5pG"
 			]
 		}
 	},
