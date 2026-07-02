@@ -2,7 +2,7 @@
 
 A full-stack DeFi protocol on Arbitrum Sepolia — AMM DEX, prize game, LP farming, single-asset staking, token locking, and on-chain governance, all centered around the native TIMBS token.
 
-**Live:** [0xtimberzx.github.io/TimbSwap](https://0xtimberzx.github.io/TimbSwap/?v=3)  
+**Live:** [0xtimberzx.github.io/TimbSwap](https://0xtimberzx.github.io/TimbSwap/)  
 **Network:** Arbitrum Sepolia (Chain ID: 421614)  
 **GitHub:** [github.com/0xTimberZx/TimbSwap](https://github.com/0xTimberZx/TimbSwap)  
 **DebugHub:** [0xtimberzx.github.io/MyDapp/debughub](https://0xtimberzx.github.io/MyDapp/debughub/)
