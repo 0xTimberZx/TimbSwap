@@ -3,12 +3,13 @@
 **Protocol:** TimbSwap  
 **Token:** TIMBS  
 **Network:** Arbitrum Sepolia (Chain ID: 421614)  
-**Repo:** Separate GitHub repo — 0xtimberzx/timbswap  
-**Docs site:** docs.timbswap.xyz (separate)  
-**DebugHub appName:** `TimbSwap` (section-tagged checkpoints per module)  
-**Verification:** Sourcify preferred over Etherscan  
+**Repo:** github.com/0xTimberZx/TimbSwap  
+**Live:** 0xtimberzx.github.io/TimbSwap/  
+**DebugHub:** 0xtimberzx.github.io/MyDapp/debughub/  
 **Pragma:** `pragma solidity 0.8.24` — exact, never `^`  
-**Last updated:** June 2026
+**Compiler:** viaIR enabled, optimizer 200 runs, EVM london  
+**Verification:** Sourcify preferred  
+**Last updated:** July 2026
 
 ---
 
@@ -19,224 +20,191 @@
 | PrizeEscrow | 0x865C50d933e63BbE388EEAFa017AE634B0A6fB6D | Sourcify ✅ |
 | TIMBSToken (TIMBS) | 0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa | Sourcify ✅ |
 | TimbSwapFactory | 0xCCd6d3f0A86042d2B7056eDd381d367126628AF5 | Sourcify ✅ |
-| TimbSwapRouter | 0xf69ca9Ac2E39aD5f86A8410b10D290A49984e6AB | Sourcify ✅ |
+| TimbSwapRouter v3 | 0x781833D60800b93C3a9EFf234b15934F9AE0C5E7 | Sourcify ✅ |
 | EligibleTokenRegistry | 0xbFF59a3408B2574AcE948F130f0fA2f2CB149F04 | Sourcify ✅ |
 | GameRegistry | 0xf6fC4c726071Bd2Ce32826324E52dfC5A24FCb97 | Sourcify ✅ |
 | TimbPrize | 0x257F3658e29a7026CeebdcB352509d82A0993e4b | Sourcify ✅ |
 | TimbStaking | 0xe776c7b700B190ED8248741F9b518B08d8733C8F | Sourcify ✅ |
-| TimbFarm | 0xE319E2206F71A5cD8dd2c411C6F29712935f9011
-(0xA07A46f6DF4CBb8cEE9426fa2697756B708cD495.. new)| Sourcify ✅ |
+| TimbFarm | 0xE319E2206F71A5cD8dd2c411C6F29712935f9011 | Sourcify ✅ |
 | TimbLockVault | 0x0157086E7670D1eFb15DC6b5158eE78279927a41 | Sourcify ✅ |
 | TimbTreasury | 0x486Fa4D8351EF81136E83340eA1e3aa2272c9955 | Sourcify ✅ |
 | TimbGovernance | 0x8a324EfDc457BfB9Cf3D077E4CBC5A16a1c6a061 | Sourcify ✅ |
 | TIMBS/ETH Pair | 0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95 | via Factory ✅ |
+| WETH (Arb Sepolia) | 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73 | — |
+| DAPP Token | 0x3d0cB8929c22F93A9dd33921E6f43C1621FCfC04 | — |
+
+### Router Version History
+
+| Version | Address | Status |
+|---------|---------|--------|
+| v1 | 0x1f4C522E55FfE336eD474e6deAAc3a4bBe3Fd117 | Retired |
+| v2 | 0xf69ca9Ac2E39aD5f86A8410b10D290A49984e6AB | Retired |
+| v3 | 0x781833D60800b93C3a9EFf234b15934F9AE0C5E7 | **Current** |
+
+### Deprecated / Dead Addresses
+
+| Address | Reason |
+|---------|--------|
+| 0x06aebE938113524D9E29C51BacE7d7A155051a60 | Old factory — no bytecode redeployed |
+| 0xefFea3C2D1aA32eE9D93Cc0E888647E6A168293f | Phantom pair — 500k TIMBS permanently locked (treated as burned) |
+
+---
 
 ## Deployment Log
 
-- [x] PrizeEscrow deployed + verified
-- [x] TIMBSToken deployed + verified
-- [x] TimbSwapFactory deployed + verified (v2: 0xCCd6d3f0A86042d2B7056eDd381d367126628AF5)
-- [x] TimbSwapRouter deployed + verified (v2: 0xf69ca9Ac2E39aD5f86A8410b10D290A49984e6AB)
-- [x] EligibleTokenRegistry deployed + verified
-- [x] GameRegistry deployed + verified
-- [x] TimbPrize deployed + verified (v2: 0x257F3658e29a7026CeebdcB352509d82A0993e4b) (v2: 0x257F3658e29a7026CeebdcB352509d82A0993e4b)
-- [x] TimbStaking deployed + verified
-- [x] TimbFarm deployed + verified
-- [x] TimbLockVault deployed + verified
-- [x] TimbTreasury deployed + verified
-- [x] TimbGovernance deployed + verified
-- [x] TIMBS/ETH Pair created via factory (real bytecode: 0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95)
-- [x] All contracts wired (setters called)
-- [x] PrizeEscrow seeded with ETH 
-- [x] notifyRewardAmount() — TimbStaking (25000000000000000000 TIMBS, 2592000s)
-- [x] notifyRewardAmount() — TimbFarm (50000000000000000000 TIMBS, 2592000s)
-- [x] All contracts rewired after factory/router/pair/prize redeploy
-- [x] startGame() — TimbPrize (v2) — GAME IS LIVE
+- [x] All 13 contracts deployed + Sourcify verified
+- [x] Factory v2 + Router v3 deployed after phantom pair bug fix
+- [x] TIMBS/ETH pair created with real bytecode (0x5a911CB…)
+- [x] All contracts wired and re-pointed to Router v3
+- [x] PrizeEscrow seeded with ETH (tx: 0x0e03bc015b64df175a932f5129d4ebc9f23fe5bd48afbb7a0866cb456510b808)
+- [x] TimbStaking funded: 25e18 TIMBS, 2592000s
+- [x] TimbFarm funded: 50e18 TIMBS, 2592000s
+- [x] startGame() called — Round #1 LIVE
+- [x] GitHub Actions settler running — confirmed green run #63
+- [x] DebugHub TimbSwap tab live
+- [x] All 7 frontend pages deployed to GitHub Pages
+
+### Permanent Burn Event
+
+| Field | Detail |
+|-------|--------|
+| Amount | 500,000 TIMBS (0.5% of supply) |
+| Address | 0xefFea3C2D1aA32eE9D93Cc0E888647E6A168293f |
+| Cause | Phantom pair — no bytecode, unrecoverable |
+| Date | June 2026 |
+| Effect | Effective circulating supply ~99.5M TIMBS |
 
 ---
 
 ## Core Principle
 
-The game should be entertaining even if the token price is flat.
-Revenue comes from gameplay and trading volume, not token inflation.
-TIMBS represents ownership of the ecosystem, not just a reward token.
-Player entry principal is always refundable — zero capital risk to participate.
+The game should be entertaining even if the token price is flat. Revenue comes from gameplay and trading volume, not token inflation. TIMBS represents ownership of the ecosystem. Player entry principal is always refundable — zero capital risk to participate.
 
 ---
 
-## Ecosystem Relationship
+## Protocol Architecture
 
-TimbSwap is fully isolated at deploy. Does not share contracts with the existing
-0xtimberzx ecosystem (BlockpotDAO, MessageBoard, 0xFaucet) at launch. The DAPP
-token address may be referenced by address only (importable pool token).
+### Fee Structure
 
-**Future cross-ecosystem hook (opt-in, not at launch):**
-- Partner pool flag — any TimbSwap pool can route its LP fees to BlockpotDAO PrizeVault v3.
-
----
-
-## Navigation Structure
-
-```
-Dashboard     → Swap · Analytics · Governance
-Earn TIMBS    → Farm · Compete · Airdrop (soon)
-Tools         → Lock vault · Docs · Debugger
-```
-
----
-
-## Contract Architecture
-
-### Build Order
-
-| # | Contract | Purpose | Status |
-|---|----------|---------|--------|
-| 1 | TIMBSToken.sol | ERC-20, fixed supply + governance-unlockable emissions | ✅ Deployed |
-| 2 | TimbSwapFactory.sol | Pair creation, 0.3% fee, partner pool flag | ✅ Deployed |
-| 3 | TimbSwapRouter.sol | Swap routing, fee split, nudgeScroll hook | ✅ Deployed |
-| 4 | TimbSwapPair.sol | AMM pair, LP tokens | ✅ Deployed (via factory) |
-| 5 | TimbStaking.sol | TIMBS staking, ETH revenue share + buyback distributions | ✅ Deployed |
-| 6 | TimbFarm.sol | TIMBS/ETH LP farm pool | ✅ Deployed |
-| 7 | TimbLockVault.sol | ERC-20 locking 24–320h, public registry | ✅ Deployed |
-| 8 | EligibleTokenRegistry.sol | Shared eligible token list (swap influence + prize) | ✅ Deployed |
-| 9 | GameRegistry.sol | Entry storage, escrow, string validation, lifecycle | ✅ Deployed |
-| 10 | TimbPrize.sol | Round logic, segments, scroll, settlement, payouts | ✅ Deployed |
-| 11 | PrizeEscrow.sol | Holds prize ETH, pays winners on TimbPrize instruction | ✅ Deployed |
-| 12 | TimbTreasury.sol | Fee routing, buyback execution, protocol split | ✅ Deployed |
-| 13 | TimbGovernance.sol | Proposals, TIMBS-balance voting, hybrid execution | ✅ Deployed |
-
----
-
-## Revenue & Fee Structure
-
-### Swap Fees
 | Fee | Amount | Destination |
 |-----|--------|-------------|
 | Total swap fee | 0.3% | — |
 | LP share | 0.25% | Liquidity providers |
 | Protocol share | 0.05% | TimbTreasury |
+| Protocol game cut | Owner-set % | TimbTreasury |
+| Buyback burn | 50% of purchased TIMBS | Burned via burn() |
+| Buyback staking | 50% of purchased TIMBS | TimbStaking distributions |
 
-### Round Settlement Cut
-| Cut | Amount | Destination |
-|-----|--------|-------------|
-| Protocol game fee | Owner-set % | TimbTreasury |
-| Prize pool | Remainder | PrizeEscrow (winners) |
-| Snowball (r) | Pot remainder mod winners | Next round pot |
+### Capital Bucket Separation — Never Violate
 
-### Treasury Flow
 ```
-TimbTreasury receives:
-  → swap protocol fees (0.05%)
-  → round settlement cut
-  → expired unclaimed winnings dividend (owner-toggle)
-
-TimbTreasury executes:
-  → buyback TIMBS from market
-      50% burned (deflationary)
-      50% distributed to TimbStaking pool
-  → remainder to prize pot top-up + operations
+GameRegistry escrow    → player principal only, always refundable
+PrizeEscrow            → protocol-funded prize ETH only
+TimbTreasury           → protocol revenue, buybacks, operations
 ```
 
----
+These three buckets must never mingle.
 
-## Prize Game — Full Spec
+### Prize Game
 
-### Round Structure
-- Perpetual, self-continuing rounds
-- 6 hours per round = 6 segments × 60 min
-- Each segment: 59:45 user interaction + 0:15 blockchain settlement
-- Segment timing enforced on-chain (settler call reverts if too early)
-- Settler = owner wallet initially, architecture supports automation
-
-### Scroll Mechanic
-- positionCounter uint256, increments +1 per eligible swap
-- 36-char alphabet: A–Z + 0–9, fixed sequence
-- 6-char window = alphabet[(counter+i) % 36] for i 0–5
-- shuffleEnabled owner toggle for future reshuffle testing
-- ScrollShifted(uint256 newPosition) emitted per nudge
-- Router calls TimbPrize.nudgeScroll() after confirmed eligible swap
-- Frontend: getRoundState() view + event listener + 2–3s poll fallback
-
-### Settlement Freeze
-- freezePosition() entropy: keccak256(blockhash(block.number-1) + positionCounter + roundNumber)
-- Random 3-second offset within 0:15 window
-- Winning string frozen and recorded on-chain
-- VRF swap-in point noted for mainnet upgrade
-
-### Entry Rules
-- 1 string per wallet per round (replaceable)
-- 6 chars, A–Z + 0–9 only, all caps, no repeating chars
-- Entries set in round N → play in round N+1 (no mid-round entries)
-- UI shows identical entry count after string set
-- Entry always refundable (principal escrow, ringfenced)
-
-### Winners & Payouts
-- Exact 6-char match only, no partials
-- Pot x → floor(x/n) × n distributed equally, r rolls to next round
-- Dual-layer verification: existed at round start + valid at settlement
-- Claim: claimWinnings(uint256 roundNumber) — auto-lookup via msg.sender
-- Claim window: open while player active, expires 2 rounds after lastEligibleRound
-- Unclaimed + ineligible → protocol dividend back to prize pot or treasury
+- **Round:** 6 segments × 60 min = 6 hours
+- **Segment:** 59:45 interaction + 0:15 settlement
+- **Scroll:** positionCounter +1 per eligible swap, never resets
+- **Window:** alphabet[(counter+i) % 36] for i 0–5
+- **Freeze:** keccak256(blockhash(n-1) + counter + round) % 3 offset
+- **Entry:** 6 chars, A-Z + 0-9, no repeats, plays in round N+1
+- **Payout:** floor(pot/n) × n, remainder r snowballs
+- **Claim window:** 2 rounds after lastEligibleRound
+- **Verification:** dual-layer — verifyEntryExisted() + verifyEntryValid()
 
 ---
 
-## Staking & Farm
+## Frontend
 
-| Pool | Reward Source | Type |
-|------|--------------|------|
-| TIMBS single-asset | Treasury TIMBS allocation + buyback distributions | Fixed distribution |
-| TIMBS/ETH LP | TIMBS distributions + 0.25% swap fees | Emissions + fees |
-| DAPP/ETH | 0.25% swap fees only | Standard |
-| LINK/ETH | 0.25% swap fees only | Standard |
-| Any imported pair | 0.25% swap fees only | Standard |
+### Pages
 
-**Mechanics:** Free add/reduce/withdraw anytime, no lock, no penalty.
-No unique stake IDs — accumulated balance per address.
+| Page | URL | Status |
+|------|-----|--------|
+| Landing | /TimbSwap/ | ✅ Live |
+| Swap | /TimbSwap/frontend/swap/ | ✅ Live |
+| Compete | /TimbSwap/frontend/compete/ | ✅ Live |
+| Farm | /TimbSwap/frontend/farm/ | ✅ Live |
+| Lock Vault | /TimbSwap/frontend/lock/ | ✅ Live |
+| Governance | /TimbSwap/frontend/gov/ | ✅ Live |
+| Analytics | /TimbSwap/frontend/analytics/ | ✅ Live |
+
+### Path Rule
+
+Inner pages at `frontend/*/index.html` use `../style.css` and `../config.js`.  
+Root `index.html` uses `frontend/style.css` and `frontend/config.js`.  
+Both `style.css` and `config.js` exist at repo root AND `frontend/` — root copies serve the landing page only.
+
+### Key Frontend Rules
+
+- ethers CDN: `cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js`, no `type` attribute
+- Gas: `getFeeData()` × 1.30 on both fee params + 50% gasLimit buffer
+- Nonce: explicit `getTransactionCount(address, "pending")` on every write
+- Wallet persistence: `autoReconnect()` via sessionStorage on every page load
+- DebugHub stub: always defined after SDK script tag — never let it break the page
 
 ---
 
-## Lock Vault
+## Settler Automation
+
+| Setting | Value |
+|---------|-------|
+| Schedule | Every 10 minutes (cron) |
+| Health check | Daily at 12:00 UTC |
+| Working directory | `scripts` (plural) |
+| Node version | 22 |
+| Retry logic | Up to 3 attempts with 8s backoff |
+| Error categories | NONCE / FUNDS / REVERT / NETWORK / GAS / UNKNOWN |
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `ARB_SEPOLIA_RPC` | Arbitrum Sepolia RPC URL (Alchemy/Infura/public) |
+| `SETTLER_PRIVATE_KEY` | Deployer wallet private key (no 0x prefix) |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token — regenerate after any exposure |
+| `TELEGRAM_CHAT_ID` | `8726225587` |
+
+---
+
+## Tokenomics
 
 | Parameter | Value |
 |-----------|-------|
-| Duration range | 24–320 hours |
-| Accepted tokens | Default whitelist + permissionless import |
-| Custody | Contract holds tokens, returns at unlock |
-| Early exit | Not permitted |
-| Visibility | Public registry, searchable, watchlist |
-| TIMBS locks | Badge/highlight in UI |
-
----
-
-## Governance
-
-| Parameter | Value |
-|-----------|-------|
-| Voting power | TIMBS balance in governance contract |
-| Proposal rights | Owner only (community votes) |
-| Execution | Hybrid — on-chain proposals + votes, owner-executed |
-| Separation | Fully separate from staking |
+| Hard cap | 100,000,000 TIMBS |
+| Effective supply | ~99,500,000 TIMBS |
+| Entry cost | 100 TIMBS (governance-adjustable) |
+| Buyback burn ratio | 50% (adjustable via TimbTreasury) |
+| Emissions | Governance-unlockable, off by default |
+| Protocol fee | 0.05% of swap volume |
 
 ---
 
 ## DebugHub Integration
 
-**appName:** TimbSwap (single, section-tagged)
+**appName:** `TimbSwap`
 
-**Standing checklist (every write function):**
-1. maxFeePerGas / maxPriorityFeePerGas from getFeeData() × 1.30
-2. Explicit nonce via getTransactionCount(address, "pending")
-3. X Requested → X Submitted → X Confirmed checkpoints
-4. logError(functionName, error) + X Failed in catch block
+Error catalog lives in `MyDapp/debughub/app.js` → `ERROR_EXPLANATIONS`.  
+**Must evolve** — add new entries every time a new error pattern is encountered.  
+Never treat the catalog as complete.
+
+### Checkpoint Format
+
+```
+Module:Action Stage
+e.g. Swap:Approve Confirmed / Prize:Claim Failed / Gov:Vote Submitted
+```
 
 ---
 
-## Ecosystem Dev Notes (Carried Forward)
+## Ecosystem Notes
 
-- ethers CDN: cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js, no type attribute
-- Gas mobile: getFeeData() × 1.30 both fee params, 50% gasLimit buffer
-- Nonce: explicit getTransactionCount(address, "pending") on every write
-- DebugHub stub: always define fallback no-op after SDK script tag
-- Requested checkpoint: log immediately before every await contract.method()
-- Script path: SDK src must be exact path
-- Stale wallet: "no popup, no error" on specific device → check WalletConnect session first
+TimbSwap is isolated from BlockpotDAO/MessageBoard/0xFaucet at launch.  
+All four share the DebugHub dashboard.  
+Deployer: `0x42536623b503D4926DfAF6173B0357b7DfD19800`
+
+Optional future hook: partner pool flag routes LP fees to BlockpotDAO PrizeVault v3 (not active at launch).
