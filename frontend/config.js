@@ -90,7 +90,9 @@ async function _initProvider() {
 
 async function _ensureChain() {
   const network = await provider.getNetwork();
-  if (network.chainId === CHAIN_ID) return;
+  if (Number(network.chainId) === CHAIN_ID) return;
+
+  // Wrong chain — try to switch
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
@@ -98,11 +100,23 @@ async function _ensureChain() {
     });
   } catch (switchErr) {
     if (switchErr.code === 4902) {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [CHAIN_CONFIG]
-      });
+      // Chain not added yet — add it
+      try {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [CHAIN_CONFIG]
+        });
+      } catch (addErr) {
+        alert("Could not add Arbitrum Sepolia to your wallet.\nPlease add it manually:\nChain ID: 421614\nRPC: https://sepolia-rollup.arbitrum.io/rpc");
+        throw addErr;
+      }
+    } else if (switchErr.code === 4001) {
+      // User rejected the switch
+      alert("Please switch to Arbitrum Sepolia (Chain ID: 421614) in your wallet before connecting.");
+      throw switchErr;
     } else {
+      // Silent switch failures (common on mobile) — alert with manual instruction
+      alert("Please switch your wallet to Arbitrum Sepolia (Chain ID: 421614) and tap Connect again.\n\nIf Arbitrum Sepolia is not in your wallet, add it:\nRPC: https://sepolia-rollup.arbitrum.io/rpc\nChain ID: 421614");
       throw switchErr;
     }
   }
@@ -123,6 +137,11 @@ async function connectWallet() {
     return true;
   } catch (err) {
     console.error("connectWallet failed:", err);
+    // Log chain ID at point of failure for DebugHub diagnosis
+    try {
+      const failNet = await provider.getNetwork();
+      console.warn("connectWallet: wallet was on chainId", failNet.chainId.toString(), "— needs 421614");
+    } catch {}
     return false;
   }
 }
