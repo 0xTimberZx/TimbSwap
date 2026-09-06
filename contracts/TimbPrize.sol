@@ -605,11 +605,32 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         // nudging (letter ↔ digit), while the exact character within that
         // class remains unpredictable.
         uint256 liveIdx = segmentDigitCounter[currentSegment] % 36;
-        if (liveIdx < 26) {
-            segmentLockedChar[currentSegment] = ALPHABET[mix % 26];        // letter → letter
-        } else {
-            segmentLockedChar[currentSegment] = ALPHABET[26 + (mix % 10)]; // digit → digit
+        bool    isLetter = liveIdx < 26;                 // preserve the class rule
+        uint256 base     = isLetter ? 0  : 26;           // A-Z start / 0-9 start
+        uint256 size     = isLetter ? 26 : 10;           // class size
+
+        // M1: pick a class-preserving char that is DISTINCT from every
+        // already-locked segment. Entries forbid repeated characters, so a
+        // winning string with a repeat would be unmatchable and the round
+        // unwinnable (~36% of rounds). Segments lock in order 1..6, so avoiding
+        // earlier-locked chars yields a fully-distinct 6-char winning string
+        // while keeping the letter/digit steering intact. Deterministic linear
+        // probe from the VRF-derived start; a free slot always exists (at most 5
+        // earlier chars are excluded and each class has >= 10).
+        uint256 start = mix % size;
+        bytes1  chosen = ALPHABET[base + start];
+        for (uint256 off = 0; off < size; off++) {
+            bytes1 cand = ALPHABET[base + (start + off) % size];
+            bool taken = false;
+            for (uint256 s = 1; s < currentSegment; s++) {
+                if (segmentDigitLocked[s] && segmentLockedChar[s] == cand) {
+                    taken = true;
+                    break;
+                }
+            }
+            if (!taken) { chosen = cand; break; }
         }
+        segmentLockedChar[currentSegment]  = chosen;
         segmentDigitLocked[currentSegment] = true;
     }
 
