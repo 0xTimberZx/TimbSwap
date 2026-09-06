@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Litepaper — TimbSwap</title>
+  <meta name="description" content="TimbSwap litepaper — the prize-linked exchange and its self-funding incentive engine, in one document: mechanism, tokenomics, architecture, risks, and roadmap." />
+  <link rel="canonical" href="https://timbswap.xyz/litepaper/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Litepaper — TimbSwap" />
+  <meta property="og:description" content="The prize-linked exchange and its self-funding incentive engine, in one document." />
+  <meta property="og:url" content="https://timbswap.xyz/litepaper/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Litepaper — TimbSwap" />
+  <meta name="twitter:description" content="The prize-linked exchange and its self-funding incentive engine, in one document." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="../assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="../docs/docs.css?v=20260739a" />
+  <style>
+    /* One-off accents for the litepaper — leans on the docs design system. */
+    .lp-loop { font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--text-2);
+      background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius);
+      padding: 18px 20px; margin: 16px 0; overflow-x: auto; white-space: pre; }
+    .lp-loop b { color: var(--green); }
+    .lp-tag { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--green); }
+    .lp-abstract { font-size: 17px; line-height: 1.6; color: var(--text); }
+    .docs-section h2 .lp-num { font-family: var(--mono); color: var(--text-3); font-size: 0.7em; margin-right: 10px; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a class="nav-off">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="../faucet/">Faucet</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="../explore/">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+          <a href="../litepaper/" class="nav-active">Litepaper</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a class="nav-off">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <a href="../faucet/">Faucet</a>
+    <a class="nav-off">Airdrop</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a class="nav-off">Lock Vault</a>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+    <a href="../litepaper/">Litepaper</a>
+    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+  </div>
+
+  <div class="docs-page">
+
+    <!-- ─── Sidebar TOC ─────────────────────────────────────────────────── -->
+    <aside class="docs-toc" id="docs-toc">
+      <div class="docs-toc-label">LITEPAPER · v0.1</div>
+      <nav>
+        <a href="#abstract" class="toc-link">Abstract</a>
+        <a href="#problem" class="toc-link">1 · The problem</a>
+        <a href="#engine" class="toc-link">2 · The incentive engine</a>
+        <a href="#game" class="toc-link">3 · The prize game</a>
+        <a href="#tokenomics" class="toc-link">4 · Tokenomics &amp; emissions</a>
+        <a href="#architecture" class="toc-link">5 · Architecture &amp; trust</a>
+        <a href="#risks" class="toc-link">6 · Risks</a>
+        <a href="#roadmap" class="toc-link">7 · Roadmap &amp; the gate</a>
+        <a href="#refs" class="toc-link">References</a>
+      </nav>
+    </aside>
+
+    <!-- ─── Content ─────────────────────────────────────────────────────── -->
+    <main class="docs-body">
+
+      <div class="docs-hero">
+        <h1 class="page-h1">TimbSwap Litepaper</h1>
+        <p class="page-sub">A prize-linked decentralized exchange and its self-funding incentive engine — mechanism, tokenomics, architecture, risks, and roadmap, in one document. Version 0.1 · Arbitrum Sepolia testnet.</p>
+      </div>
+
+      <div class="docs-callout docs-callout-warn">
+        <strong>Testnet &amp; unaudited.</strong> TimbSwap runs on <strong>Arbitrum Sepolia</strong> (chain ID <code>42161</code>); every token is a test asset with no monetary value. The contracts are <strong>unaudited</strong> — an independent audit is a gating condition for any mainnet launch. Nothing here is an offer of securities, investment, or financial advice.
+      </div>
+
+      <!-- Abstract -->
+      <section id="abstract" class="docs-section">
+        <h2>Abstract</h2>
+        <p class="lp-abstract">TimbSwap is a decentralized exchange with a prize game built into it — and one <strong>incentive engine</strong> underneath both. Swap fees and yield on capital held in the protocol fund a recurring, on-chain prize; the same flow replenishes staking and farming rewards. The swap, the staking, the farming, and the game are not separate products but modules of a single self-funding loop. What the protocol earns is swept back to the people who generate it, on a fixed cadence, under hard solvency limits — <strong>rewards are funded by real inflow, never printed</strong>. Every step is executed by open-source, permissionless, non-custodial smart contracts. The closest traditional analogue is a <em>prize-linked savings account</em> (Premium Bonds, Save-to-Win): prizes come from yield, not from anyone's principal.</p>
+      </section>
+
+      <!-- 1 Problem -->
+      <section id="problem" class="docs-section">
+        <h2><span class="lp-num">1</span>The problem</h2>
+        <p>Most DeFi <em>rents</em> activity rather than earning it. Three patterns recur:</p>
+        <ul>
+          <li><strong>Printed rewards.</strong> Emissions dilute holders to buy short-term usage; when they taper, mercenary capital leaves and volume collapses.</li>
+          <li><strong>Static incentives.</strong> Reward rates are fixed and disconnected from whether the protocol is actually healthy.</li>
+          <li><strong>Fragmented pieces.</strong> AMMs reward liquidity but not engagement; staking rewards holding but is often pure inflation; prize dapps drive attention but are detached from real yield. Nobody ties them into one self-funding loop.</li>
+        </ul>
+        <p>The model TimbSwap uses — prizes funded by <em>yield on pooled capital</em> — is proven at enormous scale off-chain: prize-linked savings (UK Premium Bonds, US Save-to-Win), and loyalty programs whose reward layer grew worth more than the business that ran it. No crypto-native project has captured a comparable share of its own space. <strong>That gap is the opening.</strong></p>
+      </section>
+
+      <!-- 2 Engine -->
+      <section id="engine" class="docs-section">
+        <h2><span class="lp-num">2</span>The incentive engine</h2>
+        <p>One inflow drives every module. Value moves in one direction, on a fixed cadence:</p>
+        <div class="lp-loop">    <b>①</b> TRADE  ──▶  <b>②</b> COLLECT  ──▶  <b>③</b> REWARD  ──▶  <b>④</b> RETURN  ──┐
+   swaps pay      treasury pools     the epoch sweep       players &amp; LPs   │
+   a 0.30% fee    fees + vault       refills, in order:    come back;      │
+   (0.25% LP /    yield on pooled    pot → farm →          more volume,    │
+    0.05% treas)  capital            staking → boost       deeper pools    │
+         └──────────────── the loop repeats every 6 rounds ────────────────┘</div>
+        <ul>
+          <li><strong>Trade.</strong> Every swap pays a 0.3% fee — 0.25% to liquidity providers, 0.05% to the treasury. Eligible swaps also advance the prize meter.</li>
+          <li><strong>Collect.</strong> The treasury pools fee inflow and buybacks; ticket deposits sit in the <strong>TimbYieldVault</strong>, whose accrual grows the prize pot. All backing is visible on-chain.</li>
+          <li><strong>Reward.</strong> Every six rounds an autonomous keeper sweeps what was collected and refills the reward pools in fixed priority — <strong>pot → farm → staking → boost</strong>.</li>
+          <li><strong>Return.</strong> Winners claim, stakers and farmers compound, players re-enter — feeding step one again.</li>
+        </ul>
+        <p>Because prizes and emissions are paid from what the protocol has actually earned, the opportunity persists even on low-volume or low-volatility days: the edge is <em>generated by the protocol's clock, not discovered in the market</em>.</p>
+      </section>
+
+      <!-- 2 Game -->
+      <section id="game" class="docs-section">
+        <h2><span class="lp-num">3</span>The prize game</h2>
+        <p>Each round is a six-character combination that assembles live. Players hold a <strong>ticket</strong> — a 6-character string (A–Z, 0–9, no repeats) that plays the next round.</p>
+        <ul>
+          <li><strong>Six segments, one hour each.</strong> A round has 6 segments (≈60 min: open window + a short settlement). Every eligible swap nudges the active segment's character upward on a continuous meter.</li>
+          <li><strong>Locking &amp; jitter.</strong> When a segment closes, its character locks — the nudge counter <em>jittered with the settling block's hash</em>, and randomized within its class (a letter stays a letter, a digit stays a digit). You can aim the <em>class</em> per position, but the exact character stays unpredictable.</li>
+          <li><strong>Permissionless settlement.</strong> Segments settle <strong>permissionlessly</strong> once the window elapses — anyone can call <code>settleSegment</code>. No operator gates the round.</li>
+          <li><strong>Winning &amp; claiming.</strong> After all six lock, an exact match wins the pot. Winners claim within <strong>2 rounds</strong> of the match; a lapsed prize recycles into the pot.</li>
+          <li><strong>Principal is yours.</strong> A ticket's deposit stays refundable for <strong>4 rounds</strong> after its last eligible round (extended, never shortened, if you win near the end), and while active it earns yield that grows the pot.</li>
+          <li><strong>Generations.</strong> The registry is keyed by a game generation; a redeploy bumps the generation and makes prior tickets inert, their principal recoverable at any time — a clean reset without a fresh registry.</li>
+        </ul>
+      </section>
+
+      <!-- 3 Tokenomics -->
+      <section id="tokenomics" class="docs-section">
+        <h2><span class="lp-num">4</span>Tokenomics &amp; emissions</h2>
+        <ul>
+          <li><strong>Fixed supply.</strong> TIMBS is hard-capped at <strong>100,000,000</strong>, with no mint beyond the cap — a fixed schedule finalized at mainnet launch.</li>
+          <li><strong>Fee split.</strong> Each swap's 0.3% fee splits 0.25% to LPs and 0.05% to the treasury, which funds buybacks (50% burned, 50% to stakers) and the reward cycle.</li>
+          <li><strong>The epoch waterfall.</strong> Every 6 rounds the keeper measures what was actually claimed from farm and staking and what the treasury collected, then refills in priority: <em>farm</em> first (≤80% of its claims), <em>staking</em> next (≤1.25× its claims, capped at 80% of the remainder), and <em>boosted farms</em> receive only what's left. If inflow runs short, the tail goes unfunded — nothing is printed to cover it.</li>
+          <li><strong>Solvency stop.</strong> Reward contracts track every wallet's accrued-but-unclaimed balance as an explicit liability. When obligations reach <strong>99% of reserves</strong>, accrual halts until the next refill. The system cannot promise tokens it does not hold.</li>
+          <li><strong>Self-retargeting rates.</strong> Emission rates recompute from free (unowed) reserves over the emission window, so a shrinking reserve slows emissions instead of over-committing.</li>
+        </ul>
+      </section>
+
+      <!-- 4 Architecture -->
+      <section id="architecture" class="docs-section">
+        <h2><span class="lp-num">5</span>Architecture &amp; trust</h2>
+        <p>TimbSwap is <strong>open-source, decentralized, permissionless, and non-custodial</strong> — a set of <strong>EVM-native Solidity smart contracts</strong> (0.8.24, viaIR), verified on <a href="https://repo.sourcify.dev/42161/" target="_blank" rel="noopener">Sourcify</a>. The contract layout mirrors the engine:</p>
+        <ul>
+          <li><strong>AMM core</strong> — Factory, Router, and Pairs generate fees (a Uniswap-V2-style constant-product exchange).</li>
+          <li><strong>Game layer</strong> — TimbPrize, GameRegistry, TimbYieldVault, and PrizeEscrow run rounds and hold the pot's backing.</li>
+          <li><strong>Emissions layer</strong> — Staking, Farm, BoostFarm, and Treasury distribute rewards under the solvency rules above.</li>
+        </ul>
+        <p>The frontend is a static site — every figure is read live from chain, users hold their own keys, and an autonomous GitHub Actions keeper settles segments and runs the reward sweep without a human in the loop. Contract addresses are published in the <a href="../docs/#authenticity">Docs address table</a> and the <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener">open-source repository</a> — verify before you trust any label.</p>
+      </section>
+
+      <!-- 5 Risks -->
+      <section id="risks" class="docs-section">
+        <h2><span class="lp-num">6</span>Risks</h2>
+        <ul>
+          <li><strong>Smart-contract risk.</strong> The contracts are testnet-hardened but <strong>unaudited</strong>; an independent audit gates mainnet. Permissionless refund and recovery paths exist so funds are never trapped behind an operator.</li>
+          <li><strong>Impermanent loss.</strong> Providing liquidity carries standard AMM IL, larger on thin or volatile pairs (boosted farms are the highest-risk seat).</li>
+          <li><strong>Game randomness.</strong> Locked characters are jittered with the settling block's hash — you aim a class, not an exact character. Treat the game as chance-weighted, not skill-guaranteed.</li>
+          <li><strong>Emissions variance.</strong> Reward rates move with the waterfall and total staked; a testnet APR is illustrative, not a promise of yield.</li>
+          <li><strong>Regulatory.</strong> Prize mechanics are classified differently by jurisdiction. On testnet nothing has value; before any real-value launch, formal counsel and likely geofencing are gating conditions.</li>
+          <li><strong>Testnet impermanence.</strong> Test networks can be reset or halted at any time; assume all testnet state is disposable.</li>
+        </ul>
+      </section>
+
+      <!-- 6 Roadmap -->
+      <section id="roadmap" class="docs-section">
+        <h2><span class="lp-num">7</span>Roadmap &amp; the graduation gate</h2>
+        <p><span class="lp-tag">Now · live</span> — The full engine runs end-to-end on Arbitrum Sepolia: AMM, prize game with permissionless settlement and generations, emissions on the epoch waterfall with the 99% solvency stop, and an unattended keeper.</p>
+        <p><span class="lp-tag">Next</span> — The road to mainnet, gated on evidence and safety: proven engagement (sustained wallets, repeat play, eligible volume tracking rounds); an <strong>independent audit</strong> and security policy; <strong>legal counsel</strong> and likely geofencing; seeded liquidity and an initial pot; and live signal dashboards from existing telemetry.</p>
+        <p><span class="lp-tag">Vision</span> — Adaptive incentives: the allocation cycle is rule-based and solvency-bounded today; the same telemetry that proves solvency is the substrate for a future policy that tunes incentives to observed protocol health — still on-chain, still bounded by the identical guardrails. <em>Stated as direction, not a capability claimed today.</em></p>
+        <div class="docs-callout">
+          <strong>The gate.</strong> TimbSwap deploys to mainnet when engagement is <strong>proven</strong> and the security and legal gates are <strong>cleared</strong> — never before. Until then, everything is a test asset with no value, and the point of the exercise is to earn the evidence. See the full <a href="https://github.com/0xTimberZx/TimbSwap/blob/main/ROADMAP.md" target="_blank" rel="noopener">ROADMAP</a>.
+        </div>
+      </section>
+
+      <!-- References -->
+      <section id="refs" class="docs-section">
+        <h2>References</h2>
+        <ul>
+          <li><a href="../docs/">Documentation</a> — user guide, mechanics, and the verified contract address table.</li>
+          <li><a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener">GitHub repository ↗︎</a> — open-source contracts and frontend.</li>
+          <li><a href="https://github.com/0xTimberZx/TimbSwap/blob/main/ROADMAP.md" target="_blank" rel="noopener">ROADMAP.md ↗︎</a> · <a href="https://github.com/0xTimberZx/TimbSwap/blob/main/SPECS.md" target="_blank" rel="noopener">SPECS.md ↗︎</a> — roadmap and full technical specification.</li>
+          <li><a href="https://repo.sourcify.dev/42161/" target="_blank" rel="noopener">Sourcify (chain 42161) ↗︎</a> — contract verification.</li>
+        </ul>
+        <p class="docs-note">Litepaper v0.1 — a living document; figures and mechanisms track the deployed contracts and may evolve before mainnet.</p>
+      </section>
+
+      <div class="docs-foot-links">
+        <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+        <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+      </div>
+
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="/litepaper/">Litepaper</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
+    </div>
+  </footer>
+
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
+  <script>
+    // Nav controls
+    function toggleMobileNav() { document.getElementById("mobile-nav").classList.toggle("open"); }
+    function toggleWalletMenu(e) { e.stopPropagation(); document.getElementById("wallet-info").classList.toggle("open"); }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) nav.classList.remove("open");
+      const wi = document.getElementById("wallet-info");
+      if (wi && !wi.contains(e.target)) wi.classList.remove("open");
+    });
+
+    // Wallet connect (config.js supplies connectWallet / autoReconnect / fmtAddr / userAddress)
+    async function handleConnect() {
+      const ok = await connectWallet();
+      if (!ok) return;
+      DebugHub.startSession(userAddress);
+      document.getElementById("connect-btn").classList.add("hidden");
+      document.getElementById("wallet-info").classList.remove("hidden");
+      document.getElementById("network-badge").classList.remove("hidden");
+      document.getElementById("wallet-addr").textContent = fmtAddr(userAddress);
+      listenForAccountChanges((newAddr) => {
+        if (!newAddr) { handleDisconnect(); return; }
+        document.getElementById("wallet-addr").textContent = fmtAddr(newAddr);
+      });
+    }
+    function handleDisconnect() {
+      DebugHub.endSession();
+      provider = null; signer = null; userAddress = null;
+      document.getElementById("connect-btn").classList.remove("hidden");
+      document.getElementById("wallet-info").classList.add("hidden");
+      document.getElementById("network-badge").classList.add("hidden");
+    }
+
+    // TOC scroll-spy (docs.css styles .toc-link.toc-active)
+    (function () {
+      const links = Array.from(document.querySelectorAll(".toc-link"));
+      const map = new Map();
+      for (const link of links) {
+        const sec = document.getElementById(link.getAttribute("href").slice(1));
+        if (sec) map.set(sec, link);
+      }
+      if (!map.size || !("IntersectionObserver" in window)) return;
+      let active = null;
+      const io = new IntersectionObserver((entries) => {
+        const vis = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (!vis.length) return;
+        const link = map.get(vis[0].target);
+        if (link === active) return;
+        if (active) active.classList.remove("toc-active");
+        link.classList.add("toc-active"); active = link;
+      }, { rootMargin: "-88px 0px -70% 0px" });
+      map.forEach((_, sec) => io.observe(sec));
+    })();
+
+    // Reflect a saved connection; the page works fully disconnected.
+    (async () => {
+      DebugHub.logCheckpoint("Litepaper:Page Loaded", "pass");
+      try {
+        const addr = await autoReconnect();
+        if (addr) {
+          document.getElementById("connect-btn")?.classList.add("hidden");
+          document.getElementById("wallet-info")?.classList.remove("hidden");
+          document.getElementById("network-badge")?.classList.remove("hidden");
+          const el = document.getElementById("wallet-addr");
+          if (el) el.textContent = fmtAddr(addr);
+          DebugHub.startSession(addr);
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>

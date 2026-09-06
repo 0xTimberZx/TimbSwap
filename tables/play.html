@@ -1,0 +1,2092 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SwapTables — The Segment Board</title>
+<!-- DebugHub: siloed under its own appName; add #debug to the URL for the
+     snapshot+share button. Logs locally, no wallet required, nothing uploaded. -->
+<script>window.DEBUGHUB_CONFIG = { appName: "SwapTables" };</script>
+<script src="../assets/dh.js?v=1.3.4"></script>
+<!--
+  The player-facing table. Same live gen-3 contracts as the console (index.html),
+  different job: the console is for operating tables; this page is for sitting at
+  one. Visual design from the "Segment Board" artifact; spin meter from the
+  "Spin Meter Tuner" artifact (§10.2) — display-only, per §10.1 guard #2.
+
+  Where the artifact's mock mechanics differed from the deployed contract, this
+  page tells the contract's truth: graduated rake (8% solo → 1.75% floor), the
+  Double-Digit bet as its own stake, RED_MASK pocket colours, seats 2–12, and
+  chips returned via ledger credit at retire. Divergences worth keeping are
+  kept as generation-4 proposals.
+-->
+<style>
+  :root{
+    --felt:#0a5a34; --felt-deep:#053922; --felt-line:rgba(247,240,214,.28);
+    --red:#c0212f; --red-hi:#d63a44; --black:#15171c; --black-hi:#2a2d34;
+    --gold:#d7b34c; --gold-dim:#a98a34; --cream:#f3ecd8; --ink:#0c1712;
+    --wood:#2b1a10; --ok:#6fe0a0; --err:#e88;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(120% 90% at 50% -10%, #123a26 0%, #08150e 60%, #050b08 100%);
+    color:var(--cream);
+    font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif;
+    min-height:100vh;padding:30px 16px 60px;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin:0 auto}
+  .eyebrow{font-family:Georgia,serif;letter-spacing:.32em;text-transform:uppercase;font-size:11px;color:var(--gold);opacity:.9;margin:0 0 10px}
+  h1{font-family:Georgia,serif;font-weight:700;font-size:clamp(26px,5.2vw,42px);line-height:1.03;margin:0 0 12px;text-wrap:balance}
+  h1 em{font-style:italic;color:var(--gold)}
+  .lede{max-width:66ch;font-size:15px;line-height:1.6;color:#cdd8cf;margin:0 0 18px}
+  .lede b{color:var(--cream)}
+  a{color:var(--gold)}
+
+  /* top bar */
+  .top{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}
+  .pill{font-size:12px;padding:6px 12px;border-radius:20px;border:1px solid var(--gold-dim);color:#e8dcae;font-variant-numeric:tabular-nums}
+  .pill.ok{border-color:var(--ok);color:var(--ok)}
+  .pill.bad{border-color:var(--err);color:var(--err)}
+  .btn{font-family:Georgia,serif;font-size:12.5px;padding:9px 15px;border-radius:8px;border:1px solid var(--gold-dim);background:transparent;color:var(--gold);cursor:pointer}
+  .btn:hover{background:rgba(215,179,76,.12)}
+  .btn.primary{background:var(--gold);color:var(--ink);border-color:var(--gold);font-weight:700}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .spacer{flex:1}
+
+  /* first-visit calm: until a wallet connects, only the pitch and the button */
+  .pre .prehide{display:none!important}
+  details.how{max-width:66ch;margin:0 0 18px}
+  details.how summary{cursor:pointer;font-family:Georgia,serif;font-size:13.5px;color:var(--gold);letter-spacing:.02em}
+  details.how p{font-size:14.5px;line-height:1.6;color:#cdd8cf;margin:10px 0 0}
+  details.how b{color:var(--cream)}
+
+  /* wallet bar — one framed strip that reacts to connection state */
+  .wbar{border:1px solid rgba(247,240,214,.16);border-radius:12px;padding:10px 14px;background:rgba(247,240,214,.03);gap:10px}
+  .wid{display:inline-flex;align-items:center;gap:8px;padding:8px 15px;border-radius:22px;border:1px solid var(--ok);
+    color:var(--cream);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;letter-spacing:.02em}
+  .wid::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(111,224,160,.6);animation:pulse 1.6s infinite}
+  .wid.bad{border-color:var(--err);color:var(--err)}
+  .wid.bad::before{background:var(--err);animation:none}
+  .wstat{display:inline-flex;flex-direction:column;align-items:flex-end;gap:1px;padding:5px 13px;
+    border:1px solid var(--gold-dim);border-radius:10px;min-width:86px}
+  .wstat .k{font-size:8.5px;letter-spacing:.18em;color:#8fa295}
+  .wstat .v{font-family:Georgia,serif;font-weight:800;font-size:15px;color:var(--cream);font-variant-numeric:tabular-nums;line-height:1.1}
+  .wstat.win .v{color:var(--ok)}
+  #withdraw.ready{background:var(--gold);color:var(--ink);border-color:var(--gold);font-weight:700}
+  #connect:disabled{opacity:.7}
+
+  /* phase timeline */
+  .phases{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+  .ph{flex:1 1 120px;border:1px solid rgba(247,240,214,.16);border-radius:9px;padding:8px 12px;background:rgba(247,240,214,.03)}
+  .ph .k{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#8fa295}
+  .ph .v{font-family:Georgia,serif;font-size:14px;color:#cdd8cf;font-variant-numeric:tabular-nums}
+  .ph.now{border-color:var(--gold);background:linear-gradient(180deg,rgba(215,179,76,.10),rgba(0,0,0,.10))}
+  .ph.now .k{color:var(--gold)}
+  .ph.now .v{color:var(--cream)}
+  .ph.done{opacity:.45}
+
+  /* gate / seat strip */
+  .gate{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border:1px solid var(--gold-dim);
+    border-radius:10px;padding:12px 16px;margin-bottom:18px;
+    background:linear-gradient(180deg,rgba(215,179,76,.08),rgba(0,0,0,.12))}
+  .gate .req{font-family:Georgia,serif;font-size:13px;color:#e8dcae}
+  .gate .req b{color:var(--gold)}
+  .gate input{width:120px;background:#0b1a12;border:1px solid var(--felt-line);border-radius:6px;
+    color:var(--cream);font-size:16px;font-weight:800;letter-spacing:.25em;padding:8px 10px;text-transform:uppercase;font-variant-numeric:tabular-nums}
+  .ticket{display:flex;gap:5px;margin-left:auto}
+  .ticket .tk{width:30px;height:34px;display:grid;place-items:center;border-radius:5px;position:relative;
+    background:linear-gradient(180deg,#12271b,#0b1a12);border:1px solid var(--felt-line);
+    font-weight:800;font-size:16px;color:var(--cream);font-variant-numeric:tabular-nums}
+  .ticket .tk small{position:absolute;bottom:1px;font-size:6px;color:#8fa295;letter-spacing:.05em}
+  .tk.zero::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.85}
+
+  /* rack + chips */
+  .controls{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:18px}
+  .panel{border:1px solid rgba(247,240,214,.16);border-radius:12px;padding:14px 16px;background:rgba(247,240,214,.03)}
+  .panel h2{margin:0 0 11px;font-family:Georgia,serif;font-size:13px;letter-spacing:.04em;color:#e8dcae;font-weight:700;text-transform:uppercase}
+  .panel h2 span{color:#93a698;font-weight:400;text-transform:none;letter-spacing:0;font-family:"Arial Narrow",Arial,sans-serif;font-size:12px}
+  .rack{display:flex;flex-wrap:wrap;gap:10px 14px;padding-bottom:14px}
+  .token{position:relative;width:64px;height:64px;border-radius:50%;cursor:pointer;flex:none;
+    display:grid;place-items:center;text-align:center;
+    background:radial-gradient(circle at 50% 34%, #1c3a28, #0c2016);
+    border:2px dashed var(--gold-dim);
+    transition:transform .12s ease, box-shadow .12s ease, border-color .12s}
+  .token .seg{font-size:10px;letter-spacing:.14em;color:#9fb4a4}
+  .token .no{font-size:22px;font-weight:800;line-height:.9;color:var(--cream);font-family:Georgia,serif}
+  .token:hover{transform:translateY(-2px)}
+  .token.sel{border:2px solid var(--gold);box-shadow:0 0 0 3px rgba(215,179,76,.25),0 8px 18px -8px #000}
+  .token.loaded{border:2px solid var(--gold);border-style:solid;background:radial-gradient(circle at 50% 34%, #24422e, #0f2418)}
+  .token .val{font-size:12.5px;font-weight:800;color:var(--gold);font-family:Georgia,serif;line-height:1.1;font-variant-numeric:tabular-nums;min-height:14px}
+  .token.pendload{border-style:dotted}
+  .token .val .pd{font-size:8px;color:#9fb4a4;letter-spacing:.08em;display:block;font-family:"Arial Narrow",Arial,sans-serif}
+  .token.placed{opacity:.42;border-style:solid;cursor:default;filter:grayscale(.4)}
+  .panel.collapsed > *:not(h2){display:none}
+  .panel h2.clickable{cursor:pointer}
+  .panel h2.clickable::after{content:" ▾";color:#93a698}
+  .panel.collapsed h2.clickable::after{content:" ▸"}
+  .token.placed::after{content:"ON BOARD";position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:.12em;color:var(--gold);white-space:nowrap}
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{width:52px;height:52px;border-radius:50%;flex:none;cursor:pointer;position:relative;
+    display:grid;place-items:center;font-weight:800;font-size:14px;color:#fff;font-variant-numeric:tabular-nums;
+    border:3px dashed rgba(255,255,255,.55);box-shadow:0 4px 10px -4px rgba(0,0,0,.6);
+    transition:transform .12s ease}
+  .chip:hover{transform:translateY(-2px)}
+  .chip.sel{outline:2px solid var(--gold);outline-offset:2px;transform:translateY(-3px)}
+  .c5{background:#b0243a}.c10{background:#20507f}.c25{background:#1f7a44}
+  .c50{background:#c56a1e}.c100{background:#1b1e24}.c500{background:#6a3b8f}
+  .c1000{background:linear-gradient(135deg,#caa63f,#8a6d22);color:#1a140a}
+  .hint{font-size:12.5px;color:#9fb4a4;margin-top:9px;font-family:Georgia,serif;font-style:italic}
+  .hint b{color:var(--gold);font-style:normal;font-family:"Arial Narrow",Arial,sans-serif}
+  .chips.locked,.rack.locked{opacity:.4;pointer-events:none;filter:grayscale(.5)}
+
+  /* felt */
+  .felt-scroll{overflow-x:auto;padding-bottom:6px}
+  .felt{position:relative;min-width:780px;border-radius:14px;padding:20px;border:3px solid var(--gold-dim);
+    background:radial-gradient(140% 120% at 30% 0%, #0d6b3f 0%, var(--felt) 42%, var(--felt-deep) 100%);
+    box-shadow:0 0 0 10px var(--wood),0 0 0 12px #14100a,0 24px 56px -18px rgba(0,0,0,.8),inset 0 0 90px rgba(0,0,0,.35)}
+  /* Betting closed is not the same as nothing to look at. The felt at this
+     point is the most interesting it gets — chips are down, characters are
+     landing, and the losing piles are fading as they go. The old treatment
+     desaturated the whole board, halved the grid's opacity and dropped a full
+     slab over it, which hid exactly what viewers on the stream were watching.
+     Now: keep the board readable, take away only the affordance to click, and
+     put the notice in a banner across the top instead of over the play. */
+  .felt.locked .board{pointer-events:none}
+  .felt.locked .bet{cursor:default}
+  .felt.locked::after{content:attr(data-lock);position:absolute;left:20px;right:20px;top:20px;
+    display:grid;place-items:center;pointer-events:none;
+    font-family:Georgia,serif;font-size:13.5px;letter-spacing:.03em;color:var(--gold);text-align:center;
+    background:rgba(5,15,10,.72);border:1px solid var(--gold-dim);border-radius:8px;padding:7px 14px}
+  .board{display:grid;grid-template-columns:1.25fr repeat(12,1fr) 1.15fr;grid-template-rows:repeat(3,54px) 42px 46px 46px 46px;gap:5px}
+  .board>.bet{grid-column:var(--col,auto);grid-row:var(--row,auto)}
+  .cell{display:flex;align-items:center;justify-content:center;border:1px solid var(--felt-line);border-radius:4px;color:var(--cream);user-select:none;position:relative;text-align:center}
+  .bet{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:box-shadow .12s ease, filter .12s ease}
+  .bet:hover{filter:brightness(1.12);box-shadow:0 0 0 1px var(--gold) inset;z-index:3}
+  .bet:focus-visible{outline:2px solid var(--cream);outline-offset:2px}
+  .bet.armable:hover{box-shadow:0 0 0 2px var(--gold) inset,0 0 20px -4px rgba(215,179,76,.6)}
+  .pocket{font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.55);position:relative}
+  .pocket.red{background:linear-gradient(180deg,var(--red-hi),var(--red));border-color:rgba(255,255,255,.22)}
+  .pocket.black{background:linear-gradient(180deg,var(--black-hi),var(--black));border-color:rgba(255,255,255,.14)}
+  .pocket.zero::before{content:"";position:absolute;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
+  .pocket.oh{transform:none}.pocket.oh .g{display:inline-block;transform:scaleX(1.18)}
+  .out{background:linear-gradient(180deg,rgba(247,240,214,.05),rgba(0,0,0,.10));
+    border:1px solid var(--gold-dim);color:var(--gold);font-family:Georgia,serif;flex-direction:column;gap:2px}
+  .out .lab{font-size:11px;letter-spacing:.06em;line-height:1.05}
+  .out .sub{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#e8dcae;opacity:.6;font-family:"Arial Narrow",Arial,sans-serif}
+  .dd{grid-column:1;grid-row:1 / 4;padding:0 4px}
+  .dd .lab{font-size:16px;font-weight:700;letter-spacing:.06em;line-height:1.06}
+  .dd .sub{margin-top:7px}
+  .colbet{grid-column:14}
+  .swatch{width:12px;height:12px;transform:rotate(45deg);border-radius:2px;display:inline-block;vertical-align:middle;margin-left:6px}
+  .swatch.r{background:var(--red)}.swatch.b{background:var(--black);border:1px solid rgba(255,255,255,.3)}
+  .bet.redbet{border-color:var(--red-hi)}.bet.redbet .lab{color:#ef9aa1}
+  .bet.blackbet{border-color:#50535c}.bet.blackbet .lab{color:#d6dfd8}
+  /* The pile lives INSIDE its spot. Anchored outside (the old top:-7px/right:-7px)
+     it hung over the neighbouring cell, and on the right-hand column it hung off
+     the felt entirely — past the scroll extent, so on a phone the chips were
+     literally out of reach. Bounded to one face + the total, it can never grow
+     wider than the cell no matter how many wallets pile onto a spot. */
+  .coins{position:absolute;top:3px;right:3px;max-width:calc(100% - 6px);
+    display:flex;flex-direction:row-reverse;align-items:center;pointer-events:none;z-index:2}
+  .coin{width:20px;height:20px;flex:none;border-radius:50%;margin-left:-8px;display:grid;place-items:center;
+    font-size:8px;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 4px rgba(0,0,0,.6);
+    font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .coins .sum{height:15px;flex:none;padding:0 4px;border-radius:8px;display:grid;place-items:center;
+    font-size:8px;font-weight:800;color:var(--ink);background:var(--gold);box-shadow:0 2px 4px rgba(0,0,0,.6);z-index:1}
+  .bet.pending{box-shadow:0 0 0 2px var(--cream) inset,0 0 22px -2px rgba(243,236,216,.75);animation:pend 1s ease-in-out infinite;z-index:4}
+  @keyframes pend{50%{box-shadow:0 0 0 2px var(--gold) inset,0 0 26px 0 rgba(215,179,76,.7)}}
+
+  /* rail + approval */
+  .rail{margin:14px 0 0;min-height:64px;border:1px solid var(--gold-dim);border-radius:10px;
+    background:linear-gradient(180deg,#0e1a13,#0a130d);display:flex;align-items:center;gap:16px;padding:12px 16px}
+  .rail .chiplbl{flex:none;font-family:Georgia,serif;font-weight:700;color:var(--ink);background:var(--gold);border-radius:6px;padding:6px 11px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  .rail .txt{font-size:14px;line-height:1.5;color:#dfe7df}
+  .rail .txt b{color:var(--gold);font-family:Georgia,serif}
+  .rail .win{color:var(--ok);font-weight:700}.rail .lose{color:var(--err)}
+  .approve{display:none;align-items:center;flex-wrap:wrap;gap:12px 16px;margin:12px 0 0;
+    border:1px solid var(--gold);border-radius:10px;padding:13px 16px;
+    background:linear-gradient(180deg,rgba(215,179,76,.14),rgba(0,0,0,.14))}
+  .approve.on{display:flex}
+  /* Phones / short landscape: the felt is taller than the viewport, so an
+     in-flow confirm lands off-screen the moment you tap a spot. Pin it. */
+  @media (max-width:1024px), (orientation:landscape) and (max-height:600px){
+    .approve.on{position:fixed;left:8px;right:8px;bottom:8px;z-index:95;margin:0;
+      background:rgba(9,20,14,.97);box-shadow:0 -8px 28px rgba(0,0,0,.65)}
+    .approve .msg{flex:1 1 100%;font-size:13px}
+    .approve .act{margin-left:0;width:100%;justify-content:flex-end}
+  }
+  .approve .msg{font-size:13.5px;line-height:1.5;color:#f0e7c9;font-family:Georgia,serif}
+  .approve .msg b{color:var(--gold)}
+  .approve .msg .warn{color:var(--err);font-style:italic;font-family:"Arial Narrow",Arial,sans-serif}
+  .approve .act{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .ddchips{display:flex;gap:6px}
+  .ddchips .chip{width:38px;height:38px;font-size:11px;border-width:2px}
+
+  /* spin meter */
+  .spin{margin:16px 0 0;border:1px solid rgba(247,240,214,.16);border-radius:12px;background:rgba(247,240,214,.03);padding:14px 16px;display:none}
+  .spin.on{display:block}
+  .spin h2{margin:0 0 4px;font-family:Georgia,serif;font-size:13px;letter-spacing:.04em;color:#e8dcae;font-weight:700;text-transform:uppercase}
+  .spin .note{font-size:11.5px;color:#8fa295;font-family:Georgia,serif;font-style:italic;margin:0 0 12px}
+  .reels{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+  .reelcard{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .reelcard .rlab{font-size:9px;letter-spacing:.12em;color:#9fb4a4}
+  .reel{position:relative;width:100%;max-width:84px;margin:0 auto;height:120px;overflow:hidden;border:1px solid var(--felt-line);border-radius:9px;background:#0b1a12}
+  .reelstrip{position:absolute;left:0;right:0;top:0;will-change:transform}
+  .rcell{height:40px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--cream);font-family:Georgia,serif}
+  .reelwin{position:absolute;left:0;right:0;top:40px;height:40px;pointer-events:none;
+    border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);background:rgba(215,179,76,.09)}
+  .reelfade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(#0b1a12,transparent 34%,transparent 66%,#0b1a12)}
+  .rstat{font-size:9.5px;color:#8fa295;letter-spacing:.06em;min-height:1.2em}
+  .rstat.locked{color:var(--gold);font-weight:800}
+
+  /* pick tracker bar — six slanted stage cells that fill as segments lock */
+  .picktrack{display:none;gap:5px;margin:12px 0 0;padding-right:8px}
+  .picktrack.on{display:flex}
+  .pt{flex:1;height:9px;transform:skewX(-16deg);border:1px solid var(--gold-dim);border-radius:4px;
+    background:rgba(247,240,214,.05);overflow:hidden}
+  .pt span{display:none}
+  .pt.done{background:linear-gradient(180deg,#e2c25f,var(--gold));border-color:var(--gold)}
+  .pt.next{border-color:var(--cream);animation:ptpulse 1.1s ease-in-out infinite}
+  @keyframes ptpulse{50%{background:rgba(215,179,76,.28);border-color:var(--gold)}}
+
+  /* live feed */
+  .table{margin:16px 0 0;border:1px solid rgba(247,240,214,.16);border-radius:12px;background:rgba(247,240,214,.03);overflow:hidden}
+  .table .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid rgba(247,240,214,.12);background:rgba(0,0,0,.14)}
+  .table .hd{cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .table .hd h2{margin:0;font-family:Georgia,serif;font-size:13px;letter-spacing:.04em;color:#e8dcae;font-weight:700;text-transform:uppercase}
+  .table .hd h2::after{content:" ▾";color:#93a698;font-family:"Arial Narrow",Arial,sans-serif}
+  .table.collapsed .hd h2::after{content:" ▸"}
+  .table.collapsed .feed{display:none}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ok)}
+  .live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(111,224,160,.6);animation:pulse 1.6s infinite}
+  @keyframes pulse{70%{box-shadow:0 0 0 7px rgba(111,224,160,0)}100%{box-shadow:0 0 0 0 rgba(111,224,160,0)}}
+  .table .seat-note{margin-left:auto;font-size:11px;color:#8fa295;font-family:Georgia,serif;font-style:italic}
+  .feed{list-style:none;margin:0;padding:6px 0;max-height:240px;overflow-y:auto}
+  .feed:empty::after{content:"No bets down yet. Placements appear here as they land on chain.";display:block;padding:16px;color:#8fa295;font-style:italic;font-family:Georgia,serif;font-size:12.5px}
+  .frow{display:flex;align-items:center;gap:12px;padding:9px 16px;border-bottom:1px solid rgba(247,240,214,.06);font-size:13px;animation:drop .35s ease}
+  @keyframes drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .frow.me{background:rgba(215,179,76,.07)}
+  /* A play that can no longer win fades back as its segment locks, so the felt
+     narrows toward what is still standing. Faint, not gone: the money is real
+     and stays in the pot until the pool settles, and a player wants to find
+     their own dead chip as readily as their live one. Hover restores it. */
+  /* A feed row is one bet, so its fade is binary. A felt spot pools bets from
+     all six segments onto one coin, so binary was the wrong shape: on a
+     six-segment round every even-money spot wins at least once, which meant
+     "fade only when everything on it died" could essentially never fire. The
+     pile now carries --live, the share of its stake still standing, and fades
+     in proportion — a spot that lost four of six sits near 0.4. */
+  .frow.dead{opacity:.15;transition:opacity .7s ease}
+  .frow.dead:hover{opacity:1}
+  .bet .coins{opacity:var(--live,1);transition:opacity .7s ease}
+  .bet:hover .coins{opacity:1}
+  .who{flex:none;display:inline-flex;align-items:center;gap:7px;width:110px;font-variant-numeric:tabular-nums}
+  .who .av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex:none;background:#12271b;border:1px solid var(--gold-dim);color:var(--gold)}
+  .who .nm{color:#cdd8cf;font-size:12px;letter-spacing:.02em}
+  .who .nm.self{color:var(--gold);font-weight:700}
+  .fbet{flex:1;color:#dfe7df}.fbet b{color:var(--cream)}
+  .fseg{flex:none;font-size:10px;letter-spacing:.08em;color:#9fb4a4}
+  .famt{flex:none;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums;font-family:Georgia,serif;width:52px;text-align:right}
+  .obadge{flex:none;font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 7px;border-radius:20px;width:52px;text-align:center}
+  .obadge.w{background:rgba(111,224,160,.16);color:var(--ok);border:1px solid rgba(111,224,160,.4)}
+  .obadge.l{background:rgba(232,136,136,.12);color:var(--err);border:1px solid rgba(232,136,136,.35)}
+
+  /* reveal */
+  .reveal{display:none;margin:16px 0 0;border:1px solid var(--gold);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(215,179,76,.10),rgba(0,0,0,.16))}
+  .reveal.on{display:block;animation:drop .4s ease}
+  .rv-hd{padding:10px 16px;font-family:Georgia,serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);border-bottom:1px solid rgba(247,240,214,.14);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .rv-hd .dd-flag{margin-left:auto;font-size:12px;letter-spacing:.04em;text-transform:none}
+  .rv-hd .dd-flag .hit{color:var(--ok);font-weight:700}.rv-hd .dd-flag .miss{color:#8fa295}
+  .rv-str{display:flex;flex-wrap:wrap;gap:10px;padding:16px}
+  .rv-seg{display:flex;flex-direction:column;align-items:center;gap:5px}
+  .rv-seg .lab{font-size:9px;letter-spacing:.1em;color:#9fb4a4}
+  .rv-seg .ch{width:46px;height:52px;display:grid;place-items:center;border-radius:6px;font-family:Georgia,serif;font-weight:800;font-size:26px;color:var(--cream);background:linear-gradient(180deg,#15171c,#0b0d11);border:1px solid var(--felt-line);position:relative}
+  .rv-seg .ch.rep{border-color:var(--gold);color:var(--gold);box-shadow:0 0 0 2px rgba(215,179,76,.45) inset}
+  .rv-seg .ch.zero::after{content:"";position:absolute;width:5px;height:5px;border-radius:50%;background:currentColor}
+  .rv-stats{display:flex;flex-wrap:wrap;gap:22px;padding:0 16px 16px}
+  .rv-stats .s .k{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8fa295}
+  .rv-stats .s .v{font-size:19px;font-weight:800;color:var(--cream);font-family:Georgia,serif;font-variant-numeric:tabular-nums}
+  .rv-stats .s .v.win{color:var(--ok)}
+  .rv-stats .s .v small{font-size:11px;color:#9fb4a4;font-weight:400}
+
+  /* totals */
+  .totals{display:flex;flex-wrap:wrap;gap:20px;margin-top:16px;padding:12px 4px;border-top:1px solid rgba(247,240,214,.14);align-items:center}
+  .stat .k{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8fa295}
+  .stat .v{font-size:20px;font-weight:800;color:var(--cream);font-variant-numeric:tabular-nums;font-family:Georgia,serif}
+  .stat .v small{font-size:12px;color:#9fb4a4;font-weight:400}
+  .actions{margin-left:auto;display:flex;gap:10px;align-self:center}
+  .foot{margin-top:20px;font-size:12px;color:#8fa295;line-height:1.6;font-family:Georgia,serif;font-style:italic;max-width:82ch}
+  .foot b{color:var(--gold);font-style:normal;font-family:"Arial Narrow",Arial,sans-serif}
+
+  /* ── Phone, portrait ───────────────────────────────────────────────────────
+     A 780px felt inside a ~360px viewport was technically a side-scroller, but
+     an undiscoverable one: iOS only paints the scrollbar mid-gesture, so the
+     board just looked cut off, and less than half of it was ever on screen.
+
+     So the felt turns a quarter turn instead. The three 2-to-1 COLUMN rows
+     become three columns of twelve, which is the one rearrangement that keeps
+     the bets honest — a column bet still terminates the twelve pockets it pays
+     on, and each dozen is still four contiguous rows. Rewrapping the 36
+     characters into a squarer block would have stranded those cells beside
+     characters they have nothing to do with.
+
+     Nothing here reaches the stream or the desktop felt: this applies only to a
+     narrow viewport held upright. */
+  @media (orientation: portrait) and (max-width: 620px) {
+    .felt-scroll{overflow-x:visible}
+    .felt{min-width:0;width:100%;padding:10px;
+      box-shadow:0 0 0 5px var(--wood),0 0 0 7px #14100a,0 12px 30px -14px rgba(0,0,0,.8),inset 0 0 50px rgba(0,0,0,.35)}
+    .board{grid-template-columns:repeat(3,1fr) .8fr;
+           grid-template-rows:repeat(12,38px) 34px 46px 36px 36px 34px 34px;gap:4px}
+    .board>.bet{grid-column:var(--pcol,var(--col,auto));grid-row:var(--prow,var(--row,auto))}
+    .pocket{font-size:19px}
+    .out .lab{font-size:9.5px}.out .sub{font-size:7.5px}
+    .colbet .lab{font-size:9px}.colbet .sub{font-size:7px}
+    /* the bonus stake is a band now, so its two lines sit side by side */
+    .dd{flex-direction:row}
+    .dd .lab{font-size:12px}
+    .dd .sub{font-size:7.5px;margin-top:2px}
+    .coins{top:2px;right:2px}
+    .coin{width:16px;height:16px;font-size:7px;margin-left:-6px;border-width:1.5px}
+    .coins .sum{height:13px;padding:0 3px;font-size:7px}
+    .reel{max-width:none}
+  }
+
+  /* ── Mobile landscape ──────────────────────────────────────────────────────
+     The roulette grid is already fluid (fr columns); only .felt's min-width
+     forces the side-scroll. In a phone's horizontal view, drop it so the board
+     and the meter fill the width, and tighten the vertical rhythm so the whole
+     felt fits a short landscape viewport without scrolling either way. */
+  @media (orientation: landscape) and (max-height: 600px) {
+    body{padding:14px 12px 40px}
+    .felt-scroll{overflow-x:visible}
+    .felt{min-width:0;width:100%;padding:12px;
+      box-shadow:0 0 0 6px var(--wood),0 0 0 8px #14100a,0 14px 34px -14px rgba(0,0,0,.8),inset 0 0 60px rgba(0,0,0,.35)}
+    /* shorter rows so all seven bet-rows clear a ~390px-tall viewport */
+    .board{grid-template-rows:repeat(3,34px) 30px 32px 32px 32px;gap:3px}
+    .pocket{font-size:16px}
+    .out .lab{font-size:9px}.out .sub{font-size:7px}
+    .dd .lab{font-size:12px}.dd .sub{margin-top:3px}
+    .coins{top:2px;right:2px}
+    .coin{width:15px;height:15px;font-size:6.5px;margin-left:-6px;border-width:1.5px}
+    .coins .sum{height:12px;padding:0 3px;font-size:6.5px}
+    /* the meter spans the full width too: reels widen to fill (native cell
+       height kept — the strip's translateY math is pinned to RCELL=40 in JS). */
+    .reels{gap:6px}
+    .reel{max-width:none}
+  }
+</style>
+</head>
+<body class="pre">
+<div class="wrap">
+  <p class="eyebrow">SwapTables · Arbitrum Sepolia · pre-round segment betting</p>
+  <h1>Load all six <em>tokens</em>, then play.</h1>
+  <p class="lede">
+    Sit with a ticket, stake six chips, place your bets — <b>the chain spins, winners split the pot.</b>
+  </p>
+  <details class="how">
+    <summary>How it works</summary>
+    <p>
+      Sit with a six-character ticket and take your <b>six segment tokens</b> — one per segment.
+      First <b>load every token</b> with a TIMBS chip: all six carry a stake before the board opens
+      to you. Then place them — pick a spot, read what it calls for, approve the transaction.
+      <b>Once it's mined, it's final.</b> Tokens you load but never place come back as withdrawable
+      credit when the table retires. Operating a table (open / lock / retire) lives in the
+      <a href="index.html">console</a>.
+    </p>
+  </details>
+
+  <div class="top wbar">
+    <button class="btn primary" id="connect">Connect wallet</button>
+    <span class="wid" id="acct" style="display:none">—</span>
+    <span class="pill" id="net" style="display:none">—</span>
+    <span class="spacer"></span>
+    <span class="wstat" id="balPill" style="display:none"><span class="k">TIMBS</span><span class="v">—</span></span>
+    <span class="wstat" id="credPill" style="display:none"><span class="k">CREDIT</span><span class="v">—</span></span>
+    <button class="btn" id="withdraw" style="display:none" disabled>Withdraw</button>
+  </div>
+
+  <div class="top prehide">
+    <span class="pill">table</span>
+    <input id="tableId" inputmode="numeric" style="width:70px;background:#0b1a12;border:1px solid var(--felt-line);border-radius:6px;color:var(--cream);font-size:15px;font-weight:800;padding:7px 10px;text-align:center">
+    <button class="btn" id="loadTable">Load</button>
+    <button class="btn" id="newest">Newest</button>
+    <a class="btn" href="games.html" style="text-decoration:none">All games</a>
+    <span class="pill" id="phasePill">—</span>
+    <span class="pill" id="seatsPill">seats —</span>
+    <button class="btn" id="armBtn" style="display:none">Start the pick</button>
+  </div>
+
+  <div class="phases prehide" id="phases"></div>
+
+  <div class="gate prehide" id="gate">
+    <span class="req">Your <b>ticket</b> — your active <b>TimbSwap Compete</b> ticket seats you, and its letters power the <b>Your Ticket</b> spots.</span>
+    <input id="ticketIn" maxlength="6" placeholder="ABC123" autocomplete="off">
+    <button class="btn primary" id="sitBtn">Sit at this table</button>
+    <div class="ticket" id="ticketTiles"></div>
+    <div id="noTicket" style="display:none;flex:1 1 100%;font-family:Georgia,serif;font-size:13.5px;line-height:1.65;color:#f0e7c9">
+      <b style="color:var(--gold)">This wallet has no active Compete ticket — the table can't seat it.</b><br>
+      Your Compete ticket is what makes the letters <i>yours</i> here: the <b>Your Ticket</b> spots
+      pay against it. Enter a round first, then come back and sit.<br>
+      <a href="https://timbswap.xyz/compete/" target="_blank" rel="noopener" class="btn primary"
+         style="display:inline-block;margin-top:9px;text-decoration:none">Get your ticket at Compete →</a>
+    </div>
+  </div>
+
+  <div class="controls prehide">
+    <div class="panel" id="tokensPanel">
+      <h2 class="clickable" onclick="this.parentElement.classList.toggle('collapsed')">Your segment tokens <span>· each bets on its own segment</span></h2>
+      <div class="rack" id="rack"></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px">
+        <button class="btn primary" id="loadBtn" disabled>Load all six</button>
+        <span class="hint" id="loadHint" style="margin-top:0"></span>
+      </div>
+    </div>
+    <div class="panel" id="chipsPanel">
+      <h2 class="clickable" onclick="this.parentElement.classList.toggle('collapsed')">TIMBS chips <span>· the stake you load onto a token</span></h2>
+      <div class="chips" id="chips"></div>
+      <div class="hint" id="hint"><b>Phase 1 — load.</b> Give every token a chip. All six load in one transaction, and it must land before entry closes.</div>
+    </div>
+  </div>
+
+  <div class="top wbar prehide" id="potbar" style="margin-bottom:12px">
+    <span class="wstat"><span class="k">ON THE TABLE</span><span class="v" id="potEscrow">—</span></span>
+    <span class="wstat" title="the table's 100-TIMBS seed now funds the reserve that tops up thin winners — it no longer enters any pool"><span class="k">SEED &rarr; RESERVE</span><span class="v" id="potSeed">100</span></span>
+    <span class="wstat" title="a pool is rake-free until two distinct wallets contest it"><span class="k">POOLS CONTESTED</span><span class="v" id="potPools">0/7</span></span>
+    <span class="wstat" id="potNetWrap" style="display:none"
+          title="every chip you have placed this round against everything credited back to you so far"><span class="k" id="potNetLab">LOST THIS ROUND</span><span class="v" id="potNet">—</span></span>
+    <span class="hint" style="margin:0;flex:1 1 220px">The prize is every chip placed, minus the graduated rake,
+      split among winners — and thin pools are topped up from the reserve, which the table's 100 seed now funds.</span>
+  </div>
+  <div class="felt-scroll prehide">
+    <div class="felt locked" id="felt" data-lock="Connect, sit and load to open the board"><div class="board" id="board"></div></div>
+  </div>
+
+  <div class="rail">
+    <span class="chiplbl">Your bet</span>
+    <span class="txt" id="railtxt">Connect your wallet to begin.</span>
+  </div>
+
+  <div class="panel prehide" id="picksPanel" style="margin:14px 0 0">
+    <h2 class="clickable" onclick="this.parentElement.classList.toggle('collapsed')">Your picks
+      <span>· live payout estimates · figures move as players join</span></h2>
+    <div id="picksList" style="font-size:13px;line-height:1.5"></div>
+    <p class="hint" id="picksNote" style="display:none">A win returns your own chip and pays you the rest of the pool —
+      the rake shaves both, which is why the figure back is a little under what you staked.
+      "Up to" assumes yours is the only winning pick in the pool — pari-mutuel means co-winners split the pot by
+      stake × weight. Rake falls as more wallets join.</p>
+  </div>
+
+  <div class="approve" id="approve">
+    <span class="msg" id="approveMsg"></span>
+    <span class="act" id="approveAct">
+      <span class="ddchips" id="ddChips" style="display:none"></span>
+      <button class="btn" id="changeSpot">Choose another spot</button>
+      <button class="btn primary" id="approveBtn">Approve &amp; place</button>
+    </span>
+  </div>
+
+  <div class="spin" id="spin">
+    <h2>Spin meter</h2>
+    <p class="note" id="spinNote">Bets are closed — the six balls are running. The meter is display only:
+      the chain decides each character from the lock-block hash, never from this animation (§10.1).</p>
+    <div class="reels" id="reels"></div>
+    <label style="display:inline-flex;align-items:center;gap:7px;margin:10px 0 0;font-size:11.5px;color:#9fb4a4;cursor:pointer">
+      <input type="checkbox" id="holdReveal" style="accent-color:#d7b34c"> hold the drop — reels stay face-down until all six lock
+    </label>
+    <div class="picktrack" id="pickTrack">
+      <div class="pt" data-i="0"><span>1</span></div><div class="pt" data-i="1"><span>2</span></div>
+      <div class="pt" data-i="2"><span>3</span></div><div class="pt" data-i="3"><span>4</span></div>
+      <div class="pt" data-i="4"><span>5</span></div><div class="pt" data-i="5"><span>6</span></div>
+    </div>
+    <p class="note" id="lockTracker" style="display:none;margin:10px 0 0;font-variant-numeric:tabular-nums"></p>
+    <button class="btn primary" id="finishPick" style="display:none;margin-top:10px">Finish the pick and close the table — no secret needed, you pay the gas</button>
+    <button class="btn primary" id="closeTable" style="display:none;margin-top:10px">Close the table — release refunds and finish the round (anyone may)</button>
+  </div>
+
+  <details class="panel prehide" style="margin:16px 0 0">
+    <summary style="cursor:pointer;font-family:Georgia,serif;font-size:13px;letter-spacing:.04em;color:#e8dcae;font-weight:700;text-transform:uppercase">Meter console
+      <span style="color:#93a698;font-weight:400;text-transform:none;font-family:'Arial Narrow',Arial,sans-serif;font-size:12px">· tune the §10.2 envelope · display-only, saved in this browser</span></summary>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;align-items:center">
+      <button class="btn" id="replaySpin">Replay spin</button>
+      <button class="btn" id="meterReset">Reset dials</button>
+      <button class="btn" id="meterCopy">Copy for spec</button>
+      <span class="hint" id="meterHint" style="margin-top:0">Dials move the ride, never the landing — the chain picks the characters.</span>
+    </div>
+    <div id="meterSliders" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:2px 24px"></div>
+    <textarea id="meterOut" hidden readonly spellcheck="false" style="width:100%;margin-top:10px;min-height:130px;background:#0b1a12;border:1px solid var(--felt-line);border-radius:8px;color:var(--cream);font-size:11px;line-height:1.45;padding:10px;white-space:pre;overflow-x:auto"></textarea>
+  </details>
+
+  <div class="reveal" id="reveal">
+    <div class="rv-hd">Winning string <span class="dd-flag" id="ddFlag"></span></div>
+    <div class="rv-str" id="rvStr"></div>
+    <div class="rv-stats" id="rvStats"></div>
+  </div>
+
+  <div class="table prehide" id="feedCard">
+    <div class="hd" id="feedHd">
+      <h2>Live table</h2>
+      <span class="live">Live</span>
+      <span class="seat-note" id="seatNote">seats fill 2–12 · identity shown as a masked tag, never a full address</span>
+    </div>
+    <ul class="feed" id="feed"></ul>
+  </div>
+
+  <div class="totals prehide">
+    <div class="stat"><div class="k">Loaded</div><div class="v" id="tLoad">0<small>/6</small></div></div>
+    <div class="stat"><div class="k">On the board</div><div class="v" id="tOn">0 <small>TIMBS</small></div></div>
+    <div class="stat"><div class="k">Tokens placed</div><div class="v" id="tTok">0<small>/6</small></div></div>
+    <div class="stat"><div class="k">Repeats a Digit</div><div class="v" id="tDD">— <small>TIMBS</small></div></div>
+    <div class="actions">
+      <a class="btn" href="index.html">Open the console</a>
+    </div>
+  </div>
+
+  <p class="foot">
+    Every placement is a wallet <b>approval</b>, and once mined it can't be undone.
+    <b>Payout is pari-mutuel</b>: each of the seven pools (six segments + Repeats a Digit) forms its own
+    pot — every chip in the pool — and
+    when the round locks its six characters, the pot minus rake splits among winners in proportion
+    to <b>stake × fair-multiple</b>. The printed odds (36 ÷ symbols − 1) are relative weights, not a
+    fixed house payout; the actual return floats with how the table bet. <b>Rake is graduated</b>:
+    8% on an uncontested pool, falling toward 1.75% as more wallets join (4.87% at two). Losing
+    chips fund the winners; nobody banks against the table. Even/odd doesn't exist here — a
+    letter-and-number alphabet has no parity.
+  </p>
+</div>
+
+<script type="module">
+import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
+
+const ADDR = {
+  board:  "0xB2D10cA505909b909835f4b5684B205b157b5Bf2",
+  jackpot: "0x73D3c3224Ed4F4fA663878bf32B8605A2DAe96B9", // DDJackpot (M2) — cross-generation, deploy-once
+  ledger: "0xE7dE0Fc722369Bd96b98453676E331EB24d9161b",
+  timbs:  "0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa",
+  crank:  "0x09B8bC3eD49491DA2AaC47ad6DDC9A0cB6B2783D", // stateless batcher, generation-agnostic
+};
+const CRANK_ABI = [
+  "function fallbackAll(address board,uint256 tableId,bool alsoRetire)",
+  "error NothingToDo(uint256 tableId)",
+];
+// TimbSwap Compete — the ticket gate. The felt only seats wallets holding an
+// active Compete ticket, and that ticket IS the player's letters here.
+const GAME = "0xBAb1CBaF0dE094322A49B379d0AC4510D1F78530";
+const GAME_ABI = [
+  "function activeTicketOf(address owner) view returns (uint256)",
+  "function getTicketsOf(address owner) view returns (tuple(uint256 id,address owner,bytes6 string6,uint256 playRound,uint256 lastEligibleRound,uint256 escrowAmount,address escrowToken,uint8 status,uint256 supersedes,uint256 supersededBy,uint256 createdAt,uint256 forfeitRound,uint256 generation)[] list, uint8[] displayStatuses)",
+];
+const CHAIN = 42161n;
+const CHIPS = [5,10,25,50,100,500,1000];
+const CHIPCOLOR = {5:"#b0243a",10:"#20507f",25:"#1f7a44",50:"#c56a1e",100:"#565b66",500:"#6a3b8f",1000:"#caa63f"};
+let collapsedChips=false, collapsedTokens=false, ticketShown=false;
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+// RED_MASK 0x1555555555 — bit i set => symbol i is red (alternating 18/18).
+const RED = i => (0x1555555555n >> BigInt(i) & 1n) === 1n;
+
+const KIND = {EXACTLY:0, COLUMN:1, DOZEN:2, VOWELS:3, COLOR:4, LETTER:5, NUMBER:6, LOWHIGH:7, TICKET:8, DD:9};
+
+const BOARD_ABI = [
+  "function tableCount() view returns (uint256)",
+  "function tables(uint256) view returns (uint64 openedAt,uint64 pickTime,uint64 lockBlock,uint32 seedRound,uint8 seatCount,uint8 lockedMask,bool ddSettled,bool retired,bytes6 seedString,bytes6 lockedChars)",
+  "function seats(uint256,address) view returns (uint64 chipPack,uint8 placedMask,uint8 ddChip,bool seated,bytes6 ticket)",
+  "function entryWindow() view returns (uint64)",
+  "function pickDelay() view returns (uint64)",
+  "function betsCloseLead() view returns (uint64)",
+  "function sit(uint256 tableId,bytes6 ticket)",
+  "function loadTokens(uint256 tableId,uint8[6] chipIdxs)",
+  "function place(uint256 tableId,uint8 segment,uint8 kind,uint8 pick)",
+  "function placeDoubleDigit(uint256 tableId,uint8 chipIdx)",
+  "function armTable(uint256 tableId)",
+  "function lockSegmentFallback(uint256 tableId,uint8 segment)",
+  "function retire(uint256 tableId)",
+  "error RevealWindowOpen()","error LockBlockUnavailable(uint256 lockBlock)","error SegmentAlreadyLocked(uint8 segment)",
+  "event Seated(uint256 indexed tableId,address indexed wallet)",
+  "event BetPlaced(uint256 indexed tableId,uint8 indexed pool,address indexed wallet,uint8 kind,uint8 pick)",
+  "event PoolSettled(uint256 indexed tableId,uint8 indexed pool,uint256 pot,uint256 rake,uint256 distributed)",
+  "error TableClosedForEntry()","error TableFull()","error AlreadySeated()","error NotSeated()",
+  "error AlreadyLoaded()","error NotLoaded()","error BadChip()","error BadSegment()","error BadKind()",
+  "error BadPick()","error AlreadyPlaced(uint8 pool)","error BetsClosed()","error Halted()",
+  "error NoSuchTable(uint256 tableId)","error TableRetired(uint256 tableId)","error NotYetPickTime()",
+  "error NotEnoughSeats(uint8 have,uint8 need)","error AlreadyArmed()",
+];
+/// ── generation detection — one page serves gen-4 and gen-5 boards ──
+/// Gen-5 appends four fields to tables() (entryCloseAt, lastJoinAt,
+/// firstLoadAt, loadedCount) and exposes new dial views. Probing sitQuiet()
+/// (gen-5 only) picks the right tables() shape; on gen-4 the call returns no
+/// data and we stay on the 10-field tuple. The appended fields are trailing
+/// words, so the shared prefix decodes identically either way.
+let GEN = 4;
+const TABLES_V5 = "function tables(uint256) view returns (uint64 openedAt,uint64 pickTime,uint64 lockBlock,uint32 seedRound,uint8 seatCount,uint8 lockedMask,bool ddSettled,bool retired,bytes6 seedString,bytes6 lockedChars,uint64 entryCloseAt,uint64 lastJoinAt,uint64 firstLoadAt,uint8 loadedCount)";
+const TABLES_V6 = "function tables(uint256) view returns (uint64 openedAt,uint64 pickTime,uint64 lockBlock,uint32 seedRound,uint8 seatCount,uint8 lockedMask,bool ddSettled,bool retired,bytes6 seedString,bytes6 lockedChars,uint64 entryCloseAt,uint64 lastJoinAt,uint64 firstLoadAt,uint8 loadedCount,address opener)";
+/// Gen-8 appends armedMask. `lockBlock` in slot 3 is `armedAt` there — same
+/// type, same slot, still "0 means not armed" — so armed/not-armed reads and
+/// every earlier decoder keep working untouched.
+const TABLES_V8 = TABLES_V6.replace(",address opener)", ",address opener,uint8 armedMask)");
+/// Gen-6 additions: dealer tips (M6) + the underwrite reserve (M1).
+const GEN6_EXTRAS = [
+  "function tipDealer(uint256 tableId,uint256 amount)",
+  "function reserve() view returns (address)",
+  "event DealerTipped(uint256 indexed tableId,address indexed from,address indexed opener,uint256 amount)",
+  "event PoolUnderwritten(uint256 indexed tableId,uint8 indexed pool,uint256 wanted,uint256 granted)",
+  "error SegmentsOutstanding()",
+  "error ExceedsCredit(address wallet,uint256 requested,uint256 held)",
+];
+/// Gen-8: VRF entropy. One draw per segment; no secrets, no fallback path.
+const GEN8_EXTRAS = [
+  "function armSegment(uint256 tableId,uint8 segment)",
+  "function rearmSegment(uint256 tableId,uint8 segment)",
+  "function lockSegment(uint256 tableId,uint8 segment)",
+  "function segmentState(uint256 tableId,uint8 segment) view returns (bool armed,bool locked,bool drawIn,bool lockable,bool replaceable)",
+  "error SegmentNotArmed(uint8 segment)",
+  "error SegmentAlreadyArmed(uint8 segment)",
+  "error DrawNotIn(uint8 segment)",
+];
+/// Signatures that exist only up to gen-7 and would collide on gen-8.
+const PRE8_ONLY = [
+  "function armTable(uint256 tableId)",
+  "function lockSegment(uint256 tableId,uint8 segment,bytes32 secret)",
+  "function lockSegmentFallback(uint256 tableId,uint8 segment)",
+  "function rearmTable(uint256 tableId)",
+];
+async function detectGen(runner){
+  const probe=async(abi,fn,args=[])=>{ try{ await new ethers.Contract(ADDR.board,[abi],runner)[fn](...args); return true; }catch{ return false; } };
+  // Positive test: segmentState exists only on the VRF board, so an RPC hiccup
+  // reads as an older generation rather than a newer one.
+  if(await probe("function segmentState(uint256,uint8) view returns (bool,bool,bool,bool,bool)","segmentState",[1,1])) return 8;
+  if(await probe("function reserve() view returns (address)","reserve")) return 6;
+  if(await probe("function sitQuiet() view returns (uint64)","sitQuiet")) return 5;
+  return 4;
+}
+function boardAbiFor(gen){
+  const base = BOARD_ABI.filter(f=>!f.startsWith("function tables("));
+  if(gen>=8) return [TABLES_V8, ...GEN6_EXTRAS, ...GEN8_EXTRAS,
+                     ...base.filter(f=>!PRE8_ONLY.includes(f))];
+  if(gen>=6) return [TABLES_V6, ...GEN6_EXTRAS, ...base];
+  if(gen>=5) return [TABLES_V5, ...base];
+  return BOARD_ABI;
+}
+/// Entry close is per-table state on gen-5 (adaptive — every join can move
+/// it); on gen-4 it is the global dial measured from openedAt.
+function entryEndOf(t){ return GEN>=5 ? Number(t.entryCloseAt) : Number(t.openedAt)+dials.entry; }
+/// "Enough players" means funded wallets on gen-5, seated wallets before it.
+function fundedOf(t){ return GEN>=5 ? Number(t.loadedCount) : Number(t.seatCount); }
+const LEDGER_ABI = [
+  "function credit(address) view returns (uint256)",
+  "function tableEscrow(uint256) view returns (uint256)",
+  "function withdraw()",
+  "event WinningsCredited(address indexed to, uint256 indexed tableId, uint256 amount)",
+  "error NothingToWithdraw()",
+];
+const ERC20_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
+];
+const ERR_HINT = {
+  TableClosedForEntry:"entry has closed on this table — sit and load only in the first phase",
+  BetsClosed:"betting has closed — the spin is committed",
+  AlreadySeated:"this wallet already sat down here",
+  NotSeated:"sit at the table first",
+  AlreadyLoaded:"your six tokens are already loaded",
+  NotLoaded:"load your six tokens before placing",
+  AlreadyPlaced:"that token (or your Repeats-a-Digit stake) is already on the board",
+  BadChip:"that chip size does not exist",
+  TableFull:"all 12 seats are taken",
+  NotYetPickTime:"too early to start the pick",
+  NotEnoughSeats:"this table never filled — it can be cancelled from the console",
+  NothingToWithdraw:"no credit to withdraw",
+  Halted:"new bets are halted right now",
+};
+
+const $ = id => document.getElementById(id);
+let provider, signer, me, board, ledger, timbs, crank, game;
+let myCompete = null, competeErr = false; // {id, str} once verified
+let T=null, tid=null, dials=null, mySeat=null;
+let curSeg=null, curChip=null, pending=null;
+const localChips={};                 // seg -> chipIdx picked before the load tx
+const feedSeen=new Set();
+const poolBook=[[],[],[],[],[],[],[]];   // pool 0-5 = segments, 6 = Double-Digit
+// gen-9: no per-pool seed share — the table seed routes whole to the reserve
+const packCache={};                  // wallet -> chipPack
+
+const fmtT = wei => { const s = ethers.formatUnits(wei,18); return s.endsWith(".0")? s.slice(0,-2): s; };
+const fmt4 = wei => Number(ethers.formatUnits(wei,18)).toLocaleString(undefined,{maximumFractionDigits:4});
+const rail = t => { $("railtxt").innerHTML = t; };
+const short = a => a.slice(0,6)+"…"+a.slice(-4);
+const SUITS=["♠","♥","♦","♣"];
+const tagOf = a => SUITS[parseInt(a.slice(-1),16)%4]+"\u00b7"+a.slice(2,5);
+
+// ── bet spec table (contract truth) ─────────────────────────────
+function fair(count){ return Math.round((36/count-1)*100)/100; }
+function specOf(kind,pick,ticket){
+  switch(kind){
+    case KIND.EXACTLY: return {name:"Exactly "+ALPHABET[pick], count:1};
+    case KIND.COLUMN:  return {name:"Column "+(pick+1), count:12};
+    case KIND.DOZEN:   return {name:["1st 12 (A–L)","2nd 12 (M–X)","3rd 12 (Y–9)"][pick], count:12};
+    case KIND.VOWELS:  return {name:"Vowels", count:6};
+    case KIND.COLOR:   return {name:pick===0?"Red":"Black", count:18};
+    case KIND.LETTER:  return {name:"Letters", count:26};
+    case KIND.NUMBER:  return {name:"Numbers", count:10};
+    case KIND.LOWHIGH: return {name:pick===0?"Low (A–R)":"High (S–9)", count:18};
+    case KIND.TICKET:  return {name:"Your Ticket", count:1};
+    case KIND.DD:      return {name:"Repeats a Digit", count:0};
+  }
+  return {name:"?",count:1};
+}
+function winsAgainst(kind,pick,idx,ticketChar,winStr){
+  if(kind===KIND.DD) return new Set(winStr).size < winStr.length;
+  if(kind===KIND.EXACTLY) return idx===pick;
+  if(kind===KIND.COLUMN)  return idx%3===pick;
+  if(kind===KIND.DOZEN)   return Math.floor(idx/12)===pick;
+  if(kind===KIND.VOWELS)  return "AEIOUY".includes(ALPHABET[idx]);
+  if(kind===KIND.COLOR)   return pick===0 ? RED(idx) : !RED(idx);
+  if(kind===KIND.LETTER)  return idx<26;
+  if(kind===KIND.NUMBER)  return idx>=26;
+  if(kind===KIND.LOWHIGH) return pick===0 ? idx<18 : idx>=18;
+  if(kind===KIND.TICKET)  return ALPHABET[idx]===ticketChar;
+  return false;
+}
+
+// ── send with raw fallback (console-proven) ─────────────────────
+async function send(label, contract, method, ...args){
+  rail("Sending — <b>"+label+"</b>… confirm in your wallet.");
+  try{
+    const t = await contract[method](...args);
+    rail("<b>"+label+"</b> sent ("+t.hash.slice(0,14)+"…) — waiting for the chain…");
+    await t.wait();
+    try{ window.DebugHub && DebugHub.logCheckpoint(label, "pass"); }catch(_){}
+    return true;
+  }catch(e){
+    if(!isHandshakeFail(e)){ try{ window.DebugHub && DebugHub.logError(label, e); }catch(_){}
+      rail('<span class="lose">✗ '+label+"</span> — "+explain(e)); return false; }
+  }
+  try{
+    const data = contract.interface.encodeFunctionData(method, args);
+    const to = await contract.getAddress();
+    const hash = await window.ethereum.request({method:"eth_sendTransaction",params:[{from:me,to,data}]});
+    rail("<b>"+label+"</b> sent raw ("+String(hash).slice(0,14)+"…) — waiting…");
+    const rec = await provider.waitForTransaction(hash);
+    if(rec && Number(rec.status)===0){ try{ window.DebugHub && DebugHub.logError(label, "reverted on chain"); }catch(_){}
+      rail('<span class="lose">✗ '+label+"</span> — reverted on chain"); return false; }
+    try{ window.DebugHub && DebugHub.logCheckpoint(label+" (raw)", "pass"); }catch(_){}
+    return true;
+  }catch(e){ try{ window.DebugHub && DebugHub.logError(label, e); }catch(_){}
+    rail('<span class="lose">✗ '+label+"</span> — "+explain(e)); return false; }
+}
+function isHandshakeFail(e){
+  const m = (e?.message||"")+" "+(e?.shortMessage||"");
+  return e?.code==="UNKNOWN_ERROR" || /could not coalesce/i.test(m);
+}
+function explain(e){
+  if(e?.code==="ACTION_REJECTED") return "you rejected it in the wallet";
+  if(e?.code==="INSUFFICIENT_FUNDS") return "not enough ETH for gas";
+  const named = n => ERR_HINT[n.name] ? n.name+" — "+ERR_HINT[n.name] : n.name;
+  if(e?.revert?.name) return named(e.revert);
+  if(e?.info?.error?.revert?.name) return named(e.info.error.revert);
+  const data = findData(e);
+  if(data){ for(const iface of [board?.interface, ledger?.interface, timbs?.interface, crank?.interface]){
+    let p=null; try{ p=iface?.parseError(data);}catch{} if(p) return named(p);
+  } return "reverted ("+data.slice(0,10)+"…)"; }
+  return e?.info?.error?.message || e?.shortMessage || e?.message || String(e);
+}
+function findData(e,d=0){
+  if(d>6||e==null) return null;
+  if(typeof e==="string") return /^0x[0-9a-fA-F]{8,}$/.test(e)&&e.length%2===0?e:null;
+  if(typeof e!=="object") return null;
+  for(const k of ["data","returnData","originalError","error","info","cause","body"]){
+    if(k in e){ const h=findData(e[k],d+1); if(h) return h; }
+  }
+  return null;
+}
+
+// ── connect ────────────────────────────────────────────
+$("connect").onclick = async () => {
+  if(!window.ethereum){
+    $("connect").textContent="No wallet found"; setTimeout(()=>$("connect").textContent="Connect wallet",2200);
+    return rail("No wallet found — open this page in a wallet browser.");
+  }
+  $("connect").disabled=true; $("connect").textContent="Connecting…";
+  let net;
+  try{
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = await provider.getSigner();
+    me = await signer.getAddress();
+    net = await provider.getNetwork();
+  }catch(e){
+    $("connect").disabled=false; $("connect").textContent="Connect wallet";
+    return rail(explain(e));
+  }
+  // the button becomes the identity: chip with a live dot, stats fade in
+  $("connect").style.display="none";
+  $("acct").style.display=""; $("acct").textContent=short(me);
+  ["balPill","credPill","withdraw"].forEach(id=>$(id).style.display="");
+  if(net.chainId!==CHAIN){
+    $("acct").classList.add("bad");
+    $("net").style.display=""; $("net").textContent="wrong chain — switch to Arbitrum Sepolia";
+    $("net").className="pill bad";
+    return rail("Switch your wallet to Arbitrum Sepolia (42161).");
+  }
+  $("acct").classList.remove("bad");
+  $("acct").title = me+" · Arbitrum Sepolia";
+  document.body.classList.remove("pre");
+  try{
+    window.ethereum.on?.("accountsChanged", ()=>location.reload());
+    window.ethereum.on?.("chainChanged",  ()=>location.reload());
+  }catch{}
+  GEN = await detectGen(signer);
+  board  = new ethers.Contract(ADDR.board, boardAbiFor(GEN), signer);
+  if(GEN>=5) ERR_HINT.TableClosedForEntry = "entry has closed on this table — no new seats; already-seated wallets can still load until bets close";
+  if(GEN>=6){ ERR_HINT.SegmentsOutstanding = "tips unlock once all six segments are locked";
+              ERR_HINT.ExceedsCredit = "that is more than your withdrawable credit"; }
+  crank  = new ethers.Contract(ADDR.crank, CRANK_ABI, signer);
+  game   = new ethers.Contract(GAME, GAME_ABI, signer);
+  await checkCompete();
+  ledger = new ethers.Contract(ADDR.ledger, LEDGER_ABI, signer);
+  timbs  = new ethers.Contract(ADDR.timbs, ERC20_ABI, signer);
+  dials = { entry: Number(await board.entryWindow()), lead: Number(await board.betsCloseLead()) };
+  rail(requestedTable() ? "Connected. Loading table " + requestedTable() + "…"
+                        : "Connected. Loading the newest table…");
+  pollJackpot();
+  try{ window.DebugHub && DebugHub.logCheckpoint("wallet connected · "+short(me), "pass"); }catch(e){}
+  await openRequestedOrNewest();
+  setInterval(refreshChain, 12000);
+  setInterval(tick, 1000);
+  (function loop(){ if(T&&dials) driveSpin(phaseOf()); requestAnimationFrame(loop); })();
+};
+
+async function pickNewest(){
+  const n = Number(await board.tableCount());
+  if(n===0){ rail("No tables have ever been opened on this board."); return; }
+  tid = n; $("tableId").value = n;
+  await refreshChain();
+}
+
+/// `play.html?table=12` — the deep link the games dashboard hands out, so a
+/// player who picked a table out of the shop window lands on THAT table
+/// instead of whichever one happens to be newest. No param, old behaviour.
+function requestedTable(){
+  const want = Number(new URLSearchParams(location.search).get("table"));
+  return Number.isInteger(want) && want > 0 ? want : null;
+}
+async function openRequestedOrNewest(){
+  const want = requestedTable();
+  if(want){ tid = want; $("tableId").value = want; await refreshChain(); return; }
+  await pickNewest();
+}
+$("newest").onclick = pickNewest;
+$("loadTable").onclick = async () => { tid = Number($("tableId").value||"0")||null; if(tid) await refreshChain(); };
+$("withdraw").onclick = async () => {
+  if(await send("withdraw my credit", ledger, "withdraw")){ rail('<span class="win">Credit withdrawn.</span>'); await refreshChain(); }
+};
+
+/// The gate: an active Compete ticket is what makes the letters YOURS at
+/// payout time (the Your-Ticket spots resolve against it). No ticket, no seat
+/// — enforced here in the page today, on chain in generation 4.
+async function checkCompete(){
+  competeErr = false;
+  try{
+    const id = await game.activeTicketOf(me);
+    if(id === 0n){ myCompete = null; return; }
+    const [list] = await game.getTicketsOf(me);
+    const t = list.find(x => x.id === id);
+    myCompete = t ? { id, str: ethers.toUtf8String(t.string6) } : null;
+  }catch{ myCompete = null; competeErr = true; }
+}
+
+// ── chain refresh ──────────────────────────────────────
+let refreshing=false;
+/// Switching tables has to wipe the felt with it. The feed, the pile totals and
+/// the chip-pack cache are all per-table; left standing, table 12's chips sit on
+/// the board while table 13's bets stack on top of them. Matters more now that
+/// the games dashboard deep-links straight into a chosen table.
+let shownTid=null;
+/// Pools the chain settled with nothing distributed — the pot forfeits whole and
+/// the house sweeps it. Every bet in such a pool is dead by the chain's own
+/// account rather than by our arithmetic, which is a stronger claim: it survives
+/// la partage, forfeits, the uncontested-pool rule and anything else settlement
+/// does that a client-side character check would have to re-derive and could get
+/// wrong.
+const deadPools = new Set();
+/// Wallets the ledger actually credited on this table. WinningsCredited carries
+/// no pool -- only (to, tableId, amount) -- so the chain cannot attribute a
+/// payout to a particular bet. What it CAN say, once every segment is in, is
+/// that a wallet was paid nothing at all: then every bet that wallet placed is
+/// dead, definitively, and that verdict outranks any character arithmetic.
+const paidWallets = new Set();
+/// Queried per refresh so the fade can key off what settlement DID, not what we
+/// predict it should have done. Cheap: one filtered log read, same window the
+/// bet feed already uses.
+async function pollSettled(){
+  if(!board || !tid) return;
+  try{
+    const latest = await provider.getBlockNumber();
+    const evs = await board.queryFilter(board.filters.PoolSettled(tid),
+                                        Math.max(0, latest-400000), latest);
+    for(const ev of evs){
+      if(ev.args.pot > 0n && ev.args.distributed === 0n) deadPools.add(Number(ev.args.pool));
+    }
+  }catch{ /* RPC log limits — the character check below still covers it */ }
+  try{
+    const latest = await provider.getBlockNumber();
+    // no `to` filter: we want every wallet on the table, not just ours
+    const cevs = await ledger.queryFilter(ledger.filters.WinningsCredited(null, tid),
+                                          Math.max(0, latest-400000), latest);
+    for(const ev of cevs){
+      if(ev.args.amount > 0n) paidWallets.add(ev.args.to.toLowerCase());
+    }
+  }catch{ /* same fallback */ }
+}
+function resetTableView(){
+  feedSeen.clear();
+  poolBook.forEach(a => a.length=0);
+  for(const k of Object.keys(packCache)) delete packCache[k];
+  $("feed").innerHTML="";
+  document.querySelectorAll(".coins").forEach(c => {
+    c.innerHTML=""; delete c.dataset.n; delete c.dataset.total;
+    delete c.dataset.mine; delete c.dataset.who;
+  });
+  document.querySelectorAll(".frow.dead").forEach(el=>el.classList.remove("dead"));
+  document.querySelectorAll(".bet").forEach(el=>el.style.removeProperty("--live"));
+  deadPools.clear(); paidWallets.clear();
+}
+
+async function refreshChain(){
+  if(!board || !tid || refreshing) return; refreshing=true;
+  if(shownTid !== tid){ resetTableView(); shownTid = tid; }
+  try{
+    const [t, seat, bal, cred] = await Promise.all([
+      board.tables(tid), board.seats(tid, me),
+      timbs.balanceOf(me), ledger.credit(me),
+    ]);
+    T=t; mySeat=seat;
+    $("balPill").querySelector(".v").textContent = fmt4(bal);
+    $("balPill").title = fmtT(bal)+" TIMBS";
+    $("credPill").querySelector(".v").textContent = fmt4(cred);
+    $("credPill").title = fmtT(cred)+" TIMBS withdrawable";
+    $("credPill").classList.toggle("win", cred>0n);
+    $("withdraw").disabled = cred===0n;
+    $("withdraw").classList.toggle("ready", cred>0n);
+    $("withdraw").textContent = cred>0n ? "Withdraw "+fmt4(cred) : "Withdraw";
+    $("seatsPill").textContent = "seats "+t.seatCount+" / 12"+(GEN>=5? " · "+Number(t.loadedCount)+" funded" : "");
+    paintSeat(); tick(); await pollFeed(); relabelFeed(); await renderStakes(); paintReveal(); await pollSettled(); paintDead(); await updateLockTracker();
+  } finally { refreshing=false; }
+}
+
+// ── phase machine ──────────────────────────────────────
+function phaseOf(){
+  if(!T || T.openedAt===0n) return {key:"none", label:"no table"};
+  const now = Math.floor(Date.now()/1000);
+  const entryEnd = entryEndOf(T);
+  const betsEnd  = Number(T.pickTime)-dials.lead;
+  if(T.retired) return {key:"done", label:"settled"};
+  if(Number(T.lockedMask)===0x3F) return {key:"locked", label:"all six locked"};
+  if(T.lockBlock!==0n) return {key:"spinning", label:"picking"};
+  if(now>=Number(T.pickTime)) return {key:"ready", label:"ready for the pick"};
+  if(now>=betsEnd) return {key:"committed", label:"spin committed", until:Number(T.pickTime)};
+  if(now>=entryEnd) return {key:"betting", label:"betting", until:betsEnd};
+  return {key:"entry", label:"entry open", until:entryEnd};
+}
+function mmss(s){ s=Math.max(0,s); const m=Math.floor(s/60); return m+":"+String(s%60).padStart(2,"0"); }
+function tick(){
+  if(!T) return;
+  const p = phaseOf();
+  $("phasePill").textContent = p.label + (p.until? " · "+mmss(p.until-Math.floor(Date.now()/1000)) : "");
+  $("phasePill").className = "pill "+(p.key==="done"?"":"ok");
+  $("armBtn").style.display = (p.key==="ready") ? "" : "none";
+  drawPhases(p);
+}
+function drawPhases(p){
+  const order=[["entry","Entry + load"],["betting","Place bets"],["committed","Spin committed"],["spinning","The pick"],["done","Settled"]];
+  const rank={entry:0,betting:1,committed:2,ready:2.5,spinning:3,locked:3.5,done:4};
+  const r=rank[p.key]??0;
+  $("phases").innerHTML = order.map(([k,lab],i)=>{
+    const cls = r>i+0.6 ? "ph done" : (Math.floor(r)===i||(k==="spinning"&&(p.key==="ready"||p.key==="locked")) ? "ph now":"ph");
+    let sub="";
+    if(T && dials){
+      const now=Math.floor(Date.now()/1000);
+      if(k==="entry"){ const ee=entryEndOf(T); sub=now<ee? "closes "+mmss(ee-now):"closed"; }
+      if(k==="betting") sub=now<Number(T.pickTime)-dials.lead? "closes "+mmss(Number(T.pickTime)-dials.lead-now):"closed";
+      if(k==="committed") sub=now<Number(T.pickTime)? "pick in "+mmss(Number(T.pickTime)-now):"—";
+      if(k==="spinning") sub=(Number(T.lockedMask).toString(2).split("1").length-1)+" / 6 locked";
+      if(k==="done") sub=T.retired?"retired":"";
+    }
+    return '<div class="'+cls+'"><div class="k">'+lab+'</div><div class="v">'+(sub||"·")+'</div></div>';
+  }).join("");
+}
+try{
+  const hr=$("holdReveal");
+  hr.checked = localStorage.getItem("swaptables.holdReveal")==="1";
+  hr.onchange = ()=>{ try{ localStorage.setItem("swaptables.holdReveal", hr.checked?"1":"0"); }catch{} };
+}catch{}
+$("armBtn").onclick = async () => {
+  if(GEN>=8){
+    // One VRF draw per segment, so "start the pick" starts the FIRST one; the
+    // console's auto-pilot paces the rest.
+    const armed=Number(T.armedMask||0), locked=Number(T.lockedMask);
+    const seg=[1,2,3,4,5,6].find(n=>!((armed|locked)&(1<<(n-1))));
+    if(!seg) return rail("Every segment already has its draw.");
+    if(await send("start the pick", board, "armSegment", tid, seg)){
+      rail("SEG "+seg+" is drawing — Chainlink VRF decides it, and anyone can lock it once the word lands.");
+      await refreshChain();
+    }
+    return;
+  }
+  if(await send("start the pick", board, "armTable", tid)){ rail("The table is armed — the lock block is set. Locks land from the console."); await refreshChain(); }
+};
+
+// ── seat / load / felt state ───────────────────────────
+function paintSeat(){
+  const seated = mySeat?.seated;
+  $("sitBtn").disabled = !!seated;
+  $("sitBtn").textContent = seated ? "Seated ✓" : "Sit at this table";
+  const tiles=$("ticketTiles"); tiles.innerHTML="";
+  if(seated){
+    const t = ethers.toUtf8String(mySeat.ticket);
+    [...t].forEach(ch=>{
+      const isNum = ch>="0"&&ch<="9";
+      const d=document.createElement("div");
+      d.className="tk"+(ticketShown&&ch==="0"?" zero":"");
+      d.innerHTML = ticketShown
+        ? (ch==="O"?'<span style="display:inline-block;transform:scaleX(1.18)">O</span>':ch)+"<small>"+(isNum?"NUM":"LTR")+"</small>"
+        : "•";
+      tiles.appendChild(d);
+    });
+    const tog=document.createElement("button");
+    tog.className="btn"; tog.style.cssText="padding:5px 10px;font-size:11px";
+    tog.textContent=ticketShown? "hide":"show";
+    tog.onclick=()=>{ ticketShown=!ticketShown; paintSeat(); };
+    tiles.appendChild(tog);
+    $("ticketIn").style.display="none";
+    $("sitBtn").style.display=""; $("noTicket").style.display="none";
+  } else {
+    // the Compete gate — no active ticket, no seat
+    if(myCompete){
+      $("ticketIn").style.display=""; $("sitBtn").style.display="";
+      $("noTicket").style.display="none";
+      $("ticketIn").value = myCompete.str;
+      $("ticketIn").readOnly = true;
+      $("ticketIn").title = "Your active Compete ticket — the table plays these letters";
+    } else {
+      $("ticketIn").style.display="none"; $("sitBtn").style.display="none";
+      $("noTicket").style.display="";
+      if(competeErr) $("noTicket").innerHTML =
+        '<b style="color:var(--gold)">Could not verify your Compete ticket</b> — the RPC did not answer. '+
+        'Hit <b>Load</b> or refresh the page to retry.';
+    }
+  }
+  const pack = seated ? mySeat.chipPack : 0n;
+  const loadedOnChain = pack !== 0n;
+  for(let s=1;s<=6;s++){
+    const el = tokenEl(s); if(!el) continue;
+    const byte = Number(pack >> BigInt(8*(s-1)) & 0xFFn);
+    const placedBit = seated && (Number(mySeat.placedMask) & (1<<(s-1)))!==0;
+    el.classList.toggle("placed", placedBit);
+    const val = el.querySelector(".val");
+    if(loadedOnChain && byte){
+      el.classList.add("loaded"); el.classList.remove("pendload");
+      el.style.borderColor = CHIPCOLOR[CHIPS[byte-1]];
+      val.innerHTML = CHIPS[byte-1];
+    } else if(localChips[s]!=null){
+      el.classList.add("loaded","pendload");
+      el.style.borderColor = CHIPCOLOR[CHIPS[localChips[s]]];
+      val.innerHTML = CHIPS[localChips[s]]+'<span class="pd">NOT SENT</span>';
+    } else {
+      el.classList.remove("loaded","pendload");
+      el.style.borderColor = "";
+      val.innerHTML = "";
+    }
+  }
+  // once the load is on chain, tuck the chips card away (re-expandable, once)
+  if(loadedOnChain && !collapsedChips){ collapsedChips=true; $("chipsPanel").classList.add("collapsed"); }
+  if(seated && Number(mySeat.placedMask)===0x3F && Number(mySeat.ddChip)!==0 && !collapsedTokens){
+    collapsedTokens=true; $("tokensPanel").classList.add("collapsed");
+  }
+  const p = phaseOf();
+  // gen-5 late loading: a seated wallet can fund right up to bets-close.
+  const canLoad = GEN>=5 ? (p.key==="entry"||p.key==="betting") : p.key==="entry";
+  const felt=$("felt");
+  if(!seated){
+    felt.classList.add("locked");
+    felt.dataset.lock = p.key==="entry" ? "Sit at the table to take your six tokens" : "Entry is closed on this table — watch the round, or find a newer table";
+  } else if(!loadedOnChain){
+    felt.classList.add("locked");
+    const n=Object.keys(localChips).length;
+    felt.dataset.lock = "Load all six tokens to open the board — "+n+" / 6 chosen";
+    $("hint").innerHTML='<b>Phase 1 — load.</b> Pick a token, then a chip, six times. One transaction loads them all — before '+(GEN>=5?'bets close':'entry closes')+'.';
+  } else if(p.key==="entry"||p.key==="betting"){
+    felt.classList.remove("locked");
+    $("hint").innerHTML='<b>Phase 2 — place.</b> Pick a token, then a board spot, then approve. Approval is a wallet transaction and it is final.';
+  } else {
+    felt.classList.add("locked");
+    felt.dataset.lock = "Betting is closed — the spin is committed";
+  }
+  $("chips").classList.toggle("locked", loadedOnChain);
+  $("loadBtn").disabled = loadedOnChain || Object.keys(localChips).length!==6 || !canLoad;
+  $("loadHint").textContent = loadedOnChain ? "Loaded on chain ✓" :
+    (!canLoad
+      ? "Loading has closed for this round — this seat sits it out. Nothing is at risk: you never sent chips."
+      : Object.keys(localChips).length===6 ? "Ready — one transaction, "+localTotal()+" TIMBS" :
+        "Choose a chip for every token ("+Object.keys(localChips).length+"/6)");
+  updateTotals();
+}
+function localTotal(){ return Object.values(localChips).reduce((a,i)=>a+CHIPS[i],0); }
+
+$("sitBtn").onclick = async () => {
+  if(!myCompete){ await checkCompete(); paintSeat(); if(!myCompete) return rail("No active Compete ticket on this wallet — get one at Compete first."); }
+  const t = myCompete.str.toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(t.length!==6) return rail("Your Compete ticket did not read as six characters — refresh and retry.");
+  const bytes = ethers.hexlify(ethers.toUtf8Bytes(t));
+  if(await send("sit with ticket "+t, board, "sit", tid, bytes)){ rail('<span class="win">Seated.</span> Now load your six tokens.'); await refreshChain(); }
+};
+
+$("loadBtn").onclick = async () => {
+  const idxs=[]; for(let s=1;s<=6;s++){ if(localChips[s]==null) return; idxs.push(localChips[s]); }
+  const total = ethers.parseUnits(String(localTotal()),18);
+  const allow = await timbs.allowance(me, ADDR.ledger);
+  if(allow < total){
+    rail("First: approve the vault to pull your chips — approving "+(localTotal()*2)+" TIMBS, "
+      +"double your load so the next round needs no approval…");
+    if(!await send("approve "+(localTotal()*2)+" TIMBS", timbs, "approve", ADDR.ledger, total*2n)) return;
+  }
+  if(await send("load six tokens ("+localTotal()+" TIMBS)", board, "loadTokens", tid, idxs)){
+    rail('<span class="win">Loaded.</span> The board is open — place your tokens.');
+    await refreshChain();
+  }
+};
+
+// ── rack + chips ───────────────────────────────────────
+const rack=$("rack");
+for(let s=1;s<=6;s++){
+  const t=document.createElement("div"); t.className="token"; t.dataset.seg=s; t.tabIndex=0;
+  t.innerHTML='<div><div class="seg">SEG '+s+'</div><div class="no">'+s+'</div><div class="val"></div></div>';
+  t.addEventListener("click",()=>selToken(s));
+  rack.appendChild(t);
+}
+const tokenEl = s => document.querySelector('.token[data-seg="'+s+'"]');
+function selToken(s){
+  if(mySeat?.seated && (Number(mySeat.placedMask)&(1<<(s-1)))) return;
+  if(pending) clearPending();
+  curSeg = (curSeg===s? null : s);
+  if(mySeat?.chipPack===0n && curSeg && curChip!=null){ localChips[curSeg]=curChip; curSeg=null; curChip=null; paintSeat(); }
+  paintSel(); railDefault();
+}
+const chipWrap=$("chips");
+CHIPS.forEach((v,i)=>{
+  const c=document.createElement("div"); c.className="chip c"+v; c.dataset.i=i; c.tabIndex=0;
+  c.textContent = v>=1000? "1K": v;
+  c.addEventListener("click",()=>{
+    curChip=(curChip===i?null:i);
+    if(mySeat?.chipPack===0n && curSeg && curChip!=null){ localChips[curSeg]=curChip; curSeg=null; curChip=null; paintSeat(); }
+    paintSel(); railDefault();
+  });
+  chipWrap.appendChild(c);
+});
+function paintSel(){
+  document.querySelectorAll(".token").forEach(t=>t.classList.toggle("sel",+t.dataset.seg===curSeg));
+  document.querySelectorAll("#chips .chip").forEach(c=>c.classList.toggle("sel",+c.dataset.i===curChip));
+  const armed = mySeat?.chipPack!==0n && !!curSeg;
+  document.querySelectorAll(".bet").forEach(b=>b.classList.toggle("armable",armed));
+}
+function railDefault(){
+  if(!me){ rail("Connect your wallet to begin."); return; }
+  if(!mySeat?.seated){ rail("Sit at the table to take your six segment tokens."); return; }
+  if(mySeat.chipPack===0n){
+    const n=Object.keys(localChips).length;
+    if(curSeg) rail("Token <b>SEG "+curSeg+"</b> selected — pick a chip to load it.");
+    else if(curChip!=null) rail("Chip <b>"+CHIPS[curChip]+"</b> selected — pick a token to load it.");
+    else rail("<b>Loading "+n+"/6.</b> Assign a chip to every token, then send the one load transaction.");
+    return;
+  }
+  if(curSeg) rail("Token <b>SEG "+curSeg+"</b> carries <b>"+chipOfSeg(curSeg)+" TIMBS</b> — click a board spot to place it.");
+  else rail("Pick a token, then a board spot. The Repeats-a-Digit spot takes its own bonus chip.");
+}
+function chipOfSeg(s){
+  const byte = Number(mySeat.chipPack >> BigInt(8*(s-1)) & 0xFFn);
+  return byte? CHIPS[byte-1] : 0;
+}
+
+// ── felt build ─────────────────────────────────────────
+/// True while the felt is in its rotated phone layout. The 2-to-1 bets sit at
+/// the end of a ROW on the wide felt and at the foot of a COLUMN on a phone,
+/// and the hint text has to say which one the player is actually looking at.
+const portrait = () => matchMedia("(orientation: portrait) and (max-width: 620px)").matches;
+const boardEl=$("board");
+function cellBet(o){
+  const el=document.createElement("div");
+  el.className="cell bet "+(o.cls||"");
+  el.dataset.kind=o.kind; el.dataset.pick=o.pick; el.dataset.desc=o.desc; el.dataset.count=o.count||0;
+  el.tabIndex=0;
+  el.innerHTML=(o.html||"")+'<span class="coins"></span>';
+  // Positions travel as custom properties, not inline grid-column/grid-row.
+  // Inline styles beat any media query, which is why the felt could only ever
+  // drop its min-width on a phone instead of rearranging. Publishing both the
+  // landscape and the portrait coordinates lets CSS choose the layout.
+  if(o.col)  el.style.setProperty("--col",  o.col);
+  if(o.row)  el.style.setProperty("--row",  o.row);
+  if(o.pcol) el.style.setProperty("--pcol", o.pcol);
+  if(o.prow) el.style.setProperty("--prow", o.prow);
+  el.addEventListener("mouseenter",()=>describe(el));
+  el.addEventListener("focus",()=>describe(el));
+  el.addEventListener("click",()=>stageFromCell(el));
+  return el;
+}
+// Double-Digit — its own stake, one per wallet, round-wide (contract truth).
+boardEl.appendChild(cellBet({cls:"out dd",kind:KIND.DD,pick:0,count:0,
+  html:'<span class="lab">REPEATS A DIGIT</span><span class="sub">same character twice · bonus chip · ≈36% of rounds</span>',
+  desc:"any character shows up twice in the finished six. A bonus chip, separate from your six tokens — one per wallet",
+  col:"1",row:"1 / 4",pcol:"1 / 5",prow:"14"}));
+// 36 pockets — colours from RED_MASK (alternating), NOT roulette's red set.
+for(let n=1;n<=36;n++){
+  const c=Math.ceil(n/3), row=(n%3===0)?1:(n%3===2)?2:3, idx=n-1, ch=ALPHABET[idx];
+  const glyph = ch==="O" ? '<span class="g">O</span>' : ch;
+  boardEl.appendChild(cellBet({cls:"pocket "+(RED(idx)?"red":"black")+(ch==="0"?" zero":"")+(ch==="O"?" oh":""),
+    kind:KIND.EXACTLY,pick:idx,count:1,html:glyph,
+    desc:"the segment locks exactly on "+ch,
+    col:String(c+1),row:String(row), pcol:String(4-row),prow:String(c)}));
+}
+// 2-to-1 columns. Felt row → contract pick: bottom row idx%3==0, middle ==1, top ==2.
+[[1,2],[2,1],[3,0]].forEach(([row,pick])=>{
+  boardEl.appendChild(cellBet({cls:"out colbet",kind:KIND.COLUMN,pick,count:12,
+    html:'<span class="lab">2 to 1</span><span class="sub">column</span>',
+    desc:"the segment locks on any of the 12 characters in this "+(portrait()?"column":"row"),
+    col:"14",row:String(row), pcol:String(4-row),prow:"13"}));
+});
+// dozens
+[["1st 12","A–L"],["2nd 12","M–X"],["3rd 12","Y–9"]].forEach((d,i)=>{
+  boardEl.appendChild(cellBet({cls:"out",kind:KIND.DOZEN,pick:i,count:12,
+    html:'<span class="lab">'+d[0]+'</span><span class="sub">'+d[1]+'</span>',
+    desc:"the segment locks on any of these twelve ("+d[1]+")",col:(2+i*4)+" / "+(6+i*4),row:"4", pcol:"4",prow:(1+i*4)+" / "+(5+i*4)}));
+});
+// group rows
+boardEl.appendChild(cellBet({cls:"out",kind:KIND.VOWELS,pick:0,count:6,
+  html:'<span class="lab">Vowels</span><span class="sub">A E I O U Y</span>',
+  desc:"the segment locks on a vowel (A E I O U Y)",col:"2 / 8",row:"5",pcol:"1 / 3",prow:"15"}));
+boardEl.appendChild(cellBet({cls:"out",kind:KIND.TICKET,pick:0,count:1,
+  html:'<span class="lab">Your&nbsp;Ticket</span><span class="sub">your char for that segment</span>',
+  desc:"the segment locks on your own ticket's character for it",col:"8 / 14",row:"5",pcol:"3 / 5",prow:"15"}));
+boardEl.appendChild(cellBet({cls:"out redbet",kind:KIND.COLOR,pick:0,count:18,
+  html:'<span class="lab">Red <span class="swatch r"></span></span><span class="sub">18 characters · alternating</span>',
+  desc:"the segment locks on a red character (18 of 36, alternating from A)",col:"2 / 8",row:"6",pcol:"1 / 3",prow:"16"}));
+boardEl.appendChild(cellBet({cls:"out blackbet",kind:KIND.COLOR,pick:1,count:18,
+  html:'<span class="lab">Black <span class="swatch b"></span></span><span class="sub">18 characters · alternating</span>',
+  desc:"the segment locks on a black character (18 of 36)",col:"8 / 14",row:"6",pcol:"3 / 5",prow:"16"}));
+// full-kind row: letters / numbers / low / high
+boardEl.appendChild(cellBet({cls:"out",kind:KIND.LETTER,pick:0,count:26,
+  html:'<span class="lab">Letters</span><span class="sub">A–Z · 26 of 36</span>',
+  desc:"the segment locks on a letter",col:"2 / 5",row:"7",pcol:"1 / 3",prow:"17"}));
+boardEl.appendChild(cellBet({cls:"out",kind:KIND.NUMBER,pick:0,count:10,
+  html:'<span class="lab">Numbers</span><span class="sub">0–9 · 10 of 36</span>',
+  desc:"the segment locks on a digit",col:"5 / 8",row:"7",pcol:"3 / 5",prow:"17"}));
+boardEl.appendChild(cellBet({cls:"out",kind:KIND.LOWHIGH,pick:0,count:18,
+  html:'<span class="lab">Low</span><span class="sub">A–R · first 18</span>',
+  desc:"the segment locks on A through R",col:"8 / 11",row:"7",pcol:"1 / 3",prow:"18"}));
+boardEl.appendChild(cellBet({cls:"out",kind:KIND.LOWHIGH,pick:1,count:18,
+  html:'<span class="lab">High</span><span class="sub">S–9 · last 18</span>',
+  desc:"the segment locks on S through 9",col:"11 / 14",row:"7",pcol:"3 / 5",prow:"18"}));
+
+const CELLMAP={};
+document.querySelectorAll(".bet").forEach(el=>{ CELLMAP[el.dataset.kind+":"+el.dataset.pick]=el; });
+
+/// The 2-to-1 hint names the axis the player is looking at, and a phone can be
+/// turned after the page loads — so it follows the rotation instead of freezing
+/// at build time and telling someone in landscape about a "column".
+const AXIS_MQ = matchMedia("(orientation: portrait) and (max-width: 620px)");
+const relabelColumnBets = () => {
+  const axis = AXIS_MQ.matches ? "column" : "row";
+  document.querySelectorAll(".colbet").forEach(el=>{
+    el.dataset.desc = "the segment locks on any of the 12 characters in this "+axis;
+  });
+};
+AXIS_MQ.addEventListener("change", relabelColumnBets);
+
+function describe(el){
+  const kind=+el.dataset.kind, count=+el.dataset.count;
+  const spec=specOf(kind,+el.dataset.pick);
+  if(kind===KIND.DD){
+    rail("<b>Repeats a Digit</b> — pays if "+el.dataset.desc+". Pari-mutuel pot like every pool; ≈36% of rounds repeat.");
+    return;
+  }
+  const odds=fair(count);
+  const stake = curSeg && mySeat?.chipPack!==0n ? chipOfSeg(curSeg) : null;
+  let desc = el.dataset.desc.replace("the segment", curSeg? "segment "+curSeg : "the segment");
+  if(kind===KIND.TICKET && curSeg && mySeat?.seated){
+    desc = "segment "+curSeg+" locks on <b>"+ethers.toUtf8String(mySeat.ticket)[curSeg-1]+"</b> — your ticket's character for it";
+  }
+  let poolTail="";
+  if(curSeg){
+    const st=poolStats(curSeg-1);
+    poolTail=" SEG "+curSeg+" pool so far: <b>"+fmt2(st.pot)+"</b> across "+st.n+" bet"+(st.n===1?"":"s")+".";
+  }
+  const tail = stake
+    ? " Stake <b>"+stake+"</b> · weight <b>"+odds+"×</b> — actual payout is pari-mutuel."
+    : " Fair weight <b>"+odds+"×</b> ("+count+" of 36) — actual payout is pari-mutuel.";
+  rail("<b>"+spec.name+"</b> — pays if "+desc+"."+tail+poolTail);
+}
+
+// ── staging + approval (the wallet tx IS the approval) ─────────
+const approveBar=$("approve"), approveMsg=$("approveMsg"), ddChips=$("ddChips");
+let ddPick=null;
+function stageFromCell(el){
+  const kind=+el.dataset.kind, pick=+el.dataset.pick;
+  const p=phaseOf();
+  if(!mySeat?.seated) return rail("Sit at the table first.");
+  if(kind!==KIND.DD && mySeat.chipPack===0n) return rail("Load your six tokens first — the board opens after the load lands.");
+  if(!(p.key==="entry"||p.key==="betting")) return rail("Betting is closed on this table.");
+  if(kind===KIND.DD){
+    if(Number(mySeat.ddChip)!==0) return rail("Your Repeats-a-Digit stake is already down.");
+    stage({dd:true, el, kind, pick:0});
+    return;
+  }
+  if(!curSeg) return rail("Pick one of your <b>loaded tokens</b> (SEG 1–6) first.");
+  if(Number(mySeat.placedMask)&(1<<(curSeg-1))) return rail("SEG "+curSeg+" is already on the board.");
+  stage({dd:false, el, kind, pick, seg:curSeg});
+}
+function clearPending(){ if(pending){ pending.el.classList.remove("pending"); pending=null; } approveBar.classList.remove("on"); ddChips.style.display="none"; }
+function stage(p){
+  clearPending(); pending=p; p.el.classList.add("pending");
+  const spec=specOf(p.kind,p.pick);
+  if(p.dd){
+    ddPick = ddPick ?? 0;
+    ddChips.style.display="flex"; ddChips.innerHTML="";
+    CHIPS.forEach((v,i)=>{
+      const c=document.createElement("div"); c.className="chip c"+v+(i===ddPick?" sel":""); c.textContent=v>=1000?"1K":v;
+      c.onclick=()=>{ ddPick=i; [...ddChips.children].forEach((x,j)=>x.classList.toggle("sel",j===ddPick)); paintApproveMsg(); };
+      ddChips.appendChild(c);
+    });
+    paintApproveMsg();
+  } else {
+    ddChips.style.display="none";
+    approveMsg.innerHTML='Place <b>SEG '+p.seg+'</b> · <b>'+chipOfSeg(p.seg)+' TIMBS</b> on <b>'+spec.name+'</b> (weight '+fair(spec.count)+'×). '
+      +'<span class="warn">Approving sends the transaction — once mined, it\'s final.</span>';
+  }
+  approveBar.classList.add("on");
+  // on wider screens the bar sits in flow — make sure it is actually in view
+  try{ approveBar.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch{}
+  rail("Awaiting your approval — <b>"+spec.name+"</b>. Approve to send, or choose another spot.");
+}
+function paintApproveMsg(){
+  approveMsg.innerHTML='Stake <b>Repeats a Digit</b> — <b>pick its chip on the right →</b> currently <b>'+CHIPS[ddPick]+' TIMBS</b>. '
+    +'Separate from your six tokens, one per wallet, round-wide. '
+    +'<span class="warn">Approving sends the transaction — once mined, it\'s final.</span>';
+}
+$("changeSpot").onclick=()=>{ clearPending(); railDefault(); };
+$("approveBtn").onclick=async ()=>{
+  if(!pending) return;
+  const p=pending;
+  if(p.dd){
+    const need = ethers.parseUnits(String(CHIPS[ddPick]),18);
+    const allow = await timbs.allowance(me, ADDR.ledger);
+    if(allow<need && !await send("approve "+(CHIPS[ddPick]*2)+" TIMBS", timbs, "approve", ADDR.ledger, need*2n)) return;
+    if(await send("Repeats a Digit · "+CHIPS[ddPick]+" TIMBS", board, "placeDoubleDigit", tid, ddPick)){
+      clearPending(); rail('<span class="win">Repeats-a-Digit stake placed.</span> Final.'); await refreshChain();
+    }
+  } else {
+    const spec=specOf(p.kind,p.pick);
+    if(await send("SEG "+p.seg+" on "+spec.name, board, "place", tid, p.seg, p.kind, p.pick)){
+      clearPending(); curSeg=null; paintSel();
+      rail('<span class="win">Placed.</span> SEG '+p.seg+' on <b>'+spec.name+'</b> — final.'); await refreshChain();
+    }
+  }
+};
+
+
+// live feed collapses like the cards do, and remembers the choice
+try{
+  const fc=$("feedCard");
+  if(localStorage.getItem("swaptables.feedCollapsed")==="1") fc.classList.add("collapsed");
+  $("feedHd").onclick=()=>{
+    fc.classList.toggle("collapsed");
+    try{ localStorage.setItem("swaptables.feedCollapsed", fc.classList.contains("collapsed")?"1":"0"); }catch{}
+  };
+}catch{}
+
+// ── live feed (BetPlaced events, masked) ───────────────
+async function pollFeed(){
+  try{
+    const latest = await provider.getBlockNumber();
+    const from = Math.max(0, latest-400000);
+    const evs = await board.queryFilter(board.filters.BetPlaced(tid), from, latest);
+    for(const ev of evs){
+      const key = ev.transactionHash+":"+ev.index;
+      if(feedSeen.has(key)) continue; feedSeen.add(key);
+      addFeedRow(ev.args.wallet, Number(ev.args.pool), Number(ev.args.kind), Number(ev.args.pick));
+    }
+  }catch(e){ /* RPC log limits — feed degrades gracefully */ }
+}
+async function addFeedRow(wallet, pool, kind, pick){
+  const isMe = wallet.toLowerCase()===me.toLowerCase();
+  let amt="";
+  try{
+    if(kind===KIND.DD){
+      const s = await board.seats(tid, wallet);
+      if(Number(s.ddChip)) amt=CHIPS[Number(s.ddChip)-1];
+    } else {
+      let pack=packCache[wallet];
+      if(pack==null){ const s=await board.seats(tid,wallet); pack=s.chipPack; packCache[wallet]=pack; }
+      const byte=Number(pack>>BigInt(8*pool)&0xFFn);
+      if(byte) amt=CHIPS[byte-1];
+    }
+  }catch{}
+  poolBook[pool].push({wallet, kind, pick, amt: amt||0});
+  const spec=specOf(kind,pick);
+  const li=document.createElement("li");
+  li.className="frow"+(isMe?" me":"");
+  li.dataset.pool=pool; li.dataset.kind=kind; li.dataset.pick=pick; li.dataset.wallet=wallet;
+  li.innerHTML=
+    '<span class="who"><span class="av">'+(isMe?"★":SUITS[parseInt(wallet.slice(-1),16)%4])+'</span>'
+    +'<span class="nm'+(isMe?" self":"")+'">'+(isMe?"You · "+tagOf(wallet):tagOf(wallet))+'</span></span>'
+    +'<span class="fseg">'+(kind===KIND.DD?"DD":"SEG "+(pool+1))+'</span>'
+    +'<span class="fbet">on <b>'+spec.name+'</b>'+(kind===KIND.DD?"":" · "+fair(spec.count)+"×")+'</span>'
+    +'<span class="famt">'+(amt||"·")+'</span>'
+    +'<span class="tail"></span>';
+  $("feed").prepend(li);
+  // drop the same bet on the felt as a chip-coloured coin, whoever placed it.
+  // The coin face is the STAKE, super-abbreviated — colour + number both say
+  // denomination; the tooltip carries who/segment/spot.
+  const cell = CELLMAP[kind+":"+(kind===KIND.DD?0:pick)];
+  const coins = cell?.querySelector(".coins");
+  if(coins){
+    // A spot can carry a bet from every seat at the table. Fanning one coin per
+    // bet ran the pile clean off the felt, so the pile is bounded: ONE face plus
+    // a running total, which is what a dealer's stack looks like from above.
+    const n = (Number(coins.dataset.n||0)) + 1;
+    const tot = (Number(coins.dataset.total||0)) + (amt||0);
+    const wasMine = coins.dataset.mine==="1";
+    coins.dataset.n = n; coins.dataset.total = tot;
+    if(isMe) coins.dataset.mine = "1";
+
+    let coin=coins.querySelector(".coin");
+    if(!coin){ coin=document.createElement("div"); coin.className="coin"; coins.appendChild(coin); }
+    // Your chip holds the face whenever you are in the pile — "where are my
+    // tokens" is the read that matters. Otherwise the newest bet shows.
+    if(isMe || !wasMine){
+      coin.style.background = amt? CHIPCOLOR[amt] : "#12271b";
+      // yours: segment number (the gold ring marks them). Everyone else's: the
+      // monetary value, super-abbreviated.
+      coin.textContent = isMe
+        ? (kind===KIND.DD? "DD" : String(pool+1))
+        : (amt? abbrev(amt) : (kind===KIND.DD? "DD" : "?"));
+    }
+    coin.style.borderColor = (isMe||wasMine)? "var(--gold)" : "";
+
+    const line=(isMe?"You":tagOf(wallet))+" · "+(kind===KIND.DD?"round":"SEG "+(pool+1))+(amt?" · "+amt+" TIMBS":"");
+    coins.dataset.who = (coins.dataset.who? coins.dataset.who+"\n":"") + line;
+    coin.title = coins.dataset.who + (n>1? "\n— "+n+" bets · "+tot+" TIMBS on "+spec.name : " on "+spec.name);
+
+    // 2+ bets on a spot → a tiny running total so the pile reads at a glance
+    if(n>1 && tot>0){
+      let sum=coins.querySelector(".sum");
+      if(!sum){ sum=document.createElement("div"); sum.className="sum"; coins.prepend(sum); }
+      sum.textContent="="+abbrev(tot);
+      sum.title=n+" bets · "+tot+" TIMBS on this spot";
+    }
+  }
+}
+function abbrev(n){
+  if(n>=1000) return (n%1000===0? (n/1000):"~"+Math.round(n/100)/10)+"K";
+  return String(n);
+}
+/// Labels are stamped when a row is first seen; the wallet can change under a
+/// long-lived tab, so re-derive You/other from the row's own wallet each pass.
+function relabelFeed(){
+  document.querySelectorAll(".frow").forEach(li=>{
+    const w=li.dataset.wallet; if(!w||!me) return;
+    const isMe=w.toLowerCase()===me.toLowerCase();
+    li.classList.toggle("me",isMe);
+    const nm=li.querySelector(".nm"), av=li.querySelector(".av");
+    if(nm){ nm.textContent=isMe? "You · "+tagOf(w):tagOf(w); nm.classList.toggle("self",isMe); }
+    if(av) av.textContent=isMe? "★":SUITS[parseInt(w.slice(-1),16)%4];
+  });
+}
+
+// ── stakes: what the table is playing for, live ─────────────────
+function poolStats(pool){
+  const bets=poolBook[pool];
+  const chips=bets.reduce((a,b)=>a+b.amt,0);
+  const n=bets.length;                       // == distinct wallets, by design
+  const contested=n>=2;
+  const pot=chips;                           // gen-9: the seed is not in the pot
+  const rakeBps=(GEN>=5? contested : n>0)? 175+Math.floor(625/n):0;   // gen-5 Layer 0: an uncontested pool is never raked
+  return {n, chips, contested, pot, rakeBps, dist: pot*(10000-rakeBps)/10000};
+}
+function fmt2(x){ return x.toLocaleString(undefined,{maximumFractionDigits:2}); }
+async function renderStakes(){
+  if(!T || !ledger || !tid) return;
+  try{
+    const esc=await ledger.tableEscrow(tid);
+    $("potEscrow").textContent=fmt4(esc);
+    $("potEscrow").title=fmtT(esc)+" TIMBS held for this table";
+  }catch{}
+  const contested=poolBook.filter((_,i)=>poolStats(i).contested).length;
+  $("potPools").textContent=contested+"/7";
+
+  // ── net this round ────────────────────────────────────────────────────
+  // Everything you have PLACED against everything credited back so far, so
+  // the figure is a real position rather than a projection: it opens at the
+  // full stake (nothing has settled yet), climbs as pools land, and the
+  // label flips the moment the round turns profitable. Loaded-but-unplaced
+  // chips are excluded — those come home as refunds at retire either way.
+  let placed=0;
+  poolBook.forEach(bets=>bets.forEach(b=>{ if(b.wallet.toLowerCase()===me?.toLowerCase()) placed+=b.amt; }));
+  if(placed>0){
+    let credited=0;
+    try{
+      const latest=await provider.getBlockNumber();
+      const evs=await ledger.queryFilter(ledger.filters.WinningsCredited(me, tid),
+                                         Math.max(0,latest-400000), latest);
+      evs.forEach(e=>{ credited+=Number(e.args.amount/(10n**16n))/100; });
+    }catch{}
+    const net=credited-placed, up=net>=0;
+    $("potNetWrap").style.display="";
+    $("potNetLab").textContent=(up?"GAINED":"LOST")+" THIS ROUND";
+    $("potNet").textContent=(up?"+":"\u2212")+fmt2(Math.abs(net));
+    $("potNet").style.color=up?"var(--ok)":"#e0a3a3";
+    $("potNetWrap").title=fmt2(placed)+" placed \u00b7 "+fmt2(credited)+" credited back so far";
+  }else{
+    $("potNetWrap").style.display="none";
+  }
+  // your picks, priced off the CURRENT pool composition
+  const rows=[];
+  poolBook.forEach((bets,pool)=>{
+    bets.forEach(b=>{
+      if(b.wallet.toLowerCase()!==me?.toLowerCase()) return;
+      const st=poolStats(pool);
+      const spec=specOf(b.kind,b.pick);
+      // A win returns your own chip and pays you the rest of the pool — the
+      // rake shaves BOTH, so state the stake net of it rather than pretending
+      // the whole cut comes out of the winnings.
+      const back = b.amt*(10000-st.rakeBps)/10000;
+      rows.push('<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;'
+        +'padding:7px 0;border-bottom:1px solid rgba(247,240,214,.08)">'
+        +'<span class="fseg" style="width:52px">'+(b.kind===KIND.DD?"DD":"SEG "+(pool+1))+'</span>'
+        +'<span style="flex:1;color:#dfe7df">'+fmt2(b.amt)+' on <b style="color:var(--cream)">'+spec.name+'</b></span>'
+        +'<span style="color:#9fb4a4">pool '+fmt2(st.pot)+' · '+st.n+' bet'+(st.n===1?"":"s")
+        +' · rake '+(st.rakeBps/100).toFixed(2)+'%'+(st.contested?"":(GEN>=5?" · uncontested — rake-free":" · uncontested"))+'</span>'
+        +'<span style="font-family:Georgia,serif;font-weight:800;color:var(--ok)">up to ~'+fmt2(st.dist)
+        +'<span style="display:block;font-weight:400;font-size:.82em;color:#9fb4a4">'
+        +'~'+fmt2(back)+' back + ~'+fmt2(st.dist-back)+' won</span></span>'
+        +'</div>');
+    });
+  });
+  $("picksList").innerHTML = rows.length? rows.join("")
+    : '<span class="hint">Nothing placed yet — your bets appear here with live payout estimates.</span>';
+  $("picksNote").style.display = rows.length? "":"none";
+}
+
+// ── spin meter (§10.2 envelope, display only) ──────────
+const SPIN_DEFAULTS = {vrunMin:0.55,vrunMax:1.20,tsLate:0.40,tsEarly:0.39,residMax:0.120,residMin:0.145,
+  kMin:12.0,kMax:16.0,tau0:0.05,gamma:1.28,rattleBeta:0.31,rattleZeta:3.5,rattleOmega:10.0,tauR:0.72,swapNoise:0.21};
+let SPIN_D = Object.assign({}, SPIN_DEFAULTS);
+try{ Object.assign(SPIN_D, JSON.parse(localStorage.getItem("swaptables.meter")||"{}")); }catch{}
+const HARD=12;
+function pOfN(n){ if(n<=3) return 0; return Math.max(0,Math.min(1,Math.log(n-2)/Math.log(HARD-2))); }
+function coeffN(n){ const p=pOfN(n); return {p,
+  vrun:SPIN_D.vrunMin+p*(SPIN_D.vrunMax-SPIN_D.vrunMin),
+  ts:SPIN_D.tsLate-p*(SPIN_D.tsLate-SPIN_D.tsEarly),
+  resid:SPIN_D.residMax-p*(SPIN_D.residMax-SPIN_D.residMin),
+  k:SPIN_D.kMin+p*(SPIN_D.kMax-SPIN_D.kMin)}; }
+function rattle(tau){ if(tau<=SPIN_D.tauR) return 0;
+  const s=tau-SPIN_D.tauR, taper=(1-tau)/(1-SPIN_D.tauR);
+  return SPIN_D.rattleBeta*taper*Math.exp(-SPIN_D.rattleZeta*s)*Math.cos(SPIN_D.rattleOmega*s); }
+function envelope(tau,c){
+  const R=1/(1+Math.exp(-c.k*(tau-SPIN_D.tau0)));
+  const G = tau<c.ts ? 1 : c.resid+(1-c.resid)*Math.pow((1-tau)/(1-c.ts),SPIN_D.gamma);
+  const v=c.vrun*R*G*(1+rattle(tau));
+  return v<0?0:v;
+}
+const RCELL=40, NC=36;
+const reelObjs=[];
+(function buildReels(){
+  const wrap=$("reels");
+  for(let s=1;s<=6;s++){
+    const card=document.createElement("div"); card.className="reelcard";
+    const lab=document.createElement("div"); lab.className="rlab"; lab.textContent="SEG "+s;
+    const reel=document.createElement("div"); reel.className="reel";
+    const strip=document.createElement("div"); strip.className="reelstrip";
+    let html=""; for(let k=0;k<3;k++) for(let i=0;i<NC;i++) html+='<div class="rcell">'+ALPHABET[i]+'</div>';
+    strip.innerHTML=html;
+    const win=document.createElement("div"); win.className="reelwin";
+    const fade=document.createElement("div"); fade.className="reelfade";
+    reel.append(strip,win,fade);
+    const stat=document.createElement("div"); stat.className="rstat"; stat.textContent="—";
+    card.append(lab,reel,stat); wrap.appendChild(card);
+    reelObjs.push({seg:s,strip,stat,offset:Math.random()*NC,settled:null,settleFrom:null,settleT0:0});
+  }
+})();
+let lastFrame=0, preview=null;
+function driveSpin(p){
+  let pv=null;
+  if(preview){
+    const el=(performance.now()-preview.t0)/1000;
+    if(el>9.5){ preview=null; reelObjs.forEach(o=>{o.settled=null;o.settleFrom=null;}); }
+    else pv=el;
+  }
+  const on = pv!=null || (["committed","ready","spinning","locked","done"].includes(p.key) && T && Number(T.seatCount)>=2);
+  $("spin").classList.toggle("on", on);
+  if(!on) return;
+  const n=T? Math.max(2,Number(T.seatCount)) : 3;
+  const c=coeffN(Math.max(3,n));
+  const now=Date.now();
+  const dt=lastFrame? Math.min(0.2,(now-lastFrame)/1000):0.05; lastFrame=now;
+  // τ over the committed window; pinned near the wire while waiting for locks
+  let tau;
+  const nowS=now/1000, betsEnd=T? Number(T.pickTime)-dials.lead : 0;
+  if(pv!=null) tau=Math.min(0.97,pv/6.5);
+  else if(p.key==="committed") tau=Math.min(0.97,(nowS-betsEnd)/Math.max(1,dials.lead));
+  else tau=0.97;
+  let chars = pv!=null ? (pv>6.5? preview.targets : [null,null,null,null,null,null]) : lockedCharsArr();
+  // face-down mode: a locked reel keeps spinning visually until ALL six are in.
+  // Pure theater — betting closed long before the first char existed.
+  const hold = $("holdReveal")?.checked && T && Number(T.lockedMask)!==0x3F;
+  const realChars = chars;
+  if(hold && pv==null) chars = [null,null,null,null,null,null];
+  reelObjs.forEach(o=>{
+    const lockedCh = chars[o.seg-1];
+    if(lockedCh){
+      if(o.settled==null){ o.settled=ALPHABET.indexOf(lockedCh); o.settleFrom=o.offset; o.settleT0=now; }
+      const prog=Math.min(1,(now-o.settleT0)/1200);
+      const ease=1-Math.pow(1-prog,3);
+      const from=o.settleFrom, base=from+8;
+      const aligned=base+((o.settled-Math.round(base))%NC+NC)%NC;
+      o.offset=from+(aligned-from)*ease;
+      o.strip.style.filter="none";
+      o.stat.textContent=prog>=1? "● "+lockedCh : "settling";
+      o.stat.classList.toggle("locked",prog>=1);
+    } else {
+      const v=envelope(tau,c)*(1+SPIN_D.swapNoise*(Math.random()-0.5));
+      o.offset+=v*dt*34;
+      const blur=Math.min(6,v*5);
+      o.strip.style.filter=blur>0.4? "blur("+blur.toFixed(1)+"px)":"none";
+      const heldLock = hold && realChars[o.seg-1];
+      o.stat.textContent = heldLock ? "● locked" :
+        (p.key==="committed" ? (tau<c.ts?"spinning":"settling") : "at the wire");
+      o.stat.classList.toggle("locked", !!heldLock);
+    }
+    const off=((o.offset%NC)+NC)%NC;
+    o.strip.style.transform="translateY("+(-(off*RCELL)-NC*RCELL+RCELL)+"px)";
+  });
+  $("spinNote").textContent = pv!=null
+    ? "Replaying the spin on the "+n+"-seat envelope — a preview, nothing on chain moves."
+    : p.key==="committed"
+    ? "Bets are closed — six balls running on the "+n+"-seat envelope. Display only: the chain decides from the lock-block hash (§10.1)."
+    : p.key==="ready" ? "At the wire — waiting for the pick to be started (anyone may)."
+    : "The pick is armed — each ball drops as its segment locks on chain.";
+}
+/// ── the felt narrows as it locks ────────────────────────────────────────────
+/// Every lock kills the plays that needed a different character, and the room
+/// should be able to see that without reading anything. Losers fade to a
+/// whisper rather than disappearing — the stake is still on the table until the
+/// pool settles, and finding your own dead chip matters as much as your live
+/// one.
+///
+/// Two rules, because the two surfaces are not the same shape:
+///   • a feed row is ONE bet on ONE segment, so it fades the moment that
+///     segment lands;
+///   • a felt spot carries bets from all six segments on one bounded pile, so
+///     it fades only once EVERY bet stacked on it is dead. Fading it while a
+///     later segment still has money there would be a lie the viewer has no
+///     way to check.
+async function paintDead(){
+  const chars = T ? lockedCharsArr() : [];
+  // "hold the drop" withholds the outcome until all six are in. A felt-wide
+  // fade is a louder tell than the reels are, so it waits for the same moment.
+  const hold = $("holdReveal")?.checked && T && Number(T.lockedMask)!==0x3F;
+  if(!chars.some(Boolean) || hold){
+    document.querySelectorAll(".frow.dead").forEach(el=>el.classList.remove("dead"));
+    document.querySelectorAll(".bet").forEach(el=>el.style.removeProperty("--live"));
+    return;
+  }
+  const idx    = chars.map(c => c==null ? -1 : ALPHABET.indexOf(c));
+  const all    = chars.every(Boolean);
+  const winStr = all ? chars.join("") : "";
+
+  // Proven lost, or nothing. Anything unresolved stays lit: dimming a play that
+  // might still pay is the one error the eye cannot walk back mid-round.
+  const isDead = async (kind,pick,pool,wallet) => {
+    // The chain's verdict first: a pool that settled paying nobody took every
+    // bet in it, whatever the characters say.
+    if(deadPools.has(pool)) return true;
+    // Retired, not merely all-six-locked. The Repeats-a-Digit pool settles at
+    // RETIRE, so between the sixth lock and the close there is a real window
+    // where credits legitimately do not exist yet -- keying off `all` there
+    // would flash every bet on the table dead and then bring the winners back.
+    if(T?.retired && wallet && !paidWallets.has(wallet.toLowerCase())) return true;
+    if(kind===KIND.DD) return all && new Set(winStr).size===6;  // needs all six to miss
+    if(!(idx[pool]>=0)) return false;                           // segment not in yet
+    if(kind===KIND.TICKET){
+      const t = await ticketOf(wallet);
+      return t ? chars[pool]!==t[pool] : false;                 // unknown ticket: leave lit
+    }
+    return !winsAgainst(kind,pick,idx[pool],null,winStr);
+  };
+
+  for(const li of document.querySelectorAll(".frow")){
+    li.classList.toggle("dead", await isDead(
+      +li.dataset.kind, +li.dataset.pick, +li.dataset.pool, li.dataset.wallet));
+  }
+
+  // Proportional, not binary. A spot carries bets from every segment on one
+  // bounded pile, and there is no per-segment element to fade — so the pile
+  // fades by the share of its STAKE that is dead. All six alive reads 1; all
+  // six dead reads the 0.15 floor; anything between lands between, which is
+  // the common case and the one a binary rule could never show.
+  const stake = {}, live = {};
+  for(let pool=0; pool<poolBook.length; pool++){
+    for(const b of poolBook[pool]){
+      const key = b.kind+":"+(b.kind===KIND.DD?0:b.pick);
+      const w   = (b.amt||0) || 1;          // an unknown stake still counts as one bet
+      stake[key] = (stake[key]||0) + w;
+      if(!(await isDead(b.kind,b.pick,pool,b.wallet))) live[key] = (live[key]||0) + w;
+    }
+  }
+  // Two floors, one code path. A dead pile the viewer has no stake in sinks to
+  // 0.15 -- gone, so the surviving plays own the screen. A dead pile holding
+  // the CONNECTED wallet's own chip stops at 0.40: still clearly beaten, still
+  // findable, because "where did my money go" is the question the felt has to
+  // keep answering after it has lost. On the stream nothing is ever `mine`, so
+  // every loser there reads a flat 0.15 without a second rule to maintain.
+  for(const [key,cell] of Object.entries(CELLMAP)){
+    if(!stake[key]){ cell.style.removeProperty("--live"); continue; }
+    const mine  = cell.querySelector(".coins")?.dataset.mine === "1";
+    const floor = mine ? 0.40 : 0.15;
+    const share = (live[key]||0) / stake[key];
+    cell.style.setProperty("--live", (floor + (1 - floor) * share).toFixed(3));
+  }
+}
+function lockedCharsArr(){
+  if(!T) return [null,null,null,null,null,null];
+  const mask=Number(T.lockedMask);
+  const raw=ethers.getBytes(T.lockedChars);
+  const out=[];
+  for(let i=0;i<6;i++) out.push(mask&(1<<i)? String.fromCharCode(raw[i]):null);
+  return out;
+}
+
+/// The pick has real deadlines the felt should show: the reveal window
+/// (64 L1 blocks, ~13 min — operator locks with the passphrase) and the
+/// blockhash horizon (256 L1 blocks, ~51 min — past it the table needs a
+/// re-arm). On Arbitrum block.number is the L1 block, read from the header.
+async function updateLockTracker(){
+  const el=$("lockTracker"); if(!el) return;
+  const bar=$("pickTrack");
+  const inPick = T && T.lockBlock!==0n && !T.retired;
+  if(bar){
+    bar.classList.toggle("on", !!inPick);
+    if(inPick){
+      const mask=Number(T.lockedMask);
+      let nextSet=false;
+      bar.querySelectorAll(".pt").forEach(c=>{
+        const i=+c.dataset.i, done=(mask&(1<<i))!==0;
+        c.classList.toggle("done",done);
+        const isNext=!done&&!nextSet; if(isNext) nextSet=true;
+        c.classList.toggle("next",isNext&&mask!==0x3F);
+      });
+    }
+  }
+  // all six locked but nobody retired: the round is one permissionless call
+  // from finished — unplaced chips only come back as credit at retire.
+  $("closeTable").style.display = (T && Number(T.lockedMask)===0x3F && !T.retired) ? "" : "none";
+  const armed = T && T.lockBlock!==0n && !T.retired && Number(T.lockedMask)!==0x3F;
+  if(!armed){ el.style.display="none"; return; }
+  if(GEN>=8){
+    // VRF board (gen-8/9): there is no commit-reveal window, no blockhash
+    // fallback and no 256-block horizon — the slot-3 value is `armedAt`, not a
+    // lock block. Each segment arms, its Chainlink VRF draw lands async, then
+    // anyone locks it. Show progress + that plain fact; the fallback "finish"
+    // path below is commit-reveal only, so keep it hidden here.
+    const nLocked=Number(T.lockedMask).toString(2).split("1").length-1;
+    el.style.display=""; el.style.color="#6fe0a0";
+    el.textContent="The pick · "+nLocked+" / 6 locked · segments arm one at a time; each locks when its Chainlink VRF draw lands — permissionless, no secret";
+    $("finishPick").style.display="none";
+    return;
+  }
+  try{
+    const blk = await provider.send("eth_getBlockByNumber",["latest",false]);
+    const l1  = Number(BigInt(blk.l1BlockNumber || blk.number));
+    const age = l1 - Number(T.lockBlock);
+    const nLocked = Number(T.lockedMask).toString(2).split("1").length-1;
+    const t = b => { const sec=Math.max(0,Math.round(b*12.3)); return Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0"); };
+    let status, tone="#9fb4a4";
+    if(age<1){ status="waiting for the lock block to be mined"; }
+    else if(age<64){ status="reveal window OPEN — locks land from the console (passphrase) · fallback unlocks in ~"+t(64-age); tone="#6fe0a0"; }
+    else if(age<200){ status="reveal window closed — anyone can finish the pick below · horizon in ~"+t(256-age); tone="#d7b34c"; }
+    else if(age<256){ status="HURRY — only ~"+t(256-age)+" before the lock block ages out and the table needs a re-arm"; tone="#e88"; }
+    else { status="lock block aged out — re-arm from the console, then lock again"; tone="#e88"; }
+    el.style.display="";
+    el.style.color=tone;
+    el.textContent = "The pick · "+nLocked+" / 6 locked · lock block "+T.lockBlock+" · age "+Math.max(0,age)+" of 256 L1 blocks (~"+t(Math.max(0,age))+") · "+status;
+    // §10.1's liveness valve, surfaced for players: after the reveal window the
+    // fallback is permissionless — whoever cares most funds the gas.
+    $("finishPick").style.display = (age>=64 && age<256 && nLocked<6) ? "" : "none";
+  }catch{ el.style.display="none"; }
+}
+$("closeTable").onclick = async () => {
+  $("closeTable").disabled=true;
+  try{
+    if(await send("close the table (retire)", board, "retire", tid)){
+      await refreshChain();
+      rail('<span class="win">Table closed.</span> Unplaced chips are credited back and the round is settled — withdraw any time.');
+    }
+  } finally { $("closeTable").disabled=false; }
+};
+$("finishPick").onclick = async () => {
+  if(!T) return;
+  $("finishPick").disabled=true;
+  try{
+    if(GEN>=8){
+      // SegmentCrank's fallbackAll derives chars from the lock block — a path
+      // gen-8 does not have, and removing it was the point. Locking is
+      // permissionless here, so anyone can finish a stalled table segment by
+      // segment; that lives in the console.
+      rail("On the VRF board there is no fallback lock. Each segment locks itself once "
+         + "its draw lands, and a draw that never lands can be re-armed from the console.");
+      return;
+    }
+    // one approval: SegmentCrank fallback-locks every open segment AND retires
+    if(await send("finish the pick (one approval)", crank, "fallbackAll", ADDR.board, tid, true)){
+      await refreshChain();
+      rail('<span class="win">Pick finished and table retired.</span> Winnings are credited — withdraw any time.');
+    }
+  } finally { $("finishPick").disabled=false; }
+};
+
+// ── reveal + settle stamping ───────────────────────────
+let revealDone=false;
+async function paintReveal(){
+  if(!T) return;
+  const chars=lockedCharsArr();
+  const nLocked=chars.filter(Boolean).length;
+  if(nLocked===0){ $("reveal").classList.remove("on"); return; }
+  const rv=$("rvStr"); rv.innerHTML="";
+  const freq={}; chars.forEach(c=>{ if(c) freq[c]=(freq[c]||0)+1; });
+  chars.forEach((c,i)=>{
+    const d=document.createElement("div"); d.className="rv-seg";
+    d.innerHTML='<span class="lab">SEG '+(i+1)+'</span><span class="ch'+(c&&freq[c]>1?" rep":"")+(c==="0"?" zero":"")+'">'+(c||"·")+'</span>';
+    rv.appendChild(d);
+  });
+  $("reveal").classList.add("on");
+  if(nLocked!==6){ const _tr=document.getElementById("tipRow"); if(_tr) _tr.remove(); }
+  if(nLocked===6){
+    if(GEN>=6) renderTipRow();
+    const winStr=chars.join("");
+    const rep=new Set(winStr).size<6;
+    $("ddFlag").innerHTML = rep
+      ? '<span class="hit">Repeats a Digit ✓ — a character shows twice</span>'
+      : '<span class="miss">No repeat — Repeats a Digit misses</span>';
+    await stampFeed(winStr);
+    if(T.retired && !revealDone){
+      revealDone=true;
+      try{
+        const latest=await provider.getBlockNumber();
+        const evs=await board.queryFilter(board.filters.PoolSettled(tid),Math.max(0,latest-400000),latest);
+        // Two different fates share the event's rake field: a pool WITH winners
+        // contributes its true rake shave; a pool with NO winners forfeits the
+        // whole pot. Report them apart — they tell opposite stories.
+        let pot=0n,dist=0n,rakeTrue=0n,unclaimed=0n,unclaimedPools=0;
+        evs.forEach(e=>{
+          pot+=e.args.pot; dist+=e.args.distributed;
+          if(e.args.pot===0n) return;               // nobody played this pool
+          if(e.args.distributed===0n){ unclaimed+=e.args.pot; ++unclaimedPools; }
+          else rakeTrue+=e.args.rake;
+        });
+        const cred=await ledger.credit(me);
+        $("rvStats").innerHTML=
+          stat("Table pot",fmtT(pot)+" <small>TIMBS</small>")
+         +stat("Paid out",fmtT(dist)+" <small>TIMBS</small>")
+         +stat("Rake",fmtT(rakeTrue)+" <small>TIMBS</small>")
+         +stat("Unclaimed pots"+(unclaimedPools?" ("+unclaimedPools+")":""),fmtT(unclaimed)+" <small>TIMBS</small>")
+         +stat("Your credit",fmtT(cred)+" <small>TIMBS</small>",cred>0n?"win":"");
+      }catch{}
+    }
+  }
+}
+const JACKPOT_ABI = [
+  "function balance() view returns (uint256)",
+  "function sliceBps() view returns (uint256)",
+  "function sliceFloor() view returns (uint256)",
+  "function strikeable(address board, uint256 tableId) view returns (bool ok, uint256 slice)",
+  "function strike(address board, uint256 tableId) returns (uint256)",
+  "event JackpotStruck(address indexed board, uint256 indexed tableId, uint256 slice, uint256 winners, uint256 balanceAfter)",
+];
+/// What a single strike actually pays out — sliceBps of the banner, lifted to
+/// the floor, clamped to what is there. This is the number a player cares
+/// about; the banner total is context, not the prize.
+function maxHitOf(bal,bps,floor){
+  let s = bal*bps/10000n;
+  if(s<floor) s=floor;
+  if(s>bal)   s=bal;
+  return s;
+}
+let jack=null;
+async function pollJackpot(){
+  if(!ADDR.jackpot || !provider) return;
+  try{
+    if(!jack) jack=new ethers.Contract(ADDR.jackpot, JACKPOT_ABI, provider);
+    const [bal,bps,floor]=await Promise.all([jack.balance(),jack.sliceBps(),jack.sliceFloor()]);
+    const hit=maxHitOf(bal,bps,floor);
+    let p=document.getElementById("jackpotPill");
+    if(!p){ p=document.createElement("span"); p.id="jackpotPill"; p.className="pill";
+      p.style.cssText="color:var(--gold,#d7b34c);border-color:var(--gold,#d7b34c)";
+      $("phasePill").parentElement.appendChild(p); }
+    // the felt shows what one hit pays, not the banner total
+    p.textContent="MAX HIT "+fmt4(hit);
+    p.title="Rolling Double-Digit jackpot \u2014 "+fmtT(bal)+" TIMBS on the banner; one hit pays up to "
+      +fmtT(hit)+" TIMBS, split across the Repeats-a-Digit winners (2+ wallets, capped at 10x your bonus chip).";
+  }catch{}
+}
+setInterval(pollJackpot, 30000);
+let tipBusy=false;
+async function renderTipRow(){
+  if(GEN<6 || !T || !mySeat || !mySeat.seated) return;
+  let tr=document.getElementById("tipRow");
+  if(!tr){
+    tr=document.createElement("div"); tr.id="tipRow";
+    tr.style.cssText="margin-top:10px;padding:10px 12px;border:1px solid rgba(215,179,76,.35);border-radius:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center";
+    $("reveal").appendChild(tr);
+  }
+  if(tipBusy) return; tipBusy=true;
+  try{
+    const opener=T.opener;
+    const tag=["\u2660","\u2665","\u2666","\u2663"][parseInt(opener.slice(-1),16)%4]+"\u00b7"+opener.slice(-3);
+    const latest=await provider.getBlockNumber();
+    const evs=await ledger.queryFilter(ledger.filters.WinningsCredited(me, tid), Math.max(0,latest-400000), latest);
+    let win=0n; evs.forEach(e=>{ win+=e.args.amount; });
+    const cred=await ledger.credit(me);
+    // pct of this table's payout, denominated in whole 5-chips, rounded down
+    const per=p=>((win*BigInt(p))/100n)/5000000000000000000n*5n;
+    const p5=per(5), p10=per(10);
+    const btn=n=> (n>0n && n*(10n**18n)<=cred)
+      ? '<button class="tipBtn" data-amt="'+n+'" style="background:var(--gold,#d7b34c);color:#141b17;border:none;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer">Tip '+n+'</button>'
+      : '<button disabled style="opacity:.35;border-radius:8px;padding:7px 12px;background:transparent;color:inherit;border:1px solid rgba(255,255,255,.2)">Tip '+(n>0n?n:"\u2014")+'</button>';
+    tr.innerHTML='<span style="opacity:.85">Dealer <b>'+tag+'</b>'
+      +(win>0n?' \u2014 tip from your winnings':' \u2014 tips come from withdrawable credit')+'</span>'
+      +btn(p5)+btn(p10);
+    tr.querySelectorAll(".tipBtn").forEach(b=>b.onclick=async()=>{
+      const amt=ethers.parseUnits(b.dataset.amt,18);
+      if(await send("tip the dealer "+b.dataset.amt+" TIMBS", board, "tipDealer", tid, amt)){
+        rail('<span class="win">Tip sent \u2014 the dealer thanks you.</span>');
+        await refreshChain(); tipBusy=false; renderTipRow();
+      }
+    });
+  }catch{} finally{ tipBusy=false; }
+}
+function stat(k,v,cls){ return '<div class="s"><div class="k">'+k+'</div><div class="v'+(cls?" "+cls:"")+'">'+v+'</div></div>'; }
+const ticketCache={};
+async function ticketOf(w){
+  const k=(w||"").toLowerCase();
+  if(k in ticketCache) return ticketCache[k];
+  try{
+    const st=await board.seats(tid,w);
+    ticketCache[k]=st.seated? ethers.toUtf8String(st.ticket):null;
+  }catch{ ticketCache[k]=null; }
+  return ticketCache[k];
+}
+/// Every row gets a real verdict, Your-Ticket included: the bettor's ticket is
+/// read from the public seat and judged by the CONTRACT rule — the segment
+/// landing that ticket's character FOR THAT SEGMENT (that is what pays 35x).
+/// The badge shows only WON/MISS; the matching character is never printed.
+async function stampFeed(winStr){
+  for(const li of document.querySelectorAll(".frow")){
+    let tail=li.querySelector(".tail");
+    const kind=+li.dataset.kind, pick=+li.dataset.pick, pool=+li.dataset.pool;
+    if(!tail){
+      // an unresolved "?" from an earlier pass — pick it up and restamp
+      if(kind!==KIND.TICKET) continue;
+      const b=li.querySelector(".obadge");
+      if(!b || b.classList.contains("w") || b.classList.contains("l")) continue;
+      tail=b;
+    }
+    let won=null;
+    if(kind===KIND.DD) won=new Set(winStr).size<6;
+    else if(kind===KIND.TICKET){
+      const t=await ticketOf(li.dataset.wallet);
+      won = t? winStr[pool]===t[pool] : null;
+    } else {
+      won=winsAgainst(kind,pick,ALPHABET.indexOf(winStr[pool]),null,winStr);
+    }
+    tail.outerHTML = won==null
+      ? '<span class="obadge">?</span>'
+      : '<span class="obadge '+(won?"w":"l")+'">'+(won?"WON":"MISS")+'</span>';
+  }
+}
+
+// ── meter console (tune SPIN_D, saved per-browser; display-only) ─────
+const METER_DEFS=[
+  ["vrunMin","v_run @ n=3",0.2,1.2,0.01],   ["vrunMax","v_run @ HARD",0.5,1.5,0.01],
+  ["kMin","spin-up k @ n=3",2,18,0.1],      ["kMax","spin-up k @ HARD",2,22,0.1],
+  ["tsLate","settle onset τ_s @ n=3",0.3,0.95,0.01],["tsEarly","settle onset τ_s @ HARD",0.3,0.9,0.01],
+  ["tau0","spin-up midpoint τ₀",0,0.4,0.01],["gamma","glide exponent γ",0.6,3.5,0.05],
+  ["residMax","wire jitter @ n=3",0,0.3,0.005],["residMin","wire jitter @ HARD",0,0.3,0.005],
+  ["rattleBeta","rattle depth β",0,0.5,0.01],["rattleZeta","rattle damping ζ",1,14,0.5],
+  ["rattleOmega","rattle freq ω",10,80,1],  ["tauR","rattle onset τ_r",0.7,0.98,0.01],
+  ["swapNoise","swap jitter amplitude",0,0.3,0.01],
+];
+const meterOuts={};
+(function buildMeter(){
+  const wrap=$("meterSliders"); if(!wrap) return;
+  METER_DEFS.forEach(([key,label,min,max,step])=>{
+    const row=document.createElement("div");
+    row.style.cssText="display:grid;grid-template-columns:1fr 1.2fr auto;align-items:center;gap:10px;padding:3px 0";
+    const lab=document.createElement("label"); lab.textContent=label;
+    lab.style.cssText="font-size:11.5px;color:#9fb4a4";
+    const inp=document.createElement("input"); inp.type="range"; inp.min=min; inp.max=max; inp.step=step; inp.value=SPIN_D[key];
+    inp.style.cssText="accent-color:#d7b34c;width:100%";
+    const out=document.createElement("output"); out.textContent=Number(SPIN_D[key]).toFixed(step<0.01?3:step<1?2:1);
+    out.style.cssText="font-size:11.5px;color:var(--cream);font-variant-numeric:tabular-nums;min-width:3.4em;text-align:right";
+    meterOuts[key]={inp,out,step};
+    inp.addEventListener("input",()=>{
+      SPIN_D[key]=parseFloat(inp.value);
+      out.textContent=Number(SPIN_D[key]).toFixed(step<0.01?3:step<1?2:1);
+      try{ localStorage.setItem("swaptables.meter", JSON.stringify(SPIN_D)); }catch{}
+    });
+    row.append(lab,inp,out); wrap.appendChild(row);
+  });
+  $("replaySpin").onclick=()=>{
+    let targets = lockedCharsArr();
+    if(!targets.some(Boolean)) targets=Array.from({length:6},()=>ALPHABET[Math.floor(Math.random()*36)]);
+    else targets=targets.map(ch=>ch||ALPHABET[Math.floor(Math.random()*36)]);
+    reelObjs.forEach(o=>{o.settled=null;o.settleFrom=null;});
+    preview={t0:performance.now(),targets};
+  };
+  $("meterReset").onclick=()=>{
+    SPIN_D=Object.assign({},SPIN_DEFAULTS);
+    try{ localStorage.removeItem("swaptables.meter"); }catch{}
+    METER_DEFS.forEach(([key,,,,step])=>{ const o=meterOuts[key]; o.inp.value=SPIN_D[key]; o.out.textContent=Number(SPIN_D[key]).toFixed(step<0.01?3:step<1?2:1); });
+    $("meterHint").textContent="Back to the spec §10.2 defaults.";
+  };
+  $("meterCopy").onclick=()=>{
+    const rows=[2,3,4,5,6,8,12].map(n=>{
+      const c=coeffN(Math.max(3,n)), floor=n===2;
+      return "| "+n+(floor?" (floor)":"")+" | "+(floor?"—":c.p.toFixed(2))+" | "+c.vrun.toFixed(2)+" | "+c.ts.toFixed(2)+" | "+c.resid.toFixed(3)+" | "+c.k.toFixed(1)+" |";
+    }).join("\n");
+    const dials=Object.entries(SPIN_D).map(([k,v])=>k+" = "+v).join(", ");
+    const md="| n | p(n) | v_run | τ_s | resid | k |\n|---|------|-------|-----|-------|---|\n"+rows+"\n\ndials: "+dials;
+    const ta=$("meterOut"); ta.hidden=false; ta.value=md; ta.focus(); ta.select();
+    try{ navigator.clipboard?.writeText(md); $("meterHint").textContent="Copied — paste into §10.2."; }
+    catch{ $("meterHint").textContent="Select the text below and copy."; }
+  };
+})();
+
+function updateTotals(){
+  if(!mySeat?.seated){ return; }
+  const pack=mySeat.chipPack;
+  let loaded=0,on=0,placedN=0;
+  for(let s=1;s<=6;s++){
+    const byte=Number(pack>>BigInt(8*(s-1))&0xFFn);
+    const v = byte? CHIPS[byte-1] : (localChips[s]!=null? CHIPS[localChips[s]]:0);
+    if(v) loaded++;
+    if(Number(mySeat.placedMask)&(1<<(s-1))){ placedN++; on+=v; }
+  }
+  $("tLoad").innerHTML=loaded+"<small>/6</small>";
+  $("tOn").innerHTML=on+" <small>TIMBS</small>";
+  $("tTok").innerHTML=placedN+"<small>/6</small>";
+  $("tDD").innerHTML=(Number(mySeat.ddChip)? CHIPS[Number(mySeat.ddChip)-1] : "—")+" <small>TIMBS</small>";
+}
+</script>
+</body>
+</html>

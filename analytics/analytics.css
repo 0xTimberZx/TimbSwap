@@ -1,0 +1,252 @@
+/* ─── Analytics Page ─────────────────────────────────────────────────────── */
+.analytics-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-3);
+  margin-bottom: 12px;
+  margin-top: 36px;
+}
+.analytics-page > .section-label:first-child { margin-top: 0; }
+
+/* ─── Metrics Grid ───────────────────────────────────────────────────────── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.metric-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+}
+
+.metric-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+
+.metric-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  line-height: 1.1;
+}
+
+.metric-val.metric-green { color: var(--green); }
+.metric-val.metric-mono  { font-family: var(--mono); font-size: 20px; }
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+/* ─── Data Card ──────────────────────────────────────────────────────────── */
+.data-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.data-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: var(--bw) solid var(--border);
+}
+
+.data-card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.data-refresh {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ─── Data Table ─────────────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 20px;
+  border-bottom: var(--bw) solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 11px 20px;
+  border-bottom: 1px solid rgba(30,45,61,0.5);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+.table-empty {
+  text-align: center;
+  color: var(--text-3) !important;
+  padding: 28px 20px !important;
+  font-size: 13px !important;
+}
+
+.td-string {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--green);
+}
+
+.td-addr {
+  color: var(--blue);
+  cursor: pointer;
+}
+.td-addr:hover { text-decoration: underline; }
+
+.td-in  { color: var(--green); }
+.td-out { color: #ef4444; }
+
+/* ─── Table pager (round history, 12/page) ─────────────────────────────────── */
+.table-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 20px;
+  border-top: var(--bw) solid var(--border);
+}
+.table-pager.hidden { display: none; }
+.pager-btn {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.pager-btn:hover:not(:disabled) { color: var(--green); border-color: var(--green); }
+.pager-btn:disabled { opacity: 0.4; cursor: default; }
+.pager-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  min-width: 92px;
+  text-align: center;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .metrics-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Light-mode card spacing (+20%) ──────────────────────────────────────── */
+:root[data-theme="light"] .metrics-grid { gap: 14px; }
+
+/* ─── Metric filter (wallet-gated) ──────────────────────────────────────────
+   Pill row above the live metrics; slices the grid by category. Hidden for
+   disconnected visitors — they see the full grid. */
+.metric-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.mf-btn {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.mf-btn:hover { color: var(--text); }
+.mf-btn.mf-active {
+  color: var(--green);
+  border-color: var(--green);
+  background: rgba(20,241,149,0.08);
+}
+
+/* ─── Disconnected connect gate ───────────────────────────────────────────── */
+/* Shown in place of the protocol-internals sections when no wallet is
+   connected — market top-line stays public above it. */
+.analytics-gate {
+  border: var(--bw) solid var(--border);
+  border-radius: 14px;
+  background: var(--surface, rgba(255,255,255,0.02));
+  padding: 32px 24px;
+  margin: 8px 0 24px;
+  text-align: center;
+}
+.analytics-gate-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.analytics-gate-sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+  max-width: 520px;
+  margin: 0 auto 18px;
+}
+.analytics-gate .btn-connect { display: inline-block; }
+
+/* Winning strings from rounds with documented winners glow gold. */
+.td-string.gold {
+  color: #ffd75e;
+  text-shadow: 0 0 8px rgba(255, 215, 94, 0.4);
+}
+
+/* ─── Collapsible table cards ─────────────────────────────────────────────── */
+.data-card-header.collapsible { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.card-caret {
+  display: inline-block; margin-right: 7px; font-size: 11px;
+  color: var(--text-3); transition: transform .15s ease;
+}
+.data-card-header.collapsed .card-caret { transform: rotate(-90deg); }
+.table-wrap.collapsed { display: none; }

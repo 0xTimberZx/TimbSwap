@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swap — TimbSwap</title>
+  <meta name="description" content="Trade tokens on TimbSwap, a community DEX on Arbitrum Sepolia. Live quotes, ETH↔WETH wrapping, and add/remove liquidity." />
+  <link rel="canonical" href="https://timbswap.xyz/swap/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Swap — TimbSwap" />
+  <meta property="og:description" content="Trade tokens on TimbSwap, a community DEX on Arbitrum Sepolia. Live quotes, ETH↔WETH wrapping, and add/remove liquidity." />
+  <meta property="og:url" content="https://timbswap.xyz/swap/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Swap — TimbSwap" />
+  <meta name="twitter:description" content="Trade tokens on TimbSwap, a community DEX on Arbitrum Sepolia. Live quotes, ETH↔WETH wrapping, and add/remove liquidity." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="../assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="swap.css?v=20260728b" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/" class="nav-active">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a class="nav-off">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="../faucet/">Faucet</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="../explore/">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a class="nav-off">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <a href="../faucet/">Faucet</a>
+    <a class="nav-off">Airdrop</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a class="nav-off">Lock Vault</a>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+  </div>
+
+  <div class="swap-page">
+
+    <div class="swap-col">
+      <div class="swap-card">
+        <div class="swap-card-header">
+          <h2 class="swap-title" id="swap-title">Swap</h2>
+          <div class="swap-settings">
+            <button class="settings-btn" onclick="toggleSettings()" title="Slippage settings">⚙</button>
+          </div>
+        </div>
+
+        <div class="swap-mode-tabs">
+          <button id="tab-swap" class="mode-tab active" onclick="setMode('swap')">Swap</button>
+          <button id="tab-liq" class="mode-tab" onclick="setMode('liquidity')">Liquidity</button>
+        </div>
+
+        <div id="settings-panel" class="settings-panel hidden">
+          <div class="settings-label">Slippage Tolerance</div>
+          <div class="slippage-options">
+            <button class="slip-btn slip-active" onclick="setSlippage(1)">1%</button>
+            <button class="slip-btn" onclick="setSlippage(5)">5%</button>
+            <button class="slip-btn" onclick="setSlippage(15)">15%</button>
+            <input id="slip-custom" class="slip-input" type="number" placeholder="Custom (≤15%)" min="0.1" max="15" step="0.1" />
+          </div>
+        </div>
+
+        <div id="swap-mode">
+        <div class="token-box">
+          <div class="token-box-top">
+            <span class="token-box-label">You pay</span>
+            <span class="token-box-bal" id="bal-in" onclick="fillMaxIn()" title="Use full balance">Balance: —</span>
+          </div>
+          <div class="token-box-row">
+            <input id="amount-in" class="amount-input" type="number" placeholder="0.0" oninput="onAmountInChange()" />
+            <button class="token-picker-btn" id="token-in-btn" onclick="openTokenPicker('in')">
+              <span id="token-in-symbol">--</span>
+              <span class="picker-caret">▾</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="swap-arrow-row">
+          <button class="swap-arrow-btn" onclick="flipTokens()" title="Flip tokens">⇅</button>
+        </div>
+
+        <div class="token-box">
+          <div class="token-box-top">
+            <span class="token-box-label">You receive</span>
+            <span class="token-box-bal" id="bal-out">Balance: —</span>
+          </div>
+          <div class="token-box-row">
+            <input id="amount-out" class="amount-input" type="number" placeholder="0.0" oninput="onAmountOutChange()" />
+            <button class="token-picker-btn" id="token-out-btn" onclick="openTokenPicker('out')">
+              <span id="token-out-symbol">--</span>
+              <span class="picker-caret">▾</span>
+            </button>
+          </div>
+          <button id="add-out-wallet" class="token-add-wallet-row hidden" title="Add the token you receive to your wallet"
+                  onclick="addOutTokenToWallet()">＋ Add to wallet</button>
+        </div>
+
+        <div id="influence-row" class="influence-row hidden">
+          <div class="influence-left">
+            <span class="influence-label">Influence Prize Scroll</span>
+            <span class="influence-sub">This pair is eligible. Toggle to nudge the scroll on swap.</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="influence-toggle" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="swap-info" class="swap-info hidden">
+          <div class="info-row">
+            <span class="info-label">Rate</span>
+            <span class="info-val" id="info-rate">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Price impact</span>
+            <span class="info-val" id="info-impact">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Protocol fee (0.05%)</span>
+            <span class="info-val" id="info-fee">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Min received</span>
+            <span class="info-val" id="info-min">—</span>
+          </div>
+          <!-- Only appears when this route's price disagrees with the reference
+               oracle by more than fee + impact can explain — i.e. two of our own
+               pools price the same pair differently. -->
+          <div class="info-note hidden" id="info-divergence"></div>
+        </div>
+
+        <button id="swap-btn" class="btn-swap" onclick="handleSwap()" disabled>
+          Connect wallet to swap
+        </button>
+        <a id="swap-tx-link" class="swap-tx-link hidden" target="_blank" rel="noopener">
+          View transaction on Arbiscan ↗︎
+        </a>
+        </div><!-- /swap-mode -->
+
+        <div id="liquidity-mode" class="hidden">
+          <div class="token-box">
+            <div class="token-box-top">
+              <span class="token-box-label">Deposit</span>
+              <span class="token-box-bal" id="lq-bal-a" onclick="fillMaxLqA()" title="Use full balance">Balance: —</span>
+            </div>
+            <div class="token-box-row">
+              <input id="lq-amount-a" class="amount-input" type="number" placeholder="0.0" oninput="onLqAmountA()" />
+              <button class="token-picker-btn" onclick="openTokenPicker('in')">
+                <span id="lq-symbol-a">--</span><span class="picker-caret">▾</span>
+              </button>
+            </div>
+            </div>
+
+          <div class="swap-arrow-row"><span class="lq-plus">+</span></div>
+
+          <div class="token-box">
+            <div class="token-box-top">
+              <span class="token-box-label">Deposit</span>
+              <span class="token-box-bal" id="lq-bal-b" onclick="fillMaxLqB()" title="Use full balance">Balance: —</span>
+            </div>
+            <div class="token-box-row">
+              <input id="lq-amount-b" class="amount-input" type="number" placeholder="0.0" oninput="onLqAmountB()" />
+              <button class="token-picker-btn" onclick="openTokenPicker('out')">
+                <span id="lq-symbol-b">--</span><span class="picker-caret">▾</span>
+              </button>
+            </div>
+            </div>
+
+          <div id="lq-info" class="swap-info">
+            <div class="info-row">
+              <span class="info-label">Pool ratio</span>
+              <span class="info-val" id="lq-ratio">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Your LP tokens</span>
+              <span class="info-val" id="lq-lp-bal">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Withdrawable</span>
+              <span class="info-val" id="lq-withdrawable">—</span>
+            </div>
+          </div>
+
+          <button id="lq-add-btn" class="btn-swap" onclick="handleAddLiquidity()" disabled>
+            Connect wallet to add liquidity
+          </button>
+
+          <div class="lq-remove">
+            <div class="lq-remove-head">
+              <span class="lq-remove-title">Remove liquidity</span>
+              <span class="token-box-bal" id="lq-remove-bal">LP: —</span>
+            </div>
+            <div class="lq-remove-slider-row">
+              <input id="lq-remove-slider" class="lq-remove-slider" type="range" min="0" max="100" step="1" value="0" oninput="setRemovePct(Number(this.value))" aria-label="Remove percentage" />
+              <span class="lq-remove-pct" id="lq-remove-pct">0%</span>
+            </div>
+            <div class="lq-pct-row">
+              <button class="slip-btn" data-pct="25" onclick="setRemovePct(25)">25%</button>
+              <button class="slip-btn" data-pct="50" onclick="setRemovePct(50)">50%</button>
+              <button class="slip-btn" data-pct="100" onclick="setRemovePct(100)">Max</button>
+            </div>
+            <div class="lq-remove-preview" id="lq-remove-preview"></div>
+            <button id="lq-remove-btn" class="btn-remove-liq" onclick="handleRemoveLiquidity()" disabled>
+              Remove liquidity
+            </button>
+          </div>
+
+          <a id="lq-tx-link" class="swap-tx-link hidden" target="_blank" rel="noopener">
+            View transaction on Arbiscan ↗︎
+          </a>
+        </div><!-- /liquidity-mode -->
+      </div>
+    </div>
+
+    <div class="prize-col" id="prize-panel" style="display:none">
+      <div id="prize-indicators-root"></div>
+    </div>
+
+  </div>
+
+  <div id="token-picker-modal" class="modal-overlay hidden" onclick="closeTokenPicker(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">Select Token</span>
+        <button class="modal-close" onclick="closeTokenPickerDirect()">✕</button>
+      </div>
+      <input id="token-search" class="token-search" placeholder="Search name or paste address…" oninput="filterTokens()" />
+      <div id="token-list" class="token-list"></div>
+      <p class="token-picker-warn">⚠ Anyone can deploy a token using any name or symbol. Details shown are read live from the contract — always verify the address before you trust or trade it.</p>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="https://arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
+    </div>
+  </footer>
+
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script> 
+  <script src="swap.js?v=20260904c"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="influence.js?v=20260904c"></script>
+  <script>
+    function toggleMobileNav() {
+      document.getElementById("mobile-nav").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove("open");
+      }
+    });
+    function toggleWalletMenu(e) {
+      e.stopPropagation();
+      document.getElementById("wallet-info").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const wi = document.getElementById("wallet-info");
+      if (wi && !wi.contains(e.target)) wi.classList.remove("open");
+    });
+  </script>
+</body>
+</html>

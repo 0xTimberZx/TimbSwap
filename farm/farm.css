@@ -1,0 +1,322 @@
+.farm-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+.page-h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+
+.page-sub {
+  color: var(--text-2);
+  font-size: 15px;
+  margin-bottom: 36px;
+  max-width: 480px;
+}
+
+.pool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.pool-card {
+  position: relative;
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.pool-card-featured {
+  border-color: rgba(20,241,149,0.25);
+  background: linear-gradient(180deg, rgba(20,241,149,0.04), var(--bg2) 60%);
+}
+
+.featured-badge {
+  position: absolute;
+  top: -10px;
+  right: 20px;
+  background: var(--green);
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.pool-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap; /* let the APR drop to its own line on narrow cards */
+}
+/* the name/type wrapper must shrink so a long APR doesn't overflow the card */
+.pool-card-head > div { min-width: 0; }
+
+.pool-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.pool-icon-dual { font-size: 13px; }
+
+.pool-name { font-size: 16px; font-weight: 600; }
+.pool-type { font-size: 12px; color: var(--text-3); }
+
+.pool-apr {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--green);
+  white-space: nowrap; /* keep the number intact; it wraps to its own line if needed */
+}
+
+.pool-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.pool-stat {
+  background: var(--bg3);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; /* allow the 3 columns to shrink below their content width */
+}
+
+.pool-stat-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+}
+
+.pool-stat-val {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere; /* long mono values wrap instead of forcing overflow */
+}
+.pool-stat-green { color: var(--green); }
+
+/* Boosted-pool Pending row: span the full 3-column grid, label left / value
+   right on one line (the top row keeps Weight · Total Staked · Your Stake). */
+.pool-stat-span {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+/* Weight is protocol-set (fixed by pool weight), so grey it slightly vs the
+   live figures next to it — signals "not something you change". */
+.pool-stat-fixed { color: var(--text-2); font-weight: 600; }
+
+.pool-input-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  align-items: center;
+  flex-wrap: wrap; /* MAX/50%/25% wrap under the input on very narrow screens */
+}
+
+.pool-input {
+  flex: 1;
+  min-width: 0; /* let the input shrink so the row never overflows */
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+}
+.pool-input:focus { border-color: var(--green); }
+
+.pool-max-btn {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius);
+  padding: 0 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.pool-max-btn:hover { border-color: var(--green); background: rgba(20,241,149,0.06); }
+
+.pool-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.btn-pool {
+  flex: 1;
+  border-radius: var(--radius);
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: var(--bw) solid var(--border);
+  transition: all 0.15s;
+}
+
+.btn-pool-primary { background: var(--green); color: #000; border-color: var(--green); }
+.btn-pool-primary:hover:not(:disabled) { opacity: 0.85; }
+
+.btn-pool-secondary { background: transparent; color: var(--text-2); }
+.btn-pool-secondary:hover:not(:disabled) { border-color: var(--text-2); color: var(--text); }
+
+.btn-pool-claim {
+  width: 100%;
+  background: var(--bg3);
+  color: var(--green);
+  border-color: rgba(20,241,149,0.2);
+}
+.btn-pool-claim:hover:not(:disabled) { border-color: var(--green); }
+
+.btn-pool:disabled {
+  background: var(--bg3) !important;
+  color: var(--text-3) !important;
+  border-color: var(--border) !important;
+  cursor: not-allowed;
+}
+
+.get-lp-link {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  color: var(--blue);
+  margin-top: 12px;
+}
+.get-lp-link:hover { text-decoration: underline; }
+
+@media (max-width: 800px) {
+  .pool-grid { grid-template-columns: 1fr; }
+}
+
+/* Phone: reclaim horizontal room and shrink the mono values so cards fit */
+@media (max-width: 560px) {
+  .farm-page { padding: 32px 14px 64px; }
+  .page-h1 { font-size: 26px; }
+  .pool-card { padding: 18px 16px; }
+  .pool-apr { font-size: 13px; }
+  .pool-stats { gap: 1px; }
+  .pool-stat { padding: 10px 8px; }
+  .pool-stat-val { font-size: 12px; }
+  .btn-pool { padding: 11px 6px; font-size: 12px; }
+}
+
+/* ─── Light-mode card spacing (+20%) ──────────────────────────────────────── */
+:root[data-theme="light"] .pool-grid { gap: 24px; }
+
+/* Inline wallet balance tucked under the amount input, right-aligned so it
+   sits beneath the MAX/percent buttons. Click fills the input with the full
+   balance. Negative top margin pulls it into the input row's 14px gap. */
+.pool-bal {
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  text-align: right;
+  margin: -8px 2px 14px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.pool-bal:hover { color: var(--text-2); }
+
+/* "Add TIMBS to wallet" chip above the staking amount input. */
+.add-wallet-chip {
+  display: inline-block;
+  margin: 8px 0 10px;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  background: none;
+  border: var(--bw, 1px) solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.add-wallet-chip:hover { color: var(--green); border-color: var(--green); }
+
+/* ─── Boosted Farms section ──────────────────────────────────────────────── */
+.boost-head { margin: 44px 0 18px; }
+.boost-h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+.boost-status {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  border: var(--bw, 1px) solid var(--border);
+  border-radius: 999px;
+}
+.boost-status-live { color: var(--green); border-color: var(--green); }
+.boost-status-stop { color: var(--amber, #d9a441); border-color: var(--amber, #d9a441); }
+.boost-empty {
+  padding: 26px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-3);
+  border: var(--bw, 1px) dashed var(--border);
+  border-radius: 12px;
+}
+.boost-paused-badge {
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber, #d9a441);
+  border: var(--bw, 1px) solid var(--amber, #d9a441);
+  border-radius: 999px;
+  vertical-align: 1px;
+}
+
+/* Emissions status per pool — live period vs. ended (see waitForReadBlock note). */
+.pool-emit {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  color: var(--muted, #8a94a6);
+  letter-spacing: 0.01em;
+}
+.pool-emit .emit-val { font-weight: 600; }
+.pool-emit.is-live .emit-val { color: var(--green); }
+.pool-emit.is-ended .emit-val { color: var(--amber, #d9a441); }
+
+/* A lapsed pool advertises a stale high APR from its last stored rate; show it
+   as Paused (amber) to match the "ended — needs refunding" emissions line. */
+.pool-apr.apr-paused { color: var(--amber, #d9a441); }

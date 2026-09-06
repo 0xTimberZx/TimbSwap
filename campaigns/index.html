@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Campaigns — TimbSwap</title>
+  <meta name="description" content="Official TimbSwap campaigns — rules, verifiable prize wallets, and public payout receipts for every promotion we run." />
+  <link rel="canonical" href="https://timbswap.xyz/campaigns/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Campaigns — TimbSwap" />
+  <meta property="og:description" content="Real USDT prizes, free testnet entry, on-chain results, public payouts. Official rules and the verifiable prize wallet." />
+  <meta property="og:url" content="https://timbswap.xyz/campaigns/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Campaigns — TimbSwap" />
+  <meta name="twitter:description" content="Real USDT prizes, free testnet entry, on-chain results, public payouts. Official rules and the verifiable prize wallet." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="campaigns.css?v=20260752a" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a class="nav-off">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="../faucet/">Faucet</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="../explore/">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <a href="../compete/" class="btn-connect">Enter the Game</a>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+  </div>
+
+  <div class="comp-page">
+
+    <div class="comp-hero">
+      <div class="comp-eyebrow">TIMBSWAP · OFFICIAL CAMPAIGNS PAGE</div>
+      <h1 class="comp-h1">USDT <span class="comp-gold">Prize Week</span></h1>
+      <p class="comp-sub">Real USDT prizes on a free testnet game. Results decided on-chain,
+        prize funds verifiable below, every payout published with its transaction hash.
+        This page — on <strong>timbswap.xyz</strong> — is the only authoritative source of rules.</p>
+      <div class="comp-status" id="comp-status">Dates announced on X &amp; Telegram</div>
+    </div>
+
+    <!-- ─── Verify the prize ─────────────────────────────────────────────── -->
+    <div class="section-label">VERIFY THE PRIZE</div>
+    <div class="comp-card comp-verify">
+      <div class="comp-verify-grid">
+        <div class="cv-item">
+          <div class="cv-label">Prize wallet (Arbitrum One)</div>
+          <div class="cv-val" id="cv-wallet">Published before entries open</div>
+        </div>
+        <div class="cv-item">
+          <div class="cv-label">USDT in the wallet right now</div>
+          <div class="cv-val cv-gold" id="cv-balance">—</div>
+        </div>
+        <div class="cv-item">
+          <div class="cv-label">Prize pool</div>
+          <div class="cv-val" id="cv-pool">$25 grand · 5 × $5 raffle</div>
+        </div>
+      </div>
+      <p class="comp-note">The balance above is read live from Arbitrum One in your own browser —
+        not from our servers. Check it yourself any time on
+        <a id="cv-arbiscan" href="https://arbiscan.io" target="_blank" rel="noopener">Arbiscan ↗︎</a>.
+        Prizes are paid from this wallet and nowhere else.</p>
+    </div>
+
+    <!-- ─── Rules ────────────────────────────────────────────────────────── -->
+    <div class="section-label">RULES</div>
+    <div class="comp-card">
+      <ol class="comp-rules">
+        <li><strong>Join</strong> the Telegram group and follow
+          <a href="https://x.com/timbswap" target="_blank" rel="noopener">@timbswap</a> on X.</li>
+        <li><strong>Enter a ticket</strong> at <a href="../compete/">timbswap.xyz/compete</a> —
+          it costs only free testnet ETH (faucet links in the <a href="../docs/">docs</a>) and
+          your deposit stays refundable.</li>
+        <li><strong>Post your ticket string</strong> in the Telegram group. That's your competition entry proof.</li>
+        <li><strong>Longest gold streak of the week wins the grand prize.</strong> Your streak is how many
+          letters of a round's winning string your ticket matched, in order from segment&nbsp;1 —
+          the meter on the compete page burns gold to show it live. Tie-break: the earlier-entered ticket.</li>
+        <li><strong>Raffle:</strong> everyone who played at least one round and posted a ticket is entered,
+          win or lose. One prize per person.</li>
+      </ol>
+      <p class="comp-note">Free entry, no purchase, no deposit of real funds — ever. Winners are paid in
+        USDT on Arbitrum One from the prize wallet above, and every payout hash is posted below and in
+        the group.</p>
+    </div>
+
+    <!-- ─── Verify the results ───────────────────────────────────────────── -->
+    <div class="section-label">VERIFY THE RESULTS</div>
+    <div class="comp-card">
+      <p class="comp-text">Nothing is judged behind closed doors. Every round's winning string, every
+        entry, and every settlement is public on Arbitrum Sepolia:</p>
+      <ul class="comp-list">
+        <li>Round history and winning strings → <a href="../analytics/">timbswap.xyz/analytics</a></li>
+        <li>Every contract address → <a href="../docs/">timbswap.xyz/docs</a> (verified on Sourcify)</li>
+        <li>Round settlements auto-post to <a href="https://x.com/timbswap" target="_blank" rel="noopener">@timbswap</a>
+          straight from the settler bot — no human edits the results.</li>
+      </ul>
+    </div>
+
+    <!-- ─── Payout receipts ──────────────────────────────────────────────── -->
+    <div class="section-label">PAYOUT RECEIPTS</div>
+    <div class="comp-card">
+      <div id="receipts-list" class="receipts-list">
+        <div class="receipts-empty">No payouts yet — when winners are paid, every transaction hash
+          appears here with an Arbiscan link.</div>
+      </div>
+    </div>
+
+    <!-- ─── Official channels ────────────────────────────────────────────── -->
+    <div class="section-label">OFFICIAL CHANNELS — TRUST NOTHING ELSE</div>
+    <div class="comp-card comp-official">
+      <ul class="comp-list">
+        <li>Website: <strong>timbswap.xyz</strong> (only this domain)</li>
+        <li>X: <a href="https://x.com/timbswap" target="_blank" rel="noopener"><strong>@timbswap</strong></a></li>
+        <li>Telegram channel: <a href="https://t.me/timbswapann" target="_blank" rel="noopener"><strong>t.me/timbswapann</strong></a></li>
+        <li>Code: <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener"><strong>github.com/0xTimberZx/TimbSwap</strong></a> (open source)</li>
+      </ul>
+      <p class="comp-warning">⚠ We will never DM you first, never ask you to send funds, and never ask
+        for your seed phrase. Entry is always free. Anyone doing otherwise is an impersonator — report
+        and block them.</p>
+    </div>
+
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="https://arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
+    </div>
+  </footer>
+
+  <script src="campaigns.js?v=20260752a"></script>
+  <script>
+    function toggleMobileNav() {
+      document.getElementById("mobile-nav").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove("open");
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+name: Admin — Set Boost Emission Window
+
+# One-off, manual-only owner action: stretch (or re-aim) TimbBoostFarm's
+# emission window. setEmissionWindow retargets the rate inline, so the new
+# pace applies immediately in the same transaction.
+
+on:
+  workflow_dispatch:
+    inputs:
+      windowSeconds:
+        description: "Emission window in seconds (302400 = 14 rounds × 6h)"
+        required: false
+        default: "302400"
+      mode:
+        description: "Run mode"
+        required: false
+        default: "run"
+        type: choice
+        options:
+          - run
+          - dry-run
+
+concurrency:
+  group: timbswap-admin
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  set-window:
+    name: Set boost emission window
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Set emission window
+        working-directory: scripts
+        env:
+          ARB_SEPOLIA_RPC:   ${{ secrets.ARB_SEPOLIA_RPC }}
+          # Must be the TimbBoostFarm owner — setEmissionWindow is onlyOwner.
+          # Same deployer key the epoch keeper uses.
+          EPOCH_PRIVATE_KEY: ${{ secrets.EPOCH_PRIVATE_KEY }}
+          WINDOW_SECONDS:    ${{ github.event.inputs.windowSeconds }}
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "dry-run" ]; then
+            node set-boost-window.js --dry-run
+          else
+            node set-boost-window.js
+          fi

@@ -1,0 +1,12 @@
+name = "timbswap-api"
+main = "timbswap-api.js"
+compatibility_date = "2026-09-05"
+
+# One route catches every /api/* path on the apex domain; all other paths fall
+# through to the origin (GitHub Pages). Requires the zone to be on Cloudflare.
+routes = [
+  { pattern = "timbswap.xyz/api/*", zone_name = "timbswap.xyz" }
+]
+
+# Secrets are NOT set here — add them with `wrangler secret put`:
+#   ALCHEMY_RPC_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY

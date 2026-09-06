@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimbSwap — Match the meter, win the pot.</title>
+  <meta name="description" content="The on-chain prize game you play by trading. Eligible trades push a live meter — match the six characters and split the pot. Free to try on Arbitrum testnet." />
+  <link rel="canonical" href="https://timbswap.xyz/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="TimbSwap — Match the meter, win the pot." />
+  <meta property="og:description" content="The on-chain prize game you play by trading. Eligible trades push a live meter — match the six characters and split the pot. Free to try on Arbitrum testnet." />
+  <meta property="og:url" content="https://timbswap.xyz/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="TimbSwap — Match the meter, win the pot." />
+  <meta name="twitter:description" content="The on-chain prize game you play by trading. Eligible trades push a live meter — match the six characters and split the pot. Free to try on Arbitrum testnet." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="style.css?v=20260902a" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="/swap/">Swap</a>
+          <a href="/analytics/">Analytics</a>
+          <a class="nav-off">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="/farm/">Farm</a>
+          <a href="/compete/">Compete</a>
+          <a href="/faucet/">Faucet</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="/explore/">V2 Pools</a>
+          <a href="/docs/">Docs</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="/swap/">Swap</a>
+    <a href="/analytics/">Analytics</a>
+    <a class="nav-off">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="/farm/">Farm</a>
+    <a href="/compete/">Compete</a>
+    <a href="/faucet/">Faucet</a>
+    <a class="nav-off">Airdrop</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a class="nav-off">Lock Vault</a>
+    <a href="/explore/">V2 Pools</a>
+    <a href="/docs/">Docs</a>
+    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+  </div>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-eyebrow">Arbitrum Sepolia · Free to play</div>
+      <!-- Revolving headline lands the hook in two beats: "Match the meter" (3s)
+           then "Win the pot" (5s, the gold one lingers). -->
+      <h1 class="hero-headline hero-rotator" aria-label="Match the meter. Win the pot.">
+        <span class="rot-line rot-on" id="rot-a">Match the <span class="w-green">meter</span></span>
+        <span class="rot-line" id="rot-b">Win the <span class="w-gold">pot</span></span>
+      </h1>
+      <p class="hero-sub">
+        Trade like you would anywhere. Here, every trade also enters the round —
+        call six characters, and if the meter lands on them, you split the pot.
+        The prize is funded by yield, not your deposit.
+        <strong class="hero-sub-punch">What you put in stays&nbsp;yours.</strong>
+      </p>
+      <div class="hero-actions">
+        <a href="/compete/" class="btn-primary" onclick="return goGated(event, '/compete/')">Enter Your Ticket</a>
+        <a href="/swap/" class="btn-secondary" onclick="return goGated(event, '/swap/')">Get Your Tokens</a>
+      </div>
+      <!-- At-a-glance credentials — the words a DeFi native scans for. -->
+      <div class="hero-creds" aria-label="What TimbSwap is">
+        <span class="hero-cred">Open-source</span>
+        <span class="hero-cred">Decentralized</span>
+        <span class="hero-cred">Permissionless</span>
+        <span class="hero-cred">Non-custodial</span>
+        <span class="hero-cred">EVM Native</span>
+      </div>
+    </div>
+
+    <div class="scroll-display">
+      <div class="scroll-label">LIVE PRIZE SCROLL</div>
+      <div class="scroll-window" id="scroll-chars">
+        <span class="scroll-char" id="c0">·</span>
+        <span class="scroll-char" id="c1">·</span>
+        <span class="scroll-char" id="c2">·</span>
+        <span class="scroll-char" id="c3">·</span>
+        <span class="scroll-char" id="c4">·</span>
+        <span class="scroll-char" id="c5">·</span>
+      </div>
+      <div class="scroll-meta">
+        <span id="scroll-round">Round —</span>
+      </div>
+      <div class="scroll-pot">
+        <span class="scroll-pot-label">Win the Pot</span>
+        <span class="scroll-pot-val" id="scroll-pot-val">loading…</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Three-step strip: the whole game in one glance for a first-time visitor.
+       Swap → Match the meter → Win the pot mirrors the hero hook. -->
+  <section class="flow-strip" aria-label="How it works">
+    <div class="flow-step">
+      <span class="flow-emoji">🔄</span>
+      <span class="flow-title">Swap</span>
+      <span class="flow-desc">Trade any pair. Each trade nudges the meter — that's your play.</span>
+    </div>
+    <span class="flow-arrow" aria-hidden="true">→</span>
+    <div class="flow-step">
+      <span class="flow-emoji">🎰</span>
+      <span class="flow-title">Match the meter</span>
+      <span class="flow-desc">Call your six before the round locks.</span>
+    </div>
+    <span class="flow-arrow" aria-hidden="true">→</span>
+    <div class="flow-step">
+      <span class="flow-emoji">🏆</span>
+      <span class="flow-title">Win the pot</span>
+      <span class="flow-desc">Match the locked meter and split the pot.</span>
+    </div>
+  </section>
+
+  <!-- The Incentive Engine: the "what is TimbSwap, really" centerpiece. Swap,
+       stake, farm, and play are modules; the loop that funds them is the
+       product. Value pulses forward (green) and returns (blue). -->
+  <section class="engine" aria-label="The incentive engine">
+    <div class="engine-eyebrow">THE INCENTIVE ENGINE</div>
+    <h2>One engine. Every module feeds it.</h2>
+    <p class="engine-sub">
+      Swap, stake, farm, play — separate pages, one loop. What the protocol
+      earns is swept back to the people who generate it, every six rounds, in a
+      fixed order. Rewards are funded by real inflow, never printed.
+    </p>
+    <div class="engine-loop">
+      <div class="engine-row">
+        <div class="engine-node">
+          <div class="en-step">01 · TRADE</div>
+          <div class="en-title">Swaps pay a 0.3% fee</div>
+          <div class="en-sub">0.25% to liquidity providers, 0.05% to the treasury.</div>
+        </div>
+        <div class="engine-link" aria-hidden="true"></div>
+        <div class="engine-node">
+          <div class="en-step">02 · COLLECT</div>
+          <div class="en-title">Treasury and Yield Vault</div>
+          <div class="en-sub">Tickets held in game encourage more of the vault to flow into the pot. Backing visible on-chain.</div>
+        </div>
+        <div class="engine-link" aria-hidden="true"></div>
+        <div class="engine-node">
+          <div class="en-step">03 · REWARD</div>
+          <div class="en-title">Staking · Farm · Boost · Pot</div>
+          <div class="en-sub">The epoch sweep replenishes each pool from what was actually collected.</div>
+        </div>
+        <div class="engine-link" aria-hidden="true"></div>
+        <div class="engine-node">
+          <div class="en-step">04 · RETURN</div>
+          <div class="en-title">Players and LPs come back</div>
+          <div class="en-sub">More eligible volume, deeper pools — the loop turns again.</div>
+        </div>
+      </div>
+      <div class="engine-return" aria-hidden="true"></div>
+      <div class="engine-return-label">
+        ↺ swept every <strong>6 rounds</strong> · accrual halts at <strong>99%</strong> of obligations — it can't promise what it can't pay
+      </div>
+    </div>
+  </section>
+
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-label">TIMBS Supply</span>
+      <span class="stat-val" id="stat-supply">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Total Staked</span>
+      <span class="stat-val" id="stat-staked">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">LP Staked</span>
+      <span class="stat-val" id="stat-lp">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Win the Pot</span>
+      <span class="stat-val" id="stat-pot">—</span>
+    </div>
+  </div>
+
+  <section class="features">
+    <div class="feature-card">
+      <div class="feature-icon">⇄</div>
+      <h3>AMM Swap</h3>
+      <p>Trade tokens at 0.3% fee. 0.25% to LPs, 0.05% to the protocol treasury powering buybacks and the prize pot.</p>
+      <a href="/swap/" class="feature-link">Open Swap →</a>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">◎</div>
+      <h3>Prize Game</h3>
+      <p>Set a 6-character string. Every eligible swap nudges the scroll. Match the frozen window at settlement to win the pot.</p>
+      <a href="/compete/" class="feature-link">Compete →</a>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⬡</div>
+      <h3>Farm & Stake</h3>
+      <p>Single-asset TIMBS staking or LP farming. Earn TIMBS distributions and a share of buyback proceeds.</p>
+      <a href="/farm/" class="feature-link">Earn →</a>
+    </div>
+    <div class="feature-card nav-off">
+      <div class="feature-icon">⌛</div>
+      <h3>Lock Vault</h3>
+      <p>Lock any whitelisted token for 24–320 hours. Public registry. TIMBS locks get a badge in the UI.</p>
+      <span class="feature-link">Lock →</span>
+    </div>
+  </section>
+
+  <!-- Why TimbSwap: the direct answer to "why not just use Uniswap". -->
+  <section class="why" aria-label="Why TimbSwap">
+    <h2>Why TimbSwap — and not just another DEX?</h2>
+    <div class="why-grid">
+      <div class="why-card">
+        <h3>A proven AMM at the <span class="w-green">core</span></h3>
+        <p>Under the hood it's a Uniswap-V2-style constant-product exchange — battle-tested pool mechanics in open-source Solidity, verified on-chain, nothing exotic where your liquidity lives.</p>
+      </div>
+      <div class="why-card">
+        <h3>Trades do more than <span class="w-green">trade</span></h3>
+        <p>On a plain DEX a swap just swaps. Here every eligible swap also plays: it pushes the live meter toward a pot that pays winners from yield — not from anyone's deposit.</p>
+      </div>
+      <div class="why-card">
+        <h3>Rewards are earned, not <span class="w-green">printed</span></h3>
+        <p>Emissions replenish only from real treasury inflow, under a fixed 100M supply cap and a solvency stop at 99% of obligations. There is no inflation faucet.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Your incentive cycle: TIMBS is the emission worth earning, and the
+       waterfall pours one inflow through every basin — tides lift all boats. -->
+  <section class="cycle" aria-label="Your incentive cycle">
+    <div class="engine-eyebrow">YOUR INCENTIVE CYCLE</div>
+    <h2>Earn the emission worth playing for.</h2>
+    <p class="cycle-sub">
+      TIMBS is what the engine pays out. You're rewarded for making the market
+      work — and the same position gives you a live shot at the pot.
+    </p>
+    <div class="cycle-grid">
+      <div class="cycle-steps">
+        <div class="cycle-step"><span class="cs-n">01</span><div><div class="cs-t">Trade or provide</div><div class="cs-d">Every swap and every pool you deepen feeds the engine.</div></div></div>
+        <div class="cycle-step"><span class="cs-n">02</span><div><div class="cs-t">Earn TIMBS</div><div class="cs-d">Emissions flow to the work: volume, liquidity, staking.</div></div></div>
+        <div class="cycle-step"><span class="cs-n">03</span><div><div class="cs-t">Stake it back</div><div class="cs-d">Staked TIMBS and LP compound your claim on the next sweep.</div></div></div>
+        <div class="cycle-step"><span class="cs-n">04</span><div><div class="cs-t">Better odds, bigger share</div><div class="cs-d">Eligible trades push the meter — skin in the game is your ticket to the pot.</div></div></div>
+      </div>
+      <div class="cascade" role="img" aria-label="The waterfall: the treasury's collected inflow fills the farm basin first, then staking, then boost — when the tide comes in, every basin rises.">
+        <div class="cascade-title">THE WATERFALL</div>
+        <div class="cascade-src">SOURCE · TREASURY — swap fees + buybacks pooled, then poured</div>
+        <div class="basins">
+          <div class="basin b1"><div class="basin-cup"><div class="basin-fill"></div></div><span class="basin-name">FARM</span><span class="basin-ord">poured first</span></div>
+          <div class="basin b2"><div class="basin-cup"><div class="basin-fill"></div></div><span class="basin-name">STAKING</span><span class="basin-ord">poured second</span></div>
+          <div class="basin b3"><div class="basin-cup"><div class="basin-fill"></div></div><span class="basin-name">BOOST</span><span class="basin-ord">poured last</span></div>
+        </div>
+        <p class="cascade-cap">One inflow — swap fees and buybacks pooled by the <strong>treasury</strong> — poured in fixed order. When the tide comes in, <strong>every basin rises</strong>; none can be promised more than the water that arrived.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- The spread that refills: arbitrage closes; the incentive structure recurs. -->
+  <section class="edge" aria-label="The spread that refills">
+    <div class="engine-eyebrow">THE WIDER ARBITRAGE</div>
+    <h2>Traders chase spreads that close. This one refills.</h2>
+    <div class="edge-grid">
+      <div class="edge-card closes">
+        <div class="ec-tag">CLASSIC ARBITRAGE</div>
+        <svg viewBox="0 0 400 84" aria-hidden="true">
+          <path class="edge-line edge-dash" d="M0,14 L210,40" />
+          <path class="edge-line edge-dash" d="M0,70 L210,44" />
+          <path class="edge-line" d="M210,42 L400,42" />
+        </svg>
+        <p>A price gap opens, the fastest bot takes it, and the edge is <strong>gone in a block</strong>. One winner, once.</p>
+      </div>
+      <div class="edge-card refills">
+        <div class="ec-tag">THE TIMBSWAP SPREAD</div>
+        <svg viewBox="0 0 400 84" aria-hidden="true">
+          <path class="edge-line hot" d="M0,70 L52,26 L66,70 L118,26 L132,70 L184,26 L198,70 L250,26 L264,70 L316,26 L330,70 L382,26 L396,70" />
+        </svg>
+        <p>Rewarded volume, funded emissions, and prize odds — an edge that <strong>resets every six rounds</strong>, open to anyone, not just the fastest machine.</p>
+      </div>
+    </div>
+
+    <div class="edge-lower">
+      <div class="edge-panel gen">
+        <div class="ep-tag">EVEN ON A FLAT DAY</div>
+        <h3>The edge is generated, not discovered.</h3>
+        <p class="edge-lead">Classic arbitrage needs a dislocation — it only exists when volume or volatility opens a gap. TimbSwap's edge runs on the <strong>protocol's clock, not the market's</strong>, so opportunity persists when the tape is quiet.</p>
+        <ul class="edge-list">
+          <li><strong>Emissions still flow.</strong> The epoch sweep runs every six rounds regardless of volume — LP and staking rewards don't need volatility to appear.</li>
+          <li><strong>The round still turns.</strong> Segments lock on a timer; on a slow day, fewer players nudge the meter, so the ones who show up face <strong>better odds</strong> on the pot.</li>
+          <li><strong>The pot still grows.</strong> Deposited capital earns yield in the vault whether or not anyone trades, so the prize accrues on flat days too.</li>
+          <li><strong>Thin volume still compounds.</strong> Whatever trading does happen routes through your liquidity and refills the treasury that feeds the waterfall.</li>
+        </ul>
+      </div>
+      <aside class="edge-panel risk">
+        <div class="ep-tag">THE RISKS</div>
+        <h3>What you're taking on.</h3>
+        <ul class="edge-list">
+          <li><strong>Impermanent loss.</strong> Providing liquidity carries IL — larger on thin or volatile pairs (boosted farms are the highest-risk seat).</li>
+          <li><strong>Emissions vary.</strong> The rate moves with the waterfall and total staked; if inflow runs short the tail (boost) can go unfunded. Testnet APR is illustrative, not a promise.</li>
+          <li><strong>The game is chance-weighted.</strong> You aim a segment's class, not the exact character — the pot is never guaranteed.</li>
+          <li><strong>Token &amp; liquidity exposure.</strong> TIMBS rewards carry TIMBS price risk; staked positions are locked while staked.</li>
+          <li><strong>Unaudited testnet.</strong> Contracts are unaudited and every asset is test-only, with no monetary value.</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <!-- Trust bar: verify-don't-trust links in one strip. -->
+  <div class="trust-bar" aria-label="Verify TimbSwap">
+    <div class="trust-item"><span class="t-label">SOURCE</span><a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener">Open-source on GitHub ↗︎</a></div>
+    <div class="trust-item"><span class="t-label">CONTRACTS</span><a href="/docs/#authenticity">Address table in Docs</a></div>
+    <div class="trust-item"><span class="t-label">LITEPAPER</span><a href="/litepaper/">Read the litepaper</a></div>
+    <div class="trust-item"><span class="t-label">EXPLORER</span><a href="https://arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank" rel="noopener">Factory on Arbiscan ↗︎</a></div>
+    <div class="trust-item"><span class="t-label">AUDIT</span><span class="t-muted">Independent audit gates mainnet — testnet today</span></div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="https://arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
+    </div>
+  </footer>
+
+  <script>document.write('<script src="config.js?t=' + Date.now() + '"><\/script>');</script>
+<script src="landing.js?v=20260904c"></script>
+  <script>
+    function toggleMobileNav() {
+      document.getElementById("mobile-nav").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove("open");
+      }
+    });
+    function toggleWalletMenu(e) {
+      e.stopPropagation();
+      document.getElementById("wallet-info").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const wi = document.getElementById("wallet-info");
+      if (wi && !wi.contains(e.target)) wi.classList.remove("open");
+    });
+  </script>
+</body>
+</html>

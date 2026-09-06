@@ -1,0 +1,43 @@
+name: TimbSwap Reclaim Reminder
+
+on:
+  schedule:
+    - cron: "17 * * * *"           # hourly; reminders aren't second-sensitive
+  workflow_dispatch:
+
+# Read-only on-chain + idempotent DMs (deduped in Postgres), so overlap is
+# harmless — but one at a time keeps the logs and DB writes clean.
+concurrency:
+  group: timbswap-reclaim-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    name: DM holders before their refund lapses
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Run reclaim reminder
+        working-directory: scripts
+        env:
+          ARB_RPC:               ${{ secrets.ARB_RPC }}
+          ARB_SEPOLIA_RPC:       ${{ secrets.ARB_SEPOLIA_RPC }}
+          SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY:  ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_USERNAME: SettlerTimbBot
+          REMIND_LEAD_ROUNDS:    ${{ vars.REMIND_LEAD_ROUNDS }}
+          SCAN_BACK_ROUNDS:      ${{ vars.RECLAIM_SCAN_BACK_ROUNDS }}
+          COMPETE_URL:           https://timbswap.xyz/compete
+        run: node reclaim-reminder.js

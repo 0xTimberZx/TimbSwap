@@ -1,0 +1,35 @@
+# ─── Environment ──────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─── Foundry ──────────────────────────────────────────────────────────────────
+cache/
+out/
+broadcast/
+
+# ─── Dependencies ─────────────────────────────────────────────────────────────
+lib/
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+
+# ─── Remix / build artifacts (regenerable — keep out of the repo) ─────────────
+.deps/
+artifacts/
+
+# ─── Local scratch / generated exports (not part of the site) ─────────────────
+scratchpad/
+
+# ─── Scratch (was tracked once by accident; regenerable or dead) ──────────────
+tmp/

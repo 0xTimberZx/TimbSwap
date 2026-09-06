@@ -1,0 +1,56 @@
+name: contracts
+
+# Lightweight Foundry gate: compile the contracts and run the Solidity test
+# suite on any PR that touches contracts/tests/config. Frontend-only PRs skip
+# it (path filter), so this only runs when it can actually catch something.
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "tests/**"
+      - "foundry.toml"
+      - ".github/workflows/contracts.yml"
+  # Also gate main itself. PR-only meant a regression could land on main and sit
+  # there unnoticed — e.g. an edit committed straight to main, or a squash-merge
+  # whose result differs from what CI saw on the branch. Same path filter, so the
+  # keeper's [skip ci] epoch-state commits still never trigger it.
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "tests/**"
+      - "foundry.toml"
+      - ".github/workflows/contracts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forge:
+    name: build + test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive   # lib/openzeppelin-contracts + lib/forge-std
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable   # reproducible toolchain for CI
+
+      # Compiles EVERY contract and test (incl. PrizeWindows) — this is the
+      # gate that catches signature/compile regressions like the ticketAt
+      # getter arity change.
+      - name: forge build
+        run: forge build --sizes
+
+      # PrizeWindows.t.sol pre-commits winning-string fixtures derived from
+      # blockhash(block.number-1); those are only stable when run the way they
+      # are locally (against a fork), not on a bare CI runner, so exclude them
+      # here until they're made fork-independent. Everything else — including
+      # the generation-epoch suite — runs.
+      - name: forge test
+        run: forge test --no-match-contract PrizeWindows -vvv

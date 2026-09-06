@@ -1,0 +1,55 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # Swap the config.js placeholder for the dedicated read RPC (keyed endpoint
+      # with real rate limits) so the deployed frontend reads through it as
+      # primary, with the public endpoints as fallback. The URL only ever lands
+      # in the deployed output (public anyway), never in git. No secret set →
+      # placeholder stays and reads use public endpoints only.
+      - name: Inject dedicated read RPC into config.js
+        env:
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
+        run: |
+          if [ -n "$ARB_SEPOLIA_RPC" ]; then
+            python3 -c "import os; p='config.js'; s=open(p).read(); open(p,'w').write(s.replace('__ARB_SEPOLIA_RPC__', os.environ['ARB_SEPOLIA_RPC'])); print('config.js: dedicated read RPC injected as primary')"
+          else
+            echo "ARB_SEPOLIA_RPC secret not set — config.js keeps public fallbacks only."
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

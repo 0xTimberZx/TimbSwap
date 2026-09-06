@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>V2 Pools — TimbSwap</title>
+  <meta name="description" content="Explore every TimbSwap pool: reserves, TVL, 24h volume, and trade activity. Read live from chain, no wallet needed." />
+  <link rel="canonical" href="https://timbswap.xyz/explore/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="V2 Pools — TimbSwap" />
+  <meta property="og:description" content="Explore every TimbSwap pool: reserves, TVL, 24h volume, and trade activity. Read live from chain, no wallet needed." />
+  <meta property="og:url" content="https://timbswap.xyz/explore/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="V2 Pools — TimbSwap" />
+  <meta name="twitter:description" content="Explore every TimbSwap pool: reserves, TVL, 24h volume, and trade activity. Read live from chain, no wallet needed." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="../assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="explore.css?v=20260729a" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a class="nav-off">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="../faucet/">Faucet</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="../explore/" class="nav-active">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a class="nav-off">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <a href="../faucet/">Faucet</a>
+    <a class="nav-off">Airdrop</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a class="nav-off">Lock Vault</a>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+  </div>
+
+  <div class="explore-page">
+
+    <div class="explore-head">
+      <div>
+        <h1 class="page-h1">V2 Pools</h1>
+        <p class="page-sub">Exchange info — pools, liquidity, and trade activity across TimbSwap. Read live from chain; no wallet needed.</p>
+      </div>
+    </div>
+
+    <!-- ─── Overview ────────────────────────────────────────────────────── -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Total Liquidity</div>
+        <div class="metric-val metric-green" id="ov-tvl">—</div>
+        <div class="metric-sub">across all pools (priced sides)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Pools</div>
+        <div class="metric-val" id="ov-pools">—</div>
+        <div class="metric-sub">pairs on the factory</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Trades</div>
+        <div class="metric-val" id="ov-trades">—</div>
+        <div class="metric-sub">last 7 days</div>
+      </div>
+    </div>
+
+    <!-- ─── Pool search ─────────────────────────────────────────────────── -->
+    <div class="explore-search">
+      <input id="pool-search" class="explore-search-input" type="text"
+             placeholder="Search token, pair, or address…"
+             oninput="onPoolSearch()" />
+    </div>
+
+    <!-- ─── Pools ───────────────────────────────────────────────────────── -->
+    <div class="section-label">POOLS</div>
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">Liquidity Pools</span>
+        <span class="data-refresh" id="pools-status">Loading…</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Reserves</th>
+              <th>TVL</th>
+              <th>24h Volume</th>
+              <th>Pair Address</th>
+            </tr>
+          </thead>
+          <tbody id="pools-tbody">
+            <tr><td colspan="5" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── Recent Trades ───────────────────────────────────────────────── -->
+    <div class="section-label">RECENT TRADES</div>
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">Swaps</span>
+        <span class="data-refresh" id="trades-status">Loading…</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Block</th>
+              <th>Pair</th>
+              <th>Trade</th>
+              <th>Value</th>
+              <th>Trader</th>
+            </tr>
+          </thead>
+          <tbody id="trades-tbody">
+            <tr><td colspan="4" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── Recent Liquidity ────────────────────────────────────────────── -->
+    <div class="section-label">RECENT LIQUIDITY</div>
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">Adds &amp; Removes</span>
+        <span class="data-refresh" id="liq-status">Loading…</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Block</th>
+              <th>Action</th>
+              <th>Pair</th>
+              <th>Amounts</th>
+              <th>Provider</th>
+            </tr>
+          </thead>
+          <tbody id="liq-tbody">
+            <tr><td colspan="5" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="https://arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
+    </div>
+  </footer>
+
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
+  <script src="explore.js?v=20260904c"></script>
+  <script>
+    function toggleMobileNav() {
+      document.getElementById("mobile-nav").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove("open");
+      }
+    });
+    function toggleWalletMenu(e) {
+      e.stopPropagation();
+      document.getElementById("wallet-info").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const wi = document.getElementById("wallet-info");
+      if (wi && !wi.contains(e.target)) wi.classList.remove("open");
+    });
+  </script>
+</body>
+</html>

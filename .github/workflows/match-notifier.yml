@@ -1,0 +1,40 @@
+name: TimbSwap Match Notifier
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"         # snappy: DM soon after segment 1 locks
+  workflow_dispatch:
+
+# Read-only on-chain + idempotent DMs (deduped in Postgres); overlap is harmless.
+concurrency:
+  group: timbswap-match-notifier
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    name: DM holders whose first letter matches segment 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Run match notifier
+        working-directory: scripts
+        env:
+          ARB_RPC:               ${{ secrets.ARB_RPC }}
+          ARB_SEPOLIA_RPC:       ${{ secrets.ARB_SEPOLIA_RPC }}
+          SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY:  ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_USERNAME: SettlerTimbBot
+          COMPETE_URL:           https://timbswap.xyz/compete
+        run: node match-notifier.js

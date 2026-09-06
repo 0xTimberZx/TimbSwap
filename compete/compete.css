@@ -1,0 +1,1097 @@
+/* ─── Compete Page ───────────────────────────────────────────────────────── */
+.compete-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* ─── Round Header ───────────────────────────────────────────────────────── */
+.round-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
+  margin-bottom: 12px;
+}
+
+/* ─── Meter card + shadow timer banner (two-in-one) ─────────────────────── */
+.meter-stack { position: relative; margin-bottom: 12px; }
+/* Bolder, more pronounced border on the meter card itself, with a slow, faint
+   glimmer — same spirit as the active digit's pulse but gentler and in the
+   card's own blue-grey hue (no hue shift). */
+.meter-stack .round-header {
+  margin-bottom: 0;
+  position: relative;
+  z-index: 2;
+  border-width: 2px;
+  border-color: color-mix(in srgb, var(--border) 55%, var(--text-2) 45%);
+  animation: meter-glimmer 7s ease-in-out infinite;
+}
+@keyframes meter-glimmer {
+  0%, 100% {
+    border-color: color-mix(in srgb, var(--border) 55%, var(--text-2) 45%);
+    box-shadow: 0 0 0 0 rgba(120, 150, 180, 0);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--border) 30%, var(--text-2) 70%);
+    box-shadow: 0 0 20px 1px rgba(130, 165, 200, 0.18);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .meter-stack .round-header { animation: none; }
+}
+
+/* A green-outlined base tucked behind the card and peeking below it: same
+   corner curve, inset a touch so it reads as a shadow. Square top corners so
+   the sides nest cleanly under the card. */
+.meter-timerbar {
+  position: relative;
+  z-index: 1;
+  margin: -16px 14px 0;
+  padding: 22px 0 16px;
+  background: var(--bg2);
+  border: var(--bw) solid rgba(20, 241, 149, 0.42);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  text-align: center;
+}
+/* Only the TEXT is the button that opens the how-to popup, not the banner. */
+.banner-text {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--green);
+  cursor: pointer;
+}
+.banner-text:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.round-meta { min-width: 70px; }
+/* SEGMENT block sits on the right on desktop */
+.round-meta-seg { text-align: right; }
+.round-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+.round-num {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+/* Matches the active digit cell's highlight color (.digit-cell.active) so the
+   segment numerator visually ties back to which meter cell is live. */
+.hdr-segment-num { color: var(--blue); }
+
+/* ─── Digit Track ────────────────────────────────────────────────────────── */
+.digit-track {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.digit-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.digit-char {
+  width: 48px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--bg3);
+  color: var(--text-3);
+  transition: all 0.25s;
+  user-select: none;
+}
+
+/* Locked digit — solid green */
+.digit-cell.locked .digit-char {
+  color: var(--green);
+  border-color: var(--green);
+  background: rgba(20,241,149,0.08);
+}
+
+/* Active digit — pulsing blue border */
+.digit-cell.active .digit-char {
+  color: var(--text);
+  border-color: var(--blue);
+  background: rgba(40,160,240,0.08);
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+/* Future digit — dim */
+.digit-cell.future .digit-char {
+  color: var(--text-3);
+  border-color: transparent;
+  background: var(--bg3);
+  opacity: 0.4;
+}
+
+/* Wallet-gated: hide chars, show lock */
+.digit-cell.gated .digit-char {
+  color: transparent;
+  background: var(--bg3);
+  border-color: var(--border);
+  position: relative;
+}
+.digit-cell.gated .digit-char::after {
+  content: "🔒";
+  position: absolute;
+  font-size: 14px;
+}
+
+/* Current segment mid-settlement — stays marked (no pulse) so the indicator
+   never vanishes while the digit is being finalized on-chain. */
+.digit-cell.settling .digit-char {
+  animation: none;
+  border-color: var(--blue);
+  background: rgba(40,160,240,0.12);
+}
+
+/* Wallet-gated marquee (spells CONNECT WALLET) — neutral, no pulse, no lock icon */
+.digit-cell.gate-mask .digit-char {
+  animation: none;
+  color: var(--text-2);
+  border-color: var(--border);
+  background: var(--bg3);
+}
+.digit-cell.gate-mask .digit-char::after { content: none; }
+
+@keyframes pulse-border {
+  0%, 100% { border-color: var(--blue); box-shadow: 0 0 0 0 rgba(40,160,240,0.3); }
+  50% { border-color: var(--blue); box-shadow: 0 0 0 6px rgba(40,160,240,0); }
+}
+
+.digit-seg-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+}
+/* Highlight the current segment's label so "current part of the meter" is obvious */
+.digit-cell.active .digit-seg-label { color: var(--blue); font-weight: 700; }
+
+/* ─── Substats ───────────────────────────────────────────────────────────── */
+.round-substats {
+  display: flex;
+  flex-wrap: wrap;               /* wrap whole tokens, not mid-phrase */
+  justify-content: center;
+  align-items: center;
+  gap: 6px 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 8px;
+  padding: 0 12px;
+}
+/* keep each stat ("35:07 left in segment", "Pot: … ETH") intact on its own line */
+.round-substats > span { white-space: nowrap; }
+/* the pot span now carries several segments (Pot · backed by · yield accruing);
+   let it wrap at the "·" boundaries so it can't overflow a narrow phone. Each
+   segment glues its number to its unit with NBSP, so wraps only between stats. */
+#sub-pot { white-space: normal; overflow-wrap: anywhere; text-align: center; }
+.dot-sep { color: var(--text-3); }
+/* Once the stats wrap onto multiple lines the · separators dangle at line
+   edges — drop them and let each stat stand centered on its own. */
+@media (max-width: 700px) {
+  .dot-sep { display: none; }
+  .round-substats { gap: 4px 14px; }
+}
+
+.gated-notice {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  padding: 8px;
+  margin-bottom: 16px;
+}
+
+/* ─── Grid ───────────────────────────────────────────────────────────────── */
+.compete-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.compete-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  letter-spacing: -0.3px;
+}
+.card-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+/* ─── Entry Input ────────────────────────────────────────────────────────── */
+.entry-input {
+  width: 100%;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+  margin-bottom: 6px;
+}
+.entry-input:focus { border-color: var(--blue); }
+.entry-input.valid { border-color: var(--green); }
+.entry-input.invalid { border-color: #ef4444; }
+
+.entry-validation {
+  font-size: 11px;
+  font-family: var(--mono);
+  min-height: 16px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.entry-validation.ok    { color: var(--green); }
+.entry-validation.error { color: #ef4444; }
+
+/* ─── Cost Row ───────────────────────────────────────────────────────────── */
+.cost-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg3);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+}
+
+.cost-left { display: flex; flex-direction: column; gap: 2px; }
+.cost-label { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+.cost-val { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--text); }
+.cost-hint { font-family: var(--mono); font-size: 10px; color: var(--text-3); opacity: 0.85; }
+
+/* ─── Token Selector ─────────────────────────────────────────────────────── */
+.token-select-wrap { position: relative; }
+
+.token-select-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg);
+  border: var(--bw) solid var(--border);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.token-select-btn:hover { border-color: var(--green); }
+.token-caret { font-size: 9px; color: var(--text-3); }
+
+.token-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  min-width: 100px;
+  padding: 4px;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.token-drop-item {
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.token-drop-item:hover { background: var(--bg3); color: var(--text); }
+.token-drop-item.selected { color: var(--green); }
+
+/* ─── Extra Rounds ───────────────────────────────────────────────────────── */
+.extra-rounds-wrap { margin-bottom: 14px; }
+.extra-rounds-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.extra-rounds-label { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.extra-stepper-mini { display: flex; align-items: center; gap: 8px; }
+.extra-stepper-mini button {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.extra-stepper-mini button:hover { border-color: var(--green); color: var(--green); }
+.extra-stepper-mini span {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 14px;
+  text-align: center;
+  color: var(--text);
+}
+.extra-cost-note {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ─── Entry Button ───────────────────────────────────────────────────────── */
+.btn-entry {
+  width: 100%;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  padding: 13px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-entry:hover:not(:disabled) { opacity: 0.85; }
+.btn-entry:disabled {
+  background: var(--bg3);
+  color: var(--text-3);
+  cursor: not-allowed;
+  border: var(--bw) solid var(--border);
+}
+
+/* ─── My Entries ─────────────────────────────────────────────────────────── */
+.my-entries-list { display: flex; flex-direction: column; gap: 8px; }
+
+.entry-row-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  gap: 8px;
+}
+.entry-row-string {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.entry-row-meta { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+
+.entry-status-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Ticket lifecycle badges (GameRegistry v2) */
+.status-pending    { background: rgba(40,160,240,0.12);  color: var(--blue); }
+.status-active     { background: rgba(20,241,149,0.12);  color: var(--green); }
+.status-conceded   { background: rgba(255,255,255,0.05); color: var(--text-3); }
+.status-ineligible { background: rgba(255,92,92,0.12);   color: #ff5c5c; }
+.status-cancelled  { background: rgba(255,184,74,0.12);  color: #ffb84a; }
+.status-refundable { background: rgba(255,184,74,0.12);  color: #ffb84a; }
+.status-expired    { background: rgba(255,255,255,0.05); color: var(--text-3); }
+.status-closed     { background: rgba(255,255,255,0.04); color: var(--text-3); }
+
+/* Conceded ticket tethered beneath its replacement in the chain */
+.ticket-conceded {
+  opacity: 0.55;
+  margin-left: 18px;
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+}
+.ticket-conceded .entry-row-string { text-decoration: line-through; text-decoration-thickness: 1px; }
+.tether-mark { color: var(--text-3); font-weight: 400; margin-right: 2px; }
+
+/* Yield framing line under the entry card subtitle */
+.card-sub-yield { color: var(--green); opacity: 0.75; margin-top: -6px; }
+
+.btn-claim-mini {
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ─── Telegram reminder opt-in ───────────────────────────────────────────── */
+.btn-tg-remind {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 12px;
+  background: #229ED9;              /* Telegram blue */
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-tg-remind:hover { opacity: 0.85; }
+.tg-remind-note {
+  margin: 6px 2px 0;
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ─── How It Works ───────────────────────────────────────────────────────── */
+.how-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.how-num {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(20,241,149,0.1);
+  border: 1px solid rgba(20,241,149,0.25);
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ─── Past Rounds ────────────────────────────────────────────────────────── */
+.past-rounds-section { margin-top: 8px; }
+.section-title { font-size: 17px; font-weight: 600; margin-bottom: 14px; letter-spacing: -0.3px; }
+.past-rounds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* A page holds up to 8 rows and the whole table flips — no internal scroll. */
+}
+
+/* Pager: flip between tables of 8 rounds (up to 128 rounds back). */
+.past-rounds-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.pager-btn {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.pager-btn:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+.pager-btn:disabled { opacity: 0.4; cursor: default; }
+.pager-label { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+.past-round-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.past-round-left { display: flex; align-items: center; gap: 14px; }
+.past-round-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.past-round-num { font-family: var(--mono); font-size: 12px; color: var(--text-3); min-width: 60px; }
+.past-round-string {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 5px;
+  /* Balance the leading edge against the trailing letter-spacing gap so the
+     six characters read as evenly spaced. */
+  padding-left: 5px;
+  color: var(--green);
+}
+.past-round-meta { font-size: 11px; color: var(--text-2); }
+.past-round-winner { border-color: rgba(20,241,149,0.25); background: rgba(20,241,149,0.03); }
+/* Narrow screens: the meta wraps under the string only when it doesn't fit,
+   which made neighboring cards render one-line/two-line at random. Force the
+   meta onto its own row on every card so the list reads uniformly. */
+@media (max-width: 700px) {
+  .past-round-row { row-gap: 6px; }
+  .past-round-right { flex-basis: 100%; }
+}
+
+.btn-claim-round {
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.claimed-badge {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--green);
+  background: rgba(20,241,149,0.1);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.won-note {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--gold, #ffd75e);
+  align-self: center;
+}
+.expired-badge {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12px;
+  padding: 20px;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .compete-grid { grid-template-columns: 1fr; }
+  /* Stack the meter on its own line, then place ROUND + SEGMENT side by side
+     beneath it (instead of splitting them to the top and bottom of the card). */
+  .round-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 14px 40px;
+    padding: 22px 18px;
+  }
+  .round-header .digit-track { order: -1; flex: 0 0 100%; max-width: 100%; }
+  .round-header .round-meta { min-width: 0; text-align: center; }
+  .digit-track { gap: 6px; }
+  .digit-char { width: 40px; height: 52px; font-size: 22px; }
+}
+@media (max-width: 480px) {
+  .compete-page { padding: 28px 14px 64px; }
+  .round-header { gap: 12px 28px; }
+  .round-substats { font-size: 12px; }
+  .digit-track { gap: 5px; }
+  .digit-char { width: 34px; height: 44px; font-size: 18px; }
+  .digit-seg-label { display: none; }
+}
+/* Very narrow phones: make sure all six cells + gaps fit the viewport */
+@media (max-width: 340px) {
+  .digit-char { width: 30px; height: 40px; font-size: 16px; }
+}
+
+/* ─── Advance Panel (user nudge / batch nudge) ─────────────────────────────── */
+.advance-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(40,160,240,0.08), var(--bg2) 55%);
+  border: 1px solid rgba(40,160,240,0.3);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.advance-panel.hidden { display: none; }
+.advance-panel::before {
+  /* faint animated sweep to sell the "charge" feel without being loud */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 40%, rgba(40,160,240,0.08) 50%, transparent 60%);
+  background-size: 220% 100%;
+  animation: advance-sweep 5s linear infinite;
+  pointer-events: none;
+}
+@keyframes advance-sweep {
+  0%   { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
+}
+
+.advance-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.advance-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 0 6px rgba(40,160,240,0.6));
+  flex-shrink: 0;
+}
+.advance-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.advance-sub   { font-size: 12px; color: var(--text-2); }
+.advance-preview {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.advance-preview .ap-from { color: var(--text-3); }
+.advance-preview .ap-to   { color: var(--blue); font-weight: 700; }
+
+.advance-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.advance-chips { display: flex; gap: 6px; }
+.adv-chip {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  border-radius: 20px;
+  padding: 6px 13px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.adv-chip:hover { border-color: var(--blue); color: var(--text); }
+.adv-chip.active {
+  background: rgba(40,160,240,0.18);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.adv-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.adv-chip:disabled:hover { border-color: var(--border); color: var(--text-3); }
+
+.advance-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: 20px;
+  padding: 4px 6px;
+}
+.advance-stepper button {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.advance-stepper button:hover { background: var(--blue-dim); color: var(--text); }
+#advance-count-val {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 20px;
+  text-align: center;
+}
+
+.btn-advance-submit {
+  margin-left: auto;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px 22px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 0 rgba(40,160,240,0.5);
+  transition: box-shadow 0.2s, opacity 0.15s, transform 0.1s;
+}
+.btn-advance-submit:hover:not(:disabled) {
+  box-shadow: 0 0 18px rgba(40,160,240,0.55);
+  transform: translateY(-1px);
+}
+.btn-advance-submit:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+@media (max-width: 640px) {
+  .advance-head { flex-wrap: wrap; }
+  .advance-preview { margin-left: 0; width: 100%; }
+  .advance-controls { justify-content: center; }
+  .btn-advance-submit { margin-left: 0; width: 100%; }
+}
+
+/* ─── Replace-entry warning modal (entries don't stack) ──────────────────── */
+.replace-warn-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 24px;
+}
+.replace-warn-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 420px;
+  width: 100%;
+  padding: 28px;
+  text-align: center;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+}
+.replace-warn-icon { font-size: 30px; color: #ffb84a; margin-bottom: 10px; }
+.replace-warn-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.replace-warn-body {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-bottom: 18px;
+  text-align: left;
+}
+.replace-warn-body strong { color: #ffb84a; }
+.replace-warn-dontshow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.replace-warn-dontshow input { accent-color: var(--green); }
+.btn-replace-warn-ok {
+  width: 100%;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-replace-warn-ok:hover { opacity: 0.85; }
+
+/* ─── Light-mode card spacing (+20%) ──────────────────────────────────────── */
+:root[data-theme="light"] .compete-grid { gap: 19px; margin-bottom: 48px; }
+
+/* Discrete balance of the selected eligible entry token (+ TIMBS when
+   extra rounds are chosen). Muted, right-aligned, mono — informational. */
+.entry-token-bal {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: right;
+  margin: 4px 0 0;
+  min-height: 14px;
+}
+
+/* ─── Winning streak (gold) ─────────────────────────────────────────────────
+   Settled letters matching the viewer's active ticket as an unbroken run from
+   segment 1 burn lightning-gold instead of green; a full 6/6 match flashes
+   just before the round rolls. Winning strings in the history logs share the
+   same golden text. */
+.digit-cell.gold .digit-char {
+  color: #ffd75e;
+  border-color: #ffd75e;
+  background: rgba(255, 215, 94, 0.12);
+  text-shadow: 0 0 12px rgba(255, 215, 94, 0.6);
+  /* Tiny outward emittance, meter-only. All gold cells (re)gain the class in
+     the same render pass, so the breathe stays in perfect sync across the
+     streak; kept softer than the active cell's blue pulse (6px ring). */
+  animation: gold-breathe 2.4s ease-in-out infinite;
+}
+@keyframes gold-breathe {
+  0%, 100% { box-shadow: 0 0 4px 0 rgba(255, 215, 94, 0.25); }
+  50%      { box-shadow: 0 0 9px 1px rgba(255, 215, 94, 0.45); }
+}
+.digit-cell.gold-flash .digit-char {
+  animation: gold-flash 0.45s ease-in-out 4;
+}
+@keyframes gold-flash {
+  0%, 100% { box-shadow: 0 0 0 rgba(255, 215, 94, 0); }
+  50%      { box-shadow: 0 0 26px rgba(255, 215, 94, 0.9); background: rgba(255, 215, 94, 0.32); }
+}
+.past-round-string.gold-string {
+  color: #ffd75e;
+  text-shadow: 0 0 10px rgba(255, 215, 94, 0.45);
+}
+
+/* ─── Newcomer banner (disconnected visitors) ──────────────────────────────
+   The digit meter is deliberately gated, which left first-time visitors with
+   no idea a live game exists. This banner carries the pitch until a wallet
+   connects, then disappears. */
+.newcomer-banner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 16px 0 4px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, rgba(20, 241, 149, 0.07), rgba(56, 189, 248, 0.05));
+  border: var(--bw) solid rgba(20, 241, 149, 0.4);
+  border-radius: var(--radius-lg);
+}
+.nc-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.nc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: nc-pulse 1.6s ease-in-out infinite;
+}
+@keyframes nc-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(20, 241, 149, 0.5); }
+  50%      { box-shadow: 0 0 0 7px rgba(20, 241, 149, 0); }
+}
+.nc-body { flex: 1; min-width: 0; }
+.nc-headline { font-weight: 600; font-size: 15px; margin-bottom: 5px; }
+.nc-sub { color: var(--text-2); font-size: 13px; line-height: 1.55; }
+.nc-stats { margin-top: 8px; font-family: var(--mono); font-size: 12px; color: var(--green); }
+.nc-stats:empty { display: none; }
+.nc-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.nc-btn {
+  display: block;
+  text-align: center;
+  white-space: nowrap; /* keep the ↗︎ glued to the label on narrow phones */
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.nc-btn:hover { color: var(--text); border-color: var(--text-3); }
+.nc-btn-primary { background: var(--green); border-color: var(--green); color: #06281a; }
+.nc-btn-primary:hover { background: #3ff5ab; border-color: #3ff5ab; color: #06281a; }
+@media (max-width: 700px) {
+  .newcomer-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .nc-actions { flex-direction: row; width: 100%; }
+  .nc-btn { flex: 1; }
+}
+
+/* ─── USDT Prize Week chip (links to /competition/) ────────────────────────── */
+.comp-week-chip {
+  display: block;
+  text-align: center;
+  margin: 14px 0 4px;
+  padding: 11px 18px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: #ffd75e;
+  border: var(--bw) solid rgba(255, 215, 94, 0.4);
+  border-radius: 999px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.comp-week-chip:hover { border-color: #ffd75e; background: rgba(255, 215, 94, 0.06); }
+
+/* Trust footnote under How It Works — the guarantee behind the steps. */
+.how-note {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: var(--bw) solid var(--border);
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+.how-note strong { color: var(--green); font-weight: 600; }
+
+/* ─── How-to-play popup (opened from the banner text) ───────────────────── */
+.howto-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 24px;
+}
+.howto-overlay.hidden { display: none; }
+.howto-card {
+  position: relative;
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 500px;
+  width: 100%;
+  padding: 26px 24px 22px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+}
+.howto-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: none;
+  border: 0;
+  color: var(--text-3);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+.howto-close:hover { color: var(--text); }
+.howto-title { margin: 0; color: var(--text); font-size: 22px; font-weight: 700; }
+.howto-sub { margin: 5px 0 20px; color: var(--text-2); font-family: var(--mono); font-size: 13px; }
+.howto-steps { display: flex; flex-direction: column; gap: 11px; }
+.howto-step {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 13px 16px;
+}
+.howto-n { color: var(--green); font-family: var(--mono); font-weight: 700; font-size: 18px; min-width: 15px; }
+.howto-txt { flex: 1; color: var(--text); font-family: var(--mono); font-size: 14px; }
+.howto-icons { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.howto-icons img { height: 21px; width: 21px; border-radius: 5px; object-fit: contain; }
+.howto-emoji { font-size: 19px; flex-shrink: 0; }
+.howto-foot { margin: 18px 0 0; text-align: center; color: var(--text-2); font-family: var(--mono); font-size: 12.5px; }
+.howto-foot strong { color: var(--text); }
+
+/* rotate toggle */
+.howto-rotate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: var(--bw) solid var(--border);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.howto-switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--border);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.howto-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.howto-switch.on { background: var(--green); }
+.howto-switch.on::after { transform: translateX(18px); }
+
+@media (max-width: 480px) {
+  .howto-icons img { height: 18px; width: 18px; }
+  .howto-txt { font-size: 13px; }
+}

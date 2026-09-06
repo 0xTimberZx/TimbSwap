@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compete — TimbSwap</title>
+  <meta name="description" content="Play the Prize Scroll: nudge the on-chain meter with eligible swaps and split the pot when the round settles." />
+  <link rel="canonical" href="https://timbswap.xyz/compete/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Compete — TimbSwap" />
+  <meta property="og:description" content="Play the Prize Scroll: nudge the on-chain meter with eligible swaps and split the pot when the round settles." />
+  <meta property="og:url" content="https://timbswap.xyz/compete/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Compete — TimbSwap" />
+  <meta name="twitter:description" content="Play the Prize Scroll: nudge the on-chain meter with eligible swaps and split the pot when the round settles." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="../assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="compete.css?v=20260724a" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a class="nav-off">Governance</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/" class="nav-active">Compete</a>
+          <a href="../faucet/">Faucet</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="../explore/">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a class="nav-off">Governance</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <a href="../faucet/">Faucet</a>
+    <a class="nav-off">Airdrop</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a class="nav-off">Lock Vault</a>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+  </div>
+
+  <div class="compete-page">
+
+    <!-- ─── Round Header ─────────────────────────────────────────────────── -->
+    <div class="meter-stack">
+    <div class="round-header">
+      <div class="round-meta">
+        <span class="round-label">ROUND</span>
+        <span class="round-num" id="hdr-round">—</span>
+      </div>
+
+      <!-- 6-digit scroll — one cell per segment -->
+      <div class="digit-track" id="digit-track">
+        <div class="digit-cell" id="dc0" data-seg="1">
+          <div class="digit-char" id="dchar0">·</div>
+          <div class="digit-seg-label">SEG 1</div>
+        </div>
+        <div class="digit-cell" id="dc1" data-seg="2">
+          <div class="digit-char" id="dchar1">·</div>
+          <div class="digit-seg-label">SEG 2</div>
+        </div>
+        <div class="digit-cell" id="dc2" data-seg="3">
+          <div class="digit-char" id="dchar2">·</div>
+          <div class="digit-seg-label">SEG 3</div>
+        </div>
+        <div class="digit-cell" id="dc3" data-seg="4">
+          <div class="digit-char" id="dchar3">·</div>
+          <div class="digit-seg-label">SEG 4</div>
+        </div>
+        <div class="digit-cell" id="dc4" data-seg="5">
+          <div class="digit-char" id="dchar4">·</div>
+          <div class="digit-seg-label">SEG 5</div>
+        </div>
+        <div class="digit-cell" id="dc5" data-seg="6">
+          <div class="digit-char" id="dchar5">·</div>
+          <div class="digit-seg-label">SEG 6</div>
+        </div>
+      </div>
+
+      <div class="round-meta round-meta-seg">
+        <span class="round-label">SEGMENT</span>
+        <span class="round-num"><span id="hdr-segment-num" class="hdr-segment-num">—</span>/6</span>
+      </div>
+    </div>
+
+      <!-- Shadow banner tucked under the card: shows the segment timer, and
+           rotates to a tappable "How To Play" every 16s for 3s. The TEXT
+           (not the banner) opens the how-to popup. -->
+      <div class="meter-timerbar">
+        <button id="banner-text" class="banner-text" type="button" onclick="openHowTo()">Loading…</button>
+      </div>
+    </div><!-- /meter-stack -->
+
+    <!-- Pot / entries (timer moved into the banner above) -->
+    <div class="round-substats">
+      <span id="sub-pot">Pot: —</span>
+      <span class="dot-sep" id="sub-sep">|</span>
+      <span id="sub-entries">— entries</span>
+    </div>
+
+    <!-- ─── Advance Panel (wallet-gated user nudge / batch nudge) ───────────── -->
+    <div id="advance-panel" class="advance-panel hidden">
+      <div class="advance-head">
+        <span class="advance-icon">⚡</span>
+        <div>
+          <div class="advance-title">Advance the Scroll</div>
+          <div class="advance-sub">Push the active digit forward — gas only, no swap needed</div>
+        </div>
+        <div class="advance-preview" id="advance-preview">SEG — · <span class="ap-from">·</span> → <span class="ap-to">·</span></div>
+      </div>
+
+      <div class="advance-controls">
+        <div class="advance-chips" id="advance-chips">
+          <button class="adv-chip" data-n="1" onclick="setAdvanceCount(1)">+1</button>
+          <button class="adv-chip" data-n="5" onclick="setAdvanceCount(5)">+5</button>
+          <button class="adv-chip" data-n="10" onclick="setAdvanceCount(10)">+10</button>
+          <button class="adv-chip adv-chip-max" id="adv-chip-max" onclick="setAdvanceMax()">Max</button>
+        </div>
+
+        <div class="advance-stepper">
+          <button onclick="adjustAdvanceCount(-1)" aria-label="Decrease">−</button>
+          <span id="advance-count-val">1</span>
+          <button onclick="adjustAdvanceCount(1)" aria-label="Increase">+</button>
+        </div>
+
+        <button id="advance-submit-btn" class="btn-advance-submit" onclick="handleAdvance()">
+          Advance ×1
+        </button>
+      </div>
+    </div>
+
+    <!-- Wallet-gated reveal notice -->
+    <div id="gated-notice" class="gated-notice hidden">
+      <span>Connect wallet to reveal the active digit and set your entry</span>
+    </div>
+
+    <!-- Newcomer banner — explains the game to visitors without a wallet.
+         Hidden the moment a wallet connects. -->
+    <div id="newcomer-banner" class="newcomer-banner hidden">
+      <div class="nc-live"><span class="nc-dot"></span>LIVE</div>
+      <div class="nc-body">
+        <div class="nc-headline">A prize round is running right now — you're one wallet away from playing.</div>
+        <div class="nc-sub">Six letters lock in, one per hour, pushed upward by real trades. Match all six with
+          your ticket and the pot pays out. Your entry deposit stays refundable — and it's all free testnet money,
+          so trying it costs nothing.</div>
+        <div class="nc-stats" id="nc-stats"></div>
+      </div>
+      <div class="nc-actions">
+        <a class="nc-btn nc-btn-primary" href="https://metamask.io/download/" target="_blank" rel="noopener">Get a free wallet ↗︎</a>
+        <a class="nc-btn" href="../docs/">How it works</a>
+      </div>
+    </div>
+
+    <!-- Campaigns entry point — parked until the first campaign goes live.
+         Re-enable by removing nav-off (page lives at /campaigns/). -->
+    <a href="../campaigns/" class="comp-week-chip nav-off">
+      🏆 Campaigns — official rules, prize wallet &amp; payout receipts
+    </a>
+
+    <div class="compete-grid">
+
+      <!-- ─── Entry Card ──────────────────────────────────────────────────── -->
+      <div class="compete-card">
+        <h2 class="card-title">Set Your Entry</h2>
+        <p class="card-sub">6 characters · A–Z and 0–9 · No repeats · Plays <span id="entry-plays-round">next round</span></p>
+        <p class="card-sub card-sub-yield">Choose an asset to back your ticket — it stays yours, and while the ticket's active it earns yield for the pot.</p>
+
+        <input
+          id="entry-string"
+          class="entry-input"
+          type="text"
+          maxlength="6"
+          placeholder="ABC123"
+          oninput="onEntryInput()"
+        />
+        <div id="entry-validation" class="entry-validation"></div>
+
+        <!-- Token selector -->
+        <div class="cost-row">
+          <div class="cost-left">
+            <span class="cost-label">Entry cost</span>
+            <span class="cost-val" id="entry-cost-val">—</span>
+            <span class="cost-hint" id="entry-cost-hint"></span>
+          </div>
+          <div class="token-select-wrap">
+            <button class="token-select-btn" id="token-select-btn" onclick="toggleTokenDropdown()">
+              <span id="selected-token-label">ETH</span>
+              <span class="token-caret">▾</span>
+            </button>
+            <div class="token-dropdown hidden" id="token-dropdown"></div>
+          </div>
+        </div>
+        <div class="entry-token-bal" id="entry-token-bal"></div>
+
+        <!-- Extra rounds -->
+        <div class="extra-rounds-wrap">
+          <div class="extra-rounds-inline">
+            <span class="extra-rounds-label">Extra rounds</span>
+            <div class="extra-stepper-mini">
+              <button onclick="adjustExtraRounds(-1)">−</button>
+              <span id="extra-rounds-val">0</span>
+              <button onclick="adjustExtraRounds(1)">+</button>
+            </div>
+          </div>
+          <div id="extra-cost-note" class="extra-cost-note hidden"></div>
+        </div>
+
+        <button id="entry-btn" class="btn-entry" onclick="handleSubmitEntry()" disabled>
+          Connect wallet to enter
+        </button>
+      </div>
+
+      <!-- ─── My Entries ──────────────────────────────────────────────────── -->
+      <div class="compete-card">
+        <h2 class="card-title">My Tickets</h2>
+        <div id="my-entries-list" class="my-entries-list">
+          <div class="empty-state">Your tickets live here once you connect.</div>
+        </div>
+        <!-- Opt-in Telegram nudges: first-letter match + pre-forfeit refund reminder. -->
+        <a id="tg-remind-btn" class="btn-tg-remind hidden" target="_blank" rel="noopener">
+          🔔 Remind me on Telegram
+        </a>
+        <p id="tg-remind-note" class="tg-remind-note hidden">
+          Get a DM when your first letter matches — and before a refund window closes.
+        </p>
+      </div>
+
+      <!-- ─── How It Works ────────────────────────────────────────────────── -->
+      <div class="compete-card">
+        <h2 class="card-title">How It Works</h2>
+        <div class="how-step"><span class="how-num">1</span><span>Set a 6-character string before the round starts. It plays next round.</span></div>
+        <div class="how-step"><span class="how-num">2</span><span>Each round has 6 segments. Every eligible swap nudges the active segment's digit upward.</span></div>
+        <div class="how-step"><span class="how-num">3</span><span>When a segment ends, its character locks — randomized within its type (a letter stays a letter, a number stays a number), so you can aim the class but not the exact character. The next segment becomes active.</span></div>
+        <div class="how-step"><span class="how-num">4</span><span>After all 6 segments, the 6 locked digits form the winning string. Exact match wins the pot.</span></div>
+        <div class="how-step"><span class="how-num">5</span><span>Your ticket principal stays withdrawable for 4 rounds after your last eligible round; while active it earns yield that grows the pot. Winners claim their prize within 2 rounds of the match — a missed prize recycles into the pot, your principal stays yours, and if you win near the end your refund window starts after your claim window closes. Replacing a ticket concedes the old one; its principal carries to the new ticket.</span></div>
+        <p class="how-note">Every step above — settling, recording, paying — is executed by <strong>open-source, permissionless smart contracts</strong>. Anyone can trigger settlement; no operator touches the funds.</p>
+      </div>
+
+    </div>
+
+    <!-- ─── Past Rounds ───────────────────────────────────────────────────── -->
+    <div class="past-rounds-section">
+      <h2 class="section-title">Recent Rounds</h2>
+      <div id="past-rounds-list" class="past-rounds-list">
+        <div class="empty-state">Loading…</div>
+      </div>
+      <div id="past-rounds-pager" class="past-rounds-pager hidden">
+        <button id="past-newer-btn" class="pager-btn" onclick="pastRoundsFlip(-1)">‹ Newer</button>
+        <span id="past-page-label" class="pager-label">Page 1</span>
+        <button id="past-older-btn" class="pager-btn" onclick="pastRoundsFlip(1)">Older ›</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ─── Replace-entry warning (entries don't stack) ─────────────────────── -->
+  <div id="replace-warn-overlay" class="replace-warn-overlay hidden" onclick="dismissReplaceWarning(event)">
+    <div class="replace-warn-card" onclick="event.stopPropagation()">
+      <div class="replace-warn-icon">⚠</div>
+      <h3 class="replace-warn-title">One ticket per wallet — entries don't stack</h3>
+      <p class="replace-warn-body">
+        You already have a live ticket this game. Submitting now
+        <strong>replaces</strong> it: your current ticket is conceded
+        (it can no longer win), its principal carries over to the new
+        ticket, and any extra-round TIMBS on it stays forfeited.
+      </p>
+      <label class="replace-warn-dontshow">
+        <input type="checkbox" id="replace-warn-dontshow" />
+        <span>Don't show this again</span>
+      </label>
+      <button class="btn-replace-warn-ok" onclick="confirmReplaceWarning()">I understand</button>
+    </div>
+  </div>
+
+  <!-- ─── How to play (opened from the banner text) ─────────────────────── -->
+  <div id="howto-overlay" class="howto-overlay hidden" onclick="closeHowTo(event)">
+    <div class="howto-card" onclick="event.stopPropagation()">
+      <button class="howto-close" type="button" onclick="closeHowTo()" aria-label="Close">✕</button>
+      <h3 class="howto-title">How to play</h3>
+      <p class="howto-sub">Four steps. A couple of minutes.</p>
+
+      <div class="howto-steps">
+        <div class="howto-step">
+          <span class="howto-n">1</span>
+          <span class="howto-txt">Connect your wallet.</span>
+          <span class="howto-icons">
+            <img src="assets/wallets/metamask.png" alt="MetaMask" />
+            <img src="assets/wallets/brave.png" alt="Brave" />
+            <img src="assets/wallets/okx.png" alt="OKX" />
+            <img src="assets/wallets/rabby.png" alt="Rabby" />
+          </span>
+        </div>
+        <div class="howto-step">
+          <span class="howto-n">2</span>
+          <span class="howto-txt">Grab test tokens — free from the faucet.</span>
+          <span class="howto-icons">
+            <img src="assets/faucet/usdc.png" alt="USDC" />
+            <img src="assets/faucet/link.png" alt="Chainlink" />
+            <img src="assets/faucet/quicknode.png" alt="QuickNode" />
+            <img src="assets/faucet/alchemy.jpeg" alt="Alchemy" />
+          </span>
+        </div>
+        <div class="howto-step">
+          <span class="howto-n">3</span>
+          <span class="howto-txt">Set your six characters. That's your ticket.</span>
+          <span class="howto-emoji">🎟️</span>
+        </div>
+        <div class="howto-step">
+          <span class="howto-n">4</span>
+          <span class="howto-txt">Trade to nudge the meter. Match all six, split the pot.</span>
+          <span class="howto-emoji">🏆📜</span>
+        </div>
+      </div>
+
+      <div class="howto-foot">Free to play. <strong>What you put in stays yours.</strong></div>
+
+      <label class="howto-rotate">
+        <span>Revolve banner?</span>
+        <button id="howto-rotate-toggle" class="howto-switch" type="button" role="switch" onclick="setHowtoRotate(!isHowtoRotateOn())" aria-label="Toggle banner rotation"></button>
+      </label>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="https://arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
+    </div>
+  </footer>
+
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
+  <script src="compete.js?v=20260905b"></script>
+  <script>
+    function toggleMobileNav() {
+      document.getElementById("mobile-nav").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove("open");
+      }
+    });
+    function toggleWalletMenu(e) {
+      e.stopPropagation();
+      document.getElementById("wallet-info").classList.toggle("open");
+    }
+    document.addEventListener("click", function(e) {
+      const wi = document.getElementById("wallet-info");
+      if (wi && !wi.contains(e.target)) wi.classList.remove("open");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+name: TimbSwap Settler
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: false
+        default: "settle"
+        type: choice
+        options:
+          - settle
+          - health
+
+# One settler at a time: runs linger up to ~340 min covering segment
+# boundaries back-to-back, so overlapping scheduled ticks must queue,
+# not double-settle.
+concurrency:
+  group: timbswap-settler
+  cancel-in-progress: false
+
+jobs:
+  settle:
+    name: Settle segment
+    runs-on: ubuntu-latest
+    # Must exceed the settler's linger budget (SETTLER_LINGER_MINUTES, 340).
+    # GitHub-hosted runners hard-cap a job at 360 minutes.
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers @napi-rs/canvas
+        working-directory: scripts
+
+      - name: Run settler
+        working-directory: scripts
+        env:
+          ARB_SEPOLIA_RPC:      ${{ secrets.ARB_SEPOLIA_RPC }}
+          SETTLER_PRIVATE_KEY:  ${{ secrets.SETTLER_PRIVATE_KEY }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID_PUBLIC: ${{ secrets.TELEGRAM_CHAT_ID_PUBLIC }}
+          X_API_KEY:            ${{ secrets.X_API_KEY }}
+          X_API_SECRET:         ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN:       ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          X_POST_MODE:          ${{ vars.X_POST_MODE }}
+          X_HASHTAGS:           ${{ vars.X_HASHTAGS }}
+          X_HASHTAGS_WINNER:    ${{ vars.X_HASHTAGS_WINNER }}
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "health" ] || \
+             [ "${{ github.event.schedule }}" = "0 12 * * *" ]; then
+            node settler.js --health
+          else
+            node settler.js
+          fi
+
+      # ── Self-chaining (optional) ────────────────────────────────────────
+      # GitHub throttles the */10 cron unpredictably (observed: a 2.4 h
+      # hole). If a SETTLER_DISPATCH_TOKEN secret exists (a fine-grained
+      # PAT with Actions read/write on this repo — the default
+      # GITHUB_TOKEN cannot trigger workflow runs), each finishing run
+      # dispatches the next one, making the keeper self-perpetuating with
+      # cron as a mere backstop that restarts a broken chain.
+      # Self-chain ONLY on a successful run. A failed run must NOT re-dispatch —
+      # otherwise a fast-failing settler (e.g. a contract/settler ABI mismatch)
+      # turns `if: always()` into a ~15s infinite fail-loop that floods runs and
+      # notifications. On failure the */10 cron is the backstop that restarts the
+      # chain, exactly as intended.
+      - name: Dispatch next settler run
+        if: success() && github.event.inputs.mode != 'health' && github.event.schedule != '0 12 * * *'
+        env:
+          DISPATCH_TOKEN: ${{ secrets.SETTLER_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$DISPATCH_TOKEN" ]; then
+            echo "No SETTLER_DISPATCH_TOKEN secret — relying on cron for the next run."
+            exit 0
+          fi
+          curl -sS -X POST \
+            -H "Authorization: Bearer $DISPATCH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/settler.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"mode":"settle"}}' \
+            && echo "Next settler run dispatched — chain continues." \
+            || echo "Dispatch failed — cron backstop will pick up."

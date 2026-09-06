@@ -1,0 +1,94 @@
+name: TimbSwap Epoch Distributor
+
+# The 6-round reward waterfall keeper (dev-docs/BOOSTED_FARMS_SPEC.md).
+# Slow cadence on purpose: the epoch settles once per 6 rounds, and boost
+# draws are batched — per-claim immediacy is not needed because boost
+# emissions self-target over ~6 rounds.
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"   # every 2 hours (offset to dodge top-of-hour load)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: false
+        default: "run"
+        type: choice
+        options:
+          - run
+          - dry-run
+
+# Never two distributors at once — double-settling an epoch double-pays.
+concurrency:
+  group: timbswap-epoch
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/epoch-state.json back
+
+jobs:
+  distribute:
+    name: Distribute epoch rewards
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Run epoch distributor
+        working-directory: scripts
+        env:
+          ARB_SEPOLIA_RPC:     ${{ secrets.ARB_SEPOLIA_RPC }}
+          # MUST be the TimbTreasury owner key — distributeToStaking() and
+          # withdrawToken() are onlyOwner. Bigger key than the settler's.
+          EPOCH_PRIVATE_KEY:   ${{ secrets.EPOCH_PRIVATE_KEY }}
+          EPOCH_GENESIS_BLOCK: ${{ vars.EPOCH_GENESIS_BLOCK }}
+          # Minimum emission window. Raised 4 -> 24 days to stretch the
+          # farm's over-granted balance (~34.9k TIMBS from the #245 retry
+          # loop) thin instead of burning it down in 4 days. Lower it back
+          # to 4 once the surplus has drained.
+          EMIT_FLOOR_DAYS:     "24"
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "dry-run" ]; then
+            node epoch.js --dry-run
+          else
+            node epoch.js
+          fi
+
+      # The state file IS the epoch cursor — a zero-grant epoch leaves no
+      # on-chain marker, so it must persist between runs. [skip ci] keeps
+      # this commit from triggering the site deploy.
+      - name: Commit epoch state
+        if: github.event.inputs.mode != 'dry-run'
+        run: |
+          if git diff --quiet scripts/epoch-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/epoch-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "epoch-keeper[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/epoch-state.json
+          git commit -m "[skip ci] epoch: update distributor state"
+          # `npm install` dirties the tree (scripts/node_modules,
+          # package-lock) — those unstaged changes made a plain
+          # `git pull --rebase` abort with "cannot pull with rebase: you
+          # have unstaged changes", so the state commit never pushed.
+          # --autostash tucks that noise away across the rebase.
+          git pull --rebase --autostash origin main
+          git push origin main

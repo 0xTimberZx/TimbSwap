@@ -1,0 +1,705 @@
+/* ─── Swap Page Layout ───────────────────────────────────────────────────── */
+.swap-page {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 32px 20px 80px;
+  min-height: calc(100vh - 60px);
+}
+
+.swap-col { width: 100%; max-width: 460px; }
+.prize-col { width: 100%; max-width: 300px; }
+
+/* ─── Swap Card ──────────────────────────────────────────────────────────── */
+.swap-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.swap-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.swap-title { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+
+.settings-btn {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  transition: color 0.15s, background 0.15s;
+}
+.settings-btn:hover { color: var(--text); background: var(--bg3); }
+
+/* ─── Settings Panel ─────────────────────────────────────────────────────── */
+.settings-panel {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 4px;
+}
+
+.settings-label {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.slippage-options { display: flex; gap: 6px; align-items: center; }
+
+.slip-btn {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.slip-btn:hover { border-color: var(--green); color: var(--green); }
+.slip-active { border-color: var(--green) !important; color: var(--green) !important; }
+
+.slip-input {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--mono);
+  width: 90px;
+  outline: none;
+}
+.slip-input:focus { border-color: var(--green); }
+
+/* ─── Token Box ──────────────────────────────────────────────────────────── */
+.token-box {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  transition: border-color 0.15s;
+}
+.token-box:focus-within { border-color: var(--green); }
+
+.token-box-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.token-box-label { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.token-box-bal   { font-size: 12px; color: var(--text-3); font-family: var(--mono); cursor: pointer; }
+.token-box-bal:hover { color: var(--green); }
+
+.token-box-row { display: flex; align-items: center; gap: 10px; }
+
+.amount-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 26px;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text);
+  width: 100%;
+  -moz-appearance: textfield;
+}
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.amount-input::placeholder { color: var(--text-3); }
+
+.token-picker-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: var(--bw) solid var(--border);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s;
+}
+.token-picker-btn:hover { border-color: var(--green); }
+.picker-caret { font-size: 10px; color: var(--text-3); }
+
+/* ─── Swap Arrow ─────────────────────────────────────────────────────────── */
+.swap-arrow-row { display: flex; justify-content: center; margin: 2px 0; }
+
+.swap-arrow-btn {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius);
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.swap-arrow-btn:hover { border-color: var(--green); color: var(--green); transform: rotate(180deg); }
+
+/* ─── Influence Row ──────────────────────────────────────────────────────── */
+.influence-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(20,241,149,0.05);
+  border: 1px solid rgba(20,241,149,0.15);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  gap: 12px;
+}
+
+.influence-left { flex: 1; }
+.influence-label { font-size: 13px; font-weight: 600; color: var(--green); display: block; margin-bottom: 2px; }
+.influence-sub   { font-size: 11px; color: var(--text-3); line-height: 1.4; }
+
+/* Toggle switch */
+.toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  top: 3px;
+  background: var(--text-3);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider { background: rgba(20,241,149,0.15); border-color: var(--green); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); background: var(--green); }
+
+/* ─── Swap Info ──────────────────────────────────────────────────────────── */
+.swap-info {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Label pins left; value takes the rest of the row and wraps on its own,
+   right-aligned. Without min-width:0 + a flex value column a long readout
+   (e.g. "Withdrawable ✓ ≈ 10.9138 LINK + 0.0400 WETH") overflows and wraps
+   back under the label, which reads as jumbled text on a phone. */
+.info-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.info-label { flex: 0 0 auto; font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.info-val   { flex: 1 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere;
+              font-size: 12px; color: var(--text-2); font-family: var(--mono); font-weight: 600; }
+.info-val.warn   { color: #f59e0b; }
+.info-val.danger { color: #ef4444; }
+
+/* Route-vs-reference divergence. Full width and wrapping, not a right-aligned
+   value — it's a sentence, and on a phone it needs the whole row. */
+.info-note { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+             font-size: 11px; line-height: 1.5; font-family: var(--mono);
+             color: var(--text-3); overflow-wrap: anywhere; }
+.info-note.good { color: #22c55e; }
+.info-note.warn { color: #f59e0b; }
+
+/* ─── Swap Button ────────────────────────────────────────────────────────── */
+.btn-swap {
+  width: 100%;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  padding: 15px;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  margin-top: 4px;
+}
+.btn-swap:hover:not(:disabled) { opacity: 0.85; }
+.btn-swap:disabled {
+  background: var(--bg3);
+  color: var(--text-3);
+  cursor: not-allowed;
+  border: var(--bw) solid var(--border);
+}
+
+/* ─── Token Picker Modal ─────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 20px;
+}
+
+.modal-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 400px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: var(--bw) solid var(--border);
+}
+
+.modal-title { font-size: 16px; font-weight: 600; }
+.modal-close { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 16px; padding: 4px; }
+.modal-close:hover { color: var(--text); }
+
+.token-search {
+  margin: 14px 20px 10px;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  font-family: var(--sans);
+}
+.token-search:focus { border-color: var(--green); }
+
+.token-list { overflow-y: auto; padding: 0 8px 12px; flex: 1; }
+
+/* Standing authenticity disclaimer under the token list — token metadata is
+   read live from the contract, but a name/symbol proves nothing about a token. */
+.token-picker-warn {
+  margin: 0;
+  padding: 10px 14px 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+  border-top: var(--bw) solid var(--border);
+}
+
+.token-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.token-row:hover { background: var(--bg3); }
+
+.token-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--green);
+  flex-shrink: 0;
+}
+
+.token-info { flex: 1; }
+.token-symbol { font-size: 15px; font-weight: 600; }
+.token-name   { font-size: 12px; color: var(--text-3); }
+/* Right-aligned, fixed-width balance column so every row's number lines up. */
+.token-bal-right { font-family: var(--mono); font-size: 13px; color: var(--text-2);
+  min-width: 84px; text-align: right; flex-shrink: 0; }
+/* Equal-width control slot (add-to-wallet icon / remove ✕ / empty spacer) so
+   the balance column starts at the same x on every row. */
+.token-ctl-slot { width: 26px; flex-shrink: 0; display: inline-flex;
+  align-items: center; justify-content: center; }
+
+/* ─── Nav active ─────────────────────────────────────────────────────────── */
+.nav-active { color: var(--green) !important; }
+
+/* ─── Prize Indicators ───────────────────────────────────────────────────── */
+.pi-stack { display: flex; flex-direction: column; gap: 12px; }
+
+.pi-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.pi-pot { border-color: rgba(20,241,149,0.2); background: rgba(20,241,149,0.04); }
+
+.pi-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--text-3); margin-bottom: 8px; }
+.pi-value { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.pi-mono { font-family: var(--mono); }
+.pi-green { color: var(--green); }
+.pi-settling { color: var(--blue); font-size: 16px; }
+.pi-sub { font-size: 11px; color: var(--text-3); line-height: 1.4; }
+.pi-loading, .pi-error { text-align: center; color: var(--text-3); font-size: 13px; padding: 24px; }
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  /* Column direction flips justify-content's axis to vertical — without
+     flex-start the card floats to the vertical middle of the viewport,
+     leaving a dead gap under the nav on phones. */
+  .swap-page { flex-direction: column; align-items: center; justify-content: flex-start; padding: 20px 16px; }
+  .prize-col { max-width: 460px; }
+}
+
+/* ─── Swap Tabs ──────────────────────────────────────────────────────────── */
+.swap-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 16px;
+  background: var(--bg3);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+
+.swap-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.swap-tab:hover   { color: var(--text); background: var(--bg2); }
+.swap-tab.tab-active { color: var(--text); background: var(--bg2); }
+
+.swap-tabs .swap-settings { margin-left: auto; }
+
+/* ─── Liquidity UI ───────────────────────────────────────────────────────── */
+.liq-plus {
+  text-align: center;
+  font-size: 18px;
+  color: var(--text-3);
+  margin: 4px 0;
+  line-height: 1;
+}
+
+.token-tag {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: var(--bg);
+  border: var(--bw) solid var(--border);
+  border-radius: 20px;
+  padding: 6px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Remove Liquidity ───────────────────────────────────────────────────── */
+.remove-lp-card {
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 12px;
+}
+
+.remove-lp-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.remove-lp-label { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.remove-lp-bal   { font-size: 12px; color: var(--text-2); font-family: var(--mono); }
+
+.remove-pct-display {
+  font-family: var(--mono);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--green);
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+/* ─── Footer ─────────────────────────────────────────────────────────────── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 48px;
+  font-size: 13px;
+  color: var(--text-3);
+  border-top: var(--bw) solid var(--border);
+  margin-top: 40px;
+}
+
+.footer-links { display: flex; gap: 20px; }
+.footer-links a { color: var(--text-3); transition: color 0.15s; }
+.footer-links a:hover { color: var(--text-2); }
+.footer-left { display: flex; align-items: center; gap: 8px; }
+.footer-left .nav-logo-mark { color: var(--green); }
+
+@media (max-width: 600px) {
+  .footer { flex-direction: column; gap: 10px; padding: 20px; text-align: center; }
+}
+
+/* ─── Swap Tx Link ───────────────────────────────────────────────────────── */
+.swap-tx-link {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--green);
+  padding: 8px 0 2px;
+  transition: opacity 0.15s;
+}
+.swap-tx-link:hover { opacity: 0.75; }
+.swap-tx-link.hidden { display: none; }
+
+/* ─── Swap / Liquidity mode tabs ──────────────────────────────────────────── */
+.swap-mode-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg3);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 16px;
+}
+.mode-tab {
+  flex: 1;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mode-tab:hover { color: var(--text); }
+.mode-tab.active { background: var(--green); color: #000; }
+
+/* ─── Add liquidity ───────────────────────────────────────────────────────── */
+.lq-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+/* ─── Remove liquidity ────────────────────────────────────────────────────── */
+.lq-remove {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: var(--bw) solid var(--border);
+}
+.lq-remove-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.lq-remove-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.lq-pct-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.lq-pct-row .slip-btn { flex: 1; }
+
+.btn-remove-liq {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: var(--text);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+.btn-remove-liq:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+.btn-remove-liq:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Token picker: import + custom tokens + empty state ──────────────────── */
+.token-list-empty {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12px;
+  padding: 18px 12px;
+}
+.token-list-empty.hidden { display: none; }
+
+.token-import-row {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  margin-top: 4px;
+}
+.token-import-row:hover { border-color: var(--green); }
+
+.token-remove {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.token-remove:hover { color: var(--text); }
+
+/* "Add to wallet" (EIP-747) — compact round icon button in a fixed slot so it
+   never pushes the balance column out of alignment (title tooltip names it). */
+.token-add-wallet {
+  background: none;
+  border: var(--bw) solid var(--border);
+  border-radius: 50%;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 14px;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s;
+}
+.token-add-wallet:hover { color: var(--green); border-color: var(--green); }
+
+/* Receive-side "Add to wallet" chip under the "You receive" box. */
+.token-add-wallet-row {
+  display: inline-block;
+  margin: 10px 0 0;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  background: none;
+  border: var(--bw) solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.token-add-wallet-row:hover { color: var(--green); border-color: var(--green); }
+.token-add-wallet-row.hidden { display: none; }
+
+/* ─── Light-mode card spacing (+20%) ────────────────────────────────────────
+   Light borders carry less visual weight, so cards get more breathing room. */
+:root[data-theme="light"] .swap-page { gap: 29px; }
+
+/* ─── Remove-liquidity slider (0–100%) ────────────────────────────────────── */
+.lq-remove-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 8px;
+}
+.lq-remove-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+.lq-remove-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+.lq-remove-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--green);
+  cursor: pointer;
+}
+
+/* No LP position for the selected pair: bar sits at 0, greyed and inert. */
+.lq-remove--empty .lq-remove-slider { cursor: not-allowed; opacity: 0.55; }
+.lq-remove--empty .lq-remove-slider::-webkit-slider-thumb { background: var(--text-3); cursor: not-allowed; }
+.lq-remove--empty .lq-remove-slider::-moz-range-thumb { background: var(--text-3); cursor: not-allowed; }
+.lq-remove--empty .lq-remove-pct { color: var(--text-3); }
+.lq-pct-row .slip-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.lq-pct-row .slip-btn:disabled:hover { border-color: var(--border); color: var(--text-3); }
+.lq-remove-pct {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  min-width: 42px;
+  text-align: right;
+}
+
+/* Live payout preview under the remove-liquidity slider. */
+.lq-remove-preview {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--green);
+  text-align: center;
+  min-height: 15px;
+  margin: 2px 0 8px;
+}
