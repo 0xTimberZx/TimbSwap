@@ -311,11 +311,11 @@
 import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
 
 const ADDR = {
-  board:  "0xB2D10cA505909b909835f4b5684B205b157b5Bf2",
-  jackpot: "0x73D3c3224Ed4F4fA663878bf32B8605A2DAe96B9", // DDJackpot (M2) — cross-generation, deploy-once
-  ledger: "0xE7dE0Fc722369Bd96b98453676E331EB24d9161b",
-  timbs:  "0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa",
-  prize:  "0x6027a196b553cC016b2CA8fC4477B681a2Ca86AF", // gen-3 — matches config.js TimbPrize. Prev: 0x5AEDDf3f2132266929C9DB4783399d8be24121df
+  board:  "0x0000000000000000000000000000000000000000",
+  jackpot: "0x0000000000000000000000000000000000000000", // DDJackpot (M2) — cross-generation, deploy-once
+  ledger: "0x0000000000000000000000000000000000000000",
+  timbs:  "0x0000000000000000000000000000000000000000",
+  prize:  "0x0000000000000000000000000000000000000000", // gen-3 — matches config.js TimbPrize. Prev: 0x0000000000000000000000000000000000000000
 };
 const CHAIN = 42161n;
 const CHIPS = [5,10,25,50,100,500,1000];
@@ -553,13 +553,13 @@ const ERC20_ABI = [
 ];
 const PRIZE_ABI = ["function roundWinningString(uint256) view returns (bytes6)"];
 const REG_ABI   = ["function isUsed(uint256) view returns (bool)"];
-const CRANK     = "0x09B8bC3eD49491DA2AaC47ad6DDC9A0cB6B2783D"; // stateless batcher — works on every generation
+const CRANK     = "0x0000000000000000000000000000000000000000"; // stateless batcher — works on every generation
 const CRANK_ABI = [
   "function lockAll(address board,uint256 tableId,bytes32[6] secrets,bool alsoRetire)",
   "function fallbackAll(address board,uint256 tableId,bool alsoRetire)",
   "error NothingToDo(uint256 tableId)",
 ];
-const REGISTRY  = "0x2460C8ed63414F36838542982A5Ab263C9Fcb914"; // long-lived, all generations
+const REGISTRY  = "0x0000000000000000000000000000000000000000"; // long-lived, all generations
 
 let provider, signer, me, board, ledger, timbs, prize, registry, crank, T = null;
 

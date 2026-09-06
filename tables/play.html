@@ -562,11 +562,11 @@
 import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
 
 const ADDR = {
-  board:  "0xB2D10cA505909b909835f4b5684B205b157b5Bf2",
-  jackpot: "0x73D3c3224Ed4F4fA663878bf32B8605A2DAe96B9", // DDJackpot (M2) — cross-generation, deploy-once
-  ledger: "0xE7dE0Fc722369Bd96b98453676E331EB24d9161b",
-  timbs:  "0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa",
-  crank:  "0x09B8bC3eD49491DA2AaC47ad6DDC9A0cB6B2783D", // stateless batcher, generation-agnostic
+  board:  "0x0000000000000000000000000000000000000000",
+  jackpot: "0x0000000000000000000000000000000000000000", // DDJackpot (M2) — cross-generation, deploy-once
+  ledger: "0x0000000000000000000000000000000000000000",
+  timbs:  "0x0000000000000000000000000000000000000000",
+  crank:  "0x0000000000000000000000000000000000000000", // stateless batcher, generation-agnostic
 };
 const CRANK_ABI = [
   "function fallbackAll(address board,uint256 tableId,bool alsoRetire)",
@@ -574,7 +574,7 @@ const CRANK_ABI = [
 ];
 // TimbSwap Compete — the ticket gate. The felt only seats wallets holding an
 // active Compete ticket, and that ticket IS the player's letters here.
-const GAME = "0xBAb1CBaF0dE094322A49B379d0AC4510D1F78530";
+const GAME = "0x0000000000000000000000000000000000000000";
 const GAME_ABI = [
   "function activeTicketOf(address owner) view returns (uint256)",
   "function getTicketsOf(address owner) view returns (tuple(uint256 id,address owner,bytes6 string6,uint256 playRound,uint256 lastEligibleRound,uint256 escrowAmount,address escrowToken,uint8 status,uint256 supersedes,uint256 supersededBy,uint256 createdAt,uint256 forfeitRound,uint256 generation)[] list, uint8[] displayStatuses)",

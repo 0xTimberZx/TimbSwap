@@ -14,7 +14,7 @@ const RECEIPTS     = [
 
 // Canonical USDT on Arbitrum One (6 decimals) + public mainnet RPC.
 const ARB_ONE_RPC  = "https://arb1.arbitrum.io/rpc";
-const USDT_ARB_ONE = "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9";
+const USDT_ARB_ONE = "0x0000000000000000000000000000000000000000";
 const ERC20_MIN_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function decimals() view returns (uint8)"

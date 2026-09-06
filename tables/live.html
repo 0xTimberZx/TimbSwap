@@ -819,11 +819,11 @@ catch (e1) {
 }
 
 const ADDR = {
-  board:  "0xB2D10cA505909b909835f4b5684B205b157b5Bf2",
-  jackpot: "0x73D3c3224Ed4F4fA663878bf32B8605A2DAe96B9", // DDJackpot (M2) — cross-generation, deploy-once
-  ledger: "0xE7dE0Fc722369Bd96b98453676E331EB24d9161b",
-  timbs:  "0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa",
-  crank:  "0x09B8bC3eD49491DA2AaC47ad6DDC9A0cB6B2783D", // stateless batcher, generation-agnostic
+  board:  "0x0000000000000000000000000000000000000000",
+  jackpot: "0x0000000000000000000000000000000000000000", // DDJackpot (M2) — cross-generation, deploy-once
+  ledger: "0x0000000000000000000000000000000000000000",
+  timbs:  "0x0000000000000000000000000000000000000000",
+  crank:  "0x0000000000000000000000000000000000000000", // stateless batcher, generation-agnostic
 };
 const CRANK_ABI = [
   "function fallbackAll(address board,uint256 tableId,bool alsoRetire)",
@@ -831,7 +831,7 @@ const CRANK_ABI = [
 ];
 // TimbSwap Compete — the ticket gate. The felt only seats wallets holding an
 // active Compete ticket, and that ticket IS the player's letters here.
-const GAME = "0xBAb1CBaF0dE094322A49B379d0AC4510D1F78530";
+const GAME = "0x0000000000000000000000000000000000000000";
 const GAME_ABI = [
   "function activeTicketOf(address owner) view returns (uint256)",
   "function getTicketsOf(address owner) view returns (tuple(uint256 id,address owner,bytes6 string6,uint256 playRound,uint256 lastEligibleRound,uint256 escrowAmount,address escrowToken,uint8 status,uint256 supersedes,uint256 supersededBy,uint256 createdAt,uint256 forfeitRound,uint256 generation)[] list, uint8[] displayStatuses)",
@@ -2822,8 +2822,8 @@ if (location.hash.includes("attract") || new URLSearchParams(location.search).ha
     setInterval(()=>{ if(mode==="spectate"&&T&&T.lockBlock!==0n&&Number(T.lockedMask)!==0x3F){ pollTable(); pollBets(false); } },4000); }
   if(MOCK){
     // demo drip: fake bets + a settlement so the panels can be seen without a chain
-    const W=["0x8a21f39cD47cad55f5a2E3c1b45090aeC65b21aa","0x4b7C09fA33210d8be24C11C4680891C377bBe1cd",
-             "0x9dE3aB44F210FF08c31e0a9C556677f9012Ccf3e","0x2f664411abD00Ff17690EeAa1C63920fA1c778Be"];
+    const W=["0x0000000000000000000000000000000000000000","0x0000000000000000000000000000000000000000",
+             "0x0000000000000000000000000000000000000000","0x0000000000000000000000000000000000000000"];
     const DEMO=[[0,KIND.EXACTLY,16,50],[2,KIND.COLOR,0,25],[1,KIND.DOZEN,1,100],[0,KIND.EXACTLY,3,25],
                 [4,KIND.LOWHIGH,1,10],[6,KIND.DD,0,50],[2,KIND.EXACTLY,30,500],[3,KIND.VOWELS,0,25]];
     let di=0;
