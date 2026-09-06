@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./TimbSwapPair.sol";
 // ─── Intercfaces ───────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ interface ITimbSwapPair {
  *         createPair() deploys real TimbSwapPair bytecode atomically —
  *         no placeholder addresses, no phantom mappings.
  */
-contract TimbSwapFactory is Ownable, ReentrancyGuard {
+contract TimbSwapFactory is Ownable2Step, ReentrancyGuard {
 
     // ─── Constants ───────────────────────────────────────────────────────────
 

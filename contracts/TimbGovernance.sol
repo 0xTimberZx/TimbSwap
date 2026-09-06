@@ -2,10 +2,11 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract TimbGovernance is Ownable, ReentrancyGuard {
+contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     enum ProposalStatus {
         Pending,
         Active,

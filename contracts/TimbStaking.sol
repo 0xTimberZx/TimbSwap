@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -40,7 +41,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *   3. Fund with initial TIMBS reward allocation from treasury
  *   4. TimbTreasury.setStakingPool(address(this)) for buyback distributions
  */
-contract TimbStaking is Ownable, ReentrancyGuard {
+contract TimbStaking is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ─── State ───────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /**
  * @title EligibleTokenRegistry
@@ -39,7 +40,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  *   3. timbPrize.setEligibleRegistry(address(this)) (after TimbPrize deploy)
  *   4. Verify on Sourcify
  */
-contract EligibleTokenRegistry is Ownable {
+contract EligibleTokenRegistry is Ownable2Step {
 
     // ─── State ───────────────────────────────────────────────────────────────
 

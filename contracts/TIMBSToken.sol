@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
@@ -33,7 +34,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  *   - Call setStakingPool(), setFarmPool() after those contracts are deployed.
  *   - setEmissionRate() to activate staking/farm emissions.
  */
-contract TIMBSToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
+contract TIMBSToken is ERC20, ERC20Burnable, Ownable2Step, ReentrancyGuard {
 
     // ─── Constants ───────────────────────────────────────────────────────────
 

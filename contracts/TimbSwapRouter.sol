@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 // @dev: Compiled with Solidity 0.8.24 and viaIR enabled
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -49,7 +50,7 @@ interface IWETH {
  * @title TimbSwapRouter
  * @notice Routes swaps and liquidity through TimbSwap AMM pairs.
  */
-contract TimbSwapRouter is Ownable, ReentrancyGuard {
+contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
     // ─── Immutables ──────────────────────────────────────────────────────────
 

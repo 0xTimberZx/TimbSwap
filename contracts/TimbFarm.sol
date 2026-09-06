@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -45,7 +46,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *   4. setTreasury(timbTreasury)
  *   5. notifyRewardAmount(amount, duration) to activate emissions
  */
-contract TimbFarm is Ownable, ReentrancyGuard {
+contract TimbFarm is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ─── State ───────────────────────────────────────────────────────────────

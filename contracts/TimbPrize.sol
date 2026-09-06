@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -98,7 +99,7 @@ interface IEligibleTokenRegistry {
  *   5. Fund PrizeEscrow with initial ETH
  *   6. startGame() — begins round #1
  */
-contract TimbPrize is Ownable, ReentrancyGuard {
+contract TimbPrize is Ownable2Step, ReentrancyGuard {
 
     // ─── Constants ───────────────────────────────────────────────────────────
 

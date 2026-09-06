@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
@@ -30,7 +31,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  *   4. Fund via deposit() or direct ETH send
  *   5. Verify on Sourcify
  */
-contract PrizeEscrow is Ownable, ReentrancyGuard {
+contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
 
     // ─── State ───────────────────────────────────────────────────────────────
 

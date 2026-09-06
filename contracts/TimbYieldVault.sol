@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
@@ -46,7 +47,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  *   4. setYieldAPRBps(1000)              // e.g. 10% APR on active escrow
  *   5. fund() with ETH from the Treasury
  */
-contract TimbYieldVault is Ownable, ReentrancyGuard {
+contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
 
     // ─── State ───────────────────────────────────────────────────────────────
 
