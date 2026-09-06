@@ -38,6 +38,7 @@ interface IGameRegistry {
         external view returns (address[] memory);
     function getRoundEntrants(uint256 round)
         external view returns (address[] memory);
+    function roundEntrantsLength(uint256 round) external view returns (uint256);
     function activateRoundEntries(uint256 round, address[] calldata players) external;
     function recordWinners(uint256 round, address[] calldata winners) external;
     function setCurrentRound(uint256 round) external;
@@ -327,7 +328,12 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         // prize deploy after the first, retiring the prior game's tickets) and
         // sets its round to 1. Replaces a bare setCurrentRound(1).
         IGameRegistry(gameRegistry).onGameStarted();
-        _activateRoundEntries(currentRound);
+        // Round-1 entrants are activated the SAME way as every later round:
+        // permissionlessly and in bounded chunks by the keeper via
+        // GameRegistry.activateRoundEntries(currentRound, chunk). Activating them
+        // synchronously here copied+looped the whole (sybil-floodable) round-1
+        // array, so a pre-launch flood could OOG-revert startGame() forever and
+        // permanently brick the deployment (C1). Never touch the full array here.
 
         emit GameStarted(block.timestamp);
         emit RoundStarted(currentRound, block.timestamp);
@@ -538,8 +544,10 @@ contract TimbPrize is Ownable, ReentrancyGuard {
         // §14 forfeiture anchors are set before the keeper's forfeiture sweep.
         // Advancement below is now O(1) and cannot be blocked by entrant count.
 
+        // O(1) SLOAD — never ABI-copy the (unbounded, sybil-floodable) entrant
+        // array in the settle path, or a griefer can freeze settlement (H1).
         uint256 totalEntries =
-            IGameRegistry(gameRegistry).getRoundEntrants(round).length;
+            IGameRegistry(gameRegistry).roundEntrantsLength(round);
 
         emit RoundSettled(
             round,
@@ -722,17 +730,6 @@ contract TimbPrize is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Activates Pending entries for the given round in GameRegistry.
-     */
-    function _activateRoundEntries(uint256 round) internal {
-        address[] memory entrants =
-            IGameRegistry(gameRegistry).getRoundEntrants(round);
-        if (entrants.length > 0) {
-            IGameRegistry(gameRegistry).activateRoundEntries(round, entrants);
-        }
-    }
-
-    /**
      * @dev Pull accrued active-escrow yield from the vault into the pot.
      *      try/catch + failure-tolerant vault: settlement can never brick
      *      on the yield path. Harvested ETH lands on this contract (vault
@@ -740,12 +737,23 @@ contract TimbPrize is Ownable, ReentrancyGuard {
      */
     function _harvestYield(uint256 round) internal {
         if (yieldVault == address(0)) return;
+        uint256 harvested;
+        // Isolate the vault call — a failing/misbehaving vault must not revert.
         try ITimbYieldVaultPrize(yieldVault).harvest() returns (uint256 amount) {
-            if (amount > 0) {
-                currentAccumulatedRewards += amount;
-                IPrizeEscrow(prizeEscrow).deposit{value: amount}();
-                emit YieldHarvested(round, amount);
-            }
+            harvested = amount;
+        } catch { return; }
+        if (harvested == 0) return;
+        // M2: the deposit was previously INSIDE the try body, so if the vault
+        // reported more than it actually forwarded, deposit{value:} reverted and
+        // that revert propagated out — bricking settlement. Never forward more
+        // than we actually hold, keep the deposit in its own try/catch, and
+        // credit the pot accounting only on a successful deposit.
+        uint256 bal       = address(this).balance;
+        uint256 toDeposit = harvested < bal ? harvested : bal;
+        if (toDeposit == 0) return;
+        try IPrizeEscrow(prizeEscrow).deposit{value: toDeposit}() {
+            currentAccumulatedRewards += toDeposit;
+            emit YieldHarvested(round, toDeposit);
         } catch {}
     }
 
