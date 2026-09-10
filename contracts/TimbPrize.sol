@@ -243,6 +243,13 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     );
     event WinningsClaimed(address indexed winner, uint256 indexed round, uint256 amount);
     event PotFunded(uint256 amount, address indexed from);
+    /// @notice Emitted at settlement when a round's pot (or its dust remainder)
+    ///         snowballs into the next round. This is an ACCOUNTING carry only —
+    ///         no ETH moves (the pot's ETH already sits in PrizeEscrow), so no
+    ///         Deposited event fires. Analytics reads this to surface how much
+    ///         the pot is carrying over each round. numWinners == 0 means the
+    ///         whole pot carried (no valid match); >0 means only leftover dust.
+    event PotCarried(uint256 indexed round, uint256 carriedAmount, uint256 numWinners);
     event YieldHarvested(uint256 indexed round, uint256 amount);
     event UnclaimedRecycled(uint256 indexed round, uint256 amount);
     event ProtocolCutTaken(uint256 amount);
@@ -749,6 +756,12 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
 
         gameUnclaimed_winningsPool += totalPaid;
         currentAccumulatedRewards   = remainder; // r snowballs to next round
+
+        // Surface the carry so off-chain analytics can show how much the pot is
+        // rolling forward. Accounting-only: the ETH already lives in PrizeEscrow,
+        // so this is the settlement-time counterpart to the Deposited event that
+        // real top-ups (seeds, yield harvest) fire.
+        if (remainder > 0) emit PotCarried(round, remainder, winnerCount);
     }
 
     /**

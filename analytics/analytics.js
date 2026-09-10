@@ -16,7 +16,10 @@ const PRIZE_ABI = [
   "event RoundSettled(uint256 indexed round, bytes6 winningString, uint256 potAmount, uint256 numWinners, uint256 remainderR, uint256 totalEntries, uint256 timestamp)",
   "event WinningsClaimed(address indexed winner, uint256 indexed round, uint256 amount)",
   // Per-round yield swept from the vault into that round's pot at settlement.
-  "event YieldHarvested(uint256 indexed round, uint256 amount)"
+  "event YieldHarvested(uint256 indexed round, uint256 amount)",
+  // Accounting-only carry: how much of a round's pot snowballed to the next
+  // round (numWinners==0 ⇒ whole pot carried; >0 ⇒ leftover dust). No ETH moves.
+  "event PotCarried(uint256 indexed round, uint256 carriedAmount, uint256 numWinners)"
 ];
 
 const TIMBS_ABI  = ["function totalSupply() external view returns (uint256)"];
@@ -196,10 +199,15 @@ async function loadLiveMetrics() {
     const potUsd = usd(parseFloat(ethers.utils.formatUnits(pot, 18)));
     // Sub-line: USD value + the live vault yield accruing into the pot.
     const accruedStr = accrued ? fmt(accrued, 18, 6) + " ETH" : "—";
+    // Base sub: USD value + live vault yield. Augmented below with the latest
+    // round-end carry (PotCarried) once the block window is resolved.
     set("m-pot-sub",  (potUsd ? `≈ $${potUsd} · ` : "") + `yield ${accruedStr}`);
 
-    // Escrow Backing card — physical ETH securing the pot, with when it was
-    // last topped up (latest PrizeEscrow Deposited event) and by how much.
+    // Pot Backing card — physical ETH held by PrizeEscrow that secures the
+    // pot, with when it was last topped up (latest Deposited event) and by how
+    // much. Note: the settlement snowball (remainder → next round) moves NO ETH
+    // and fires NO Deposited event — the pot's ETH already lives here, so
+    // "last funded" reflects real deposits (seeds, yield harvest) only.
     set("m-escrow", escrowBal
       ? Number(ethers.utils.formatUnits(escrowBal, 18)).toLocaleString("en-US", { maximumFractionDigits: 5 }) + " ETH"
       : "—");
@@ -214,6 +222,21 @@ async function loadLiveMetrics() {
       } else {
         set("m-escrow-sub", "no deposits in 7d");
       }
+
+      // Round-end carry — how much the pot snowballed forward at the last
+      // settlement. This moves no ETH (it's already in the backing above), so it
+      // never shows as a deposit; PotCarried is the only on-chain signal for it.
+      try {
+        const carries = await queryFilterWindow(prize, prize.filters.PotCarried(), currentBlock, windowBlocks);
+        if (carries.length) {
+          const lastC = carries.reduce((a, b) => (b.blockNumber > a.blockNumber ? b : a));
+          const carried = fmt(lastC.args.carriedAmount, 18, 5);
+          const noWin   = lastC.args.numWinners.toString() === "0";
+          const rnd     = lastC.args.round.toString();
+          const base    = (potUsd ? `≈ $${potUsd} · ` : "") + `yield ${accruedStr}`;
+          set("m-pot-sub", `${base} · carried ${carried} ETH from #${rnd}${noWin ? " (no winner)" : ""}`);
+        }
+      } catch { /* leave base pot sub */ }
     } catch { set("m-escrow-sub", "last funded —"); }
 
     set("m-scroll",       counter.toString());
