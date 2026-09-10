@@ -251,6 +251,13 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     ///         whole pot carried (no valid match); >0 means only leftover dust.
     event PotCarried(uint256 indexed round, uint256 carriedAmount, uint256 numWinners);
     event YieldHarvested(uint256 indexed round, uint256 amount);
+    /// @notice Emitted when the settlement yield harvest is skipped because the
+    ///         vault call reverted (e.g. the vault's onlyTimbPrize guard still
+    ///         points at a stale prize after a migration). The try/catch keeps
+    ///         settlement live, so without this the failure is invisible — yield
+    ///         accrues in the vault but never reaches the pot. Watch for this to
+    ///         catch a mis-wired vault↔prize link.
+    event YieldHarvestFailed(uint256 indexed round);
     event UnclaimedRecycled(uint256 indexed round, uint256 amount);
     event ProtocolCutTaken(uint256 amount);
     event ProtocolCutWithdrawn(address indexed to, uint256 amount);
@@ -776,7 +783,12 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         // Isolate the vault call — a failing/misbehaving vault must not revert.
         try ITimbYieldVaultPrize(yieldVault).harvest() returns (uint256 amount) {
             harvested = amount;
-        } catch { return; }
+        } catch {
+            // Surface the swallowed failure so a mis-wired vault↔prize link
+            // (harvest is onlyTimbPrize) is observable instead of silent.
+            emit YieldHarvestFailed(round);
+            return;
+        }
         if (harvested == 0) return;
         // M2: the deposit was previously INSIDE the try body, so if the vault
         // reported more than it actually forwarded, deposit{value:} reverted and
