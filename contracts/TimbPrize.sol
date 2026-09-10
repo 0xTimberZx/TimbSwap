@@ -162,6 +162,16 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     /// @notice Whether each segment's digit is locked (settled).
     mapping(uint256 => bool) public segmentDigitLocked;
 
+    /// @notice The class (letter vs digit) SNAPSHOTTED at arm time for each
+    ///         segment — true = letter (A-Z), false = digit (0-9). The lock
+    ///         reads this, NOT the live counter, so a nudge landing between arm
+    ///         and lock can never change the winning char's class even if the
+    ///         nudgeScroll settlement-window guard were ever bypassed. Aiming
+    ///         the class stays fully available BEFORE arm; it just can't move
+    ///         after the VRF draw is requested. Set in _settleDueSegment's arm
+    ///         branch; reset each round alongside segmentDigitLocked.
+    mapping(uint256 => bool) public segmentArmedIsLetter;
+
     /// @notice The LOCKED character per segment for the current round —
     ///         the nudge counter jittered with the settling block's entropy
     ///         (§13.2). This, not counter % 36, is what the winning string
@@ -335,8 +345,9 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
 
         // Reset digit counters for round 1
         for (uint256 i = 1; i <= SEGMENTS_PER_ROUND; i++) {
-            segmentDigitCounter[i] = 0;
-            segmentDigitLocked[i]  = false;
+            segmentDigitCounter[i]   = 0;
+            segmentDigitLocked[i]    = false;
+            segmentArmedIsLetter[i]  = false; // re-snapshotted at each arm
         }
 
         // Begin a fresh game epoch in the registry (bumps generation on every
@@ -501,6 +512,10 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         // nudgeScroll), so the word can never be paired with a steered class.
         bytes32 salt = saltFor(currentRound, currentSegment);
         if (!entropy.isRequested(salt)) {
+            // Snapshot the class at arm — the lock reads this, not the live
+            // counter, so no post-arm nudge can steer the winning char's class.
+            segmentArmedIsLetter[currentSegment] =
+                (segmentDigitCounter[currentSegment] % 36) < 26;
             // Arm: fire the draw now that the interaction window has closed. The
             // word is unknowable until its callback lands.
             uint256 reqId = entropy.requestFor(salt);
@@ -587,9 +602,10 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         for (uint256 i = 1; i <= SEGMENTS_PER_ROUND; i++) {
             // Seed the new counter to the index of this round's locked char so
             // the live meter (ALPHABET[counter % 36]) opens on that exact char.
-            segmentDigitCounter[i] = _alphabetIndexOf(segmentLockedChar[i]);
-            segmentDigitLocked[i]  = false;
-            segmentLockedChar[i]   = 0x00; // jittered chars are per-round
+            segmentDigitCounter[i]  = _alphabetIndexOf(segmentLockedChar[i]);
+            segmentDigitLocked[i]   = false;
+            segmentLockedChar[i]    = 0x00; // jittered chars are per-round
+            segmentArmedIsLetter[i] = false; // re-snapshotted at each arm
         }
 
         IGameRegistry(gameRegistry).setCurrentRound(currentRound);
@@ -619,8 +635,9 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         // SAME class as the live char — so a player can aim the class by
         // nudging (letter ↔ digit), while the exact character within that
         // class remains unpredictable.
-        uint256 liveIdx = segmentDigitCounter[currentSegment] % 36;
-        bool    isLetter = liveIdx < 26;                 // preserve the class rule
+        // Class is the one SNAPSHOTTED at arm (not the live counter), so a nudge
+        // landing between arm and lock cannot move it. Aiming happens before arm.
+        bool    isLetter = segmentArmedIsLetter[currentSegment];
         uint256 base     = isLetter ? 0  : 26;           // A-Z start / 0-9 start
         uint256 size     = isLetter ? 26 : 10;           // class size
 
