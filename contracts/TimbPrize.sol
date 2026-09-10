@@ -268,6 +268,11 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     ///         accrues in the vault but never reaches the pot. Watch for this to
     ///         catch a mis-wired vault↔prize link.
     event YieldHarvestFailed(uint256 indexed round);
+    /// @notice Emitted when harvested yield was pulled from the vault but the
+    ///         PrizeEscrow deposit was rejected. The ETH strands on this
+    ///         contract (pot not credited, per M2) and self-heals on the next
+    ///         successful deposit — surfaced so the stall is observable.
+    event YieldDepositFailed(uint256 indexed round, uint256 amount);
     event UnclaimedRecycled(uint256 indexed round, uint256 amount);
     event ProtocolCutTaken(uint256 amount);
     event ProtocolCutWithdrawn(address indexed to, uint256 amount);
@@ -818,7 +823,13 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         try IPrizeEscrow(prizeEscrow).deposit{value: toDeposit}() {
             currentAccumulatedRewards += toDeposit;
             emit YieldHarvested(round, toDeposit);
-        } catch {}
+        } catch {
+            // Harvested ETH is now on this contract but the escrow deposit was
+            // rejected — the pot is NOT credited (M2), so the ETH strands here
+            // and self-heals on the next successful deposit. Surface it rather
+            // than swallowing silently.
+            emit YieldDepositFailed(round, toDeposit);
+        }
     }
 
     // ─── Claims ───────────────────────────────────────────────────────────────
