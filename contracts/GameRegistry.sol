@@ -265,6 +265,15 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     event YieldVaultSet(address indexed vault);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
+    /// @notice Emitted when a vault weight call is swallowed by its liveness
+    ///         fence — a stale vault<->registry wiring silently drops yield
+    ///         weight. Watch these to catch a mis-wired vault link.
+    event WeightRegisterFailed(uint256 indexed ticketId, uint256 amount);
+    event WeightRemoveFailed(uint256 indexed ticketId);
+    /// @notice Emitted when a forfeited ticket's pot-share could not be
+    ///         forwarded to the prize (stale registry->prize wiring) and fell
+    ///         to the protocol sink instead.
+    event PotShareForwardFailed(uint256 indexed round, uint256 amount);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -396,16 +405,23 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         );
     }
 
-    /// @dev Vault weight on — never bricks the game on vault failure.
+    /// @dev Vault weight on — never bricks the game on vault failure. The catch
+    ///      is fenced for liveness, so a stale vault<->registry wiring would
+    ///      SILENTLY drop a ticket's yield weight; emit on failure so the gap is
+    ///      observable (mirrors TimbPrize.YieldHarvestFailed).
     function _vaultRegister(uint256 ticketId, address token, uint256 amount) internal {
         if (yieldVault == address(0) || amount == 0) return;
-        try ITimbYieldVaultRegistry(yieldVault).register(ticketId, token, amount) {} catch {}
+        try ITimbYieldVaultRegistry(yieldVault).register(ticketId, token, amount) {}
+        catch { emit WeightRegisterFailed(ticketId, amount); }
     }
 
-    /// @dev Vault weight off — idempotent, never bricks the game.
+    /// @dev Vault weight off — idempotent, never bricks the game. A silent
+    ///      failure here leaves stale weight in the vault (diluting everyone's
+    ///      yield share), so surface it too.
     function _vaultRemove(uint256 ticketId) internal {
         if (yieldVault == address(0)) return;
-        try ITimbYieldVaultRegistry(yieldVault).remove(ticketId) {} catch {}
+        try ITimbYieldVaultRegistry(yieldVault).remove(ticketId) {}
+        catch { emit WeightRemoveFailed(ticketId); }
     }
 
     /// @dev Pay out ETH or TIMBS principal.
@@ -873,7 +889,10 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
                     try ITimbPrizePot(timbPrize).addToPot{value: potShare}() {
                         toPot = potShare;
                     } catch {
-                        // pot leg failed → the whole amount falls to the sink
+                        // pot leg failed → the whole amount falls to the sink.
+                        // Surface it: a stale registry->prize wiring would
+                        // silently divert every forfeited pot-share to the sink.
+                        emit PotShareForwardFailed(settledRound, potShare);
                     }
                 }
                 uint256 toSink = amount - toPot;
