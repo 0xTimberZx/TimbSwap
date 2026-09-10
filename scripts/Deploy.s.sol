@@ -27,7 +27,23 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 
 /**
  * @title Deploy
- * @notice Full TimbSwap deployment script for Arbitrum Sepolia.
+ * @notice DEPRECATED — do NOT use for mainnet. Superseded by the two-phase
+ *         deploy: DeployCore.s.sol (phase 1, standalone DEX) then
+ *         DeployGame.s.sol (phase 2, TIMBS + game + incentives).
+ *
+ *         Why deprecated:
+ *           - It never calls router.setWeth (ETH swaps would be broken —
+ *             DeployCore fixes this).
+ *           - It never deploys or wires TimbYieldVault at all, so prize-pot
+ *             yield could never accrue or sweep. DeployGame deploys the vault
+ *             and wires it BOTH directions (vault<->prize, vault<->registry).
+ *           - It couples TIMBS/game deployment to the DEX; the DEX is the
+ *             native primitive and must be able to launch standalone.
+ *
+ *         Kept only as a historical single-shot reference. New deployments use
+ *         DeployCore then DeployGame.
+ *
+ * Full TimbSwap deployment script for Arbitrum Sepolia (legacy single-shot).
  *
  * Usage:
  *   forge script script/Deploy.s.sol \
