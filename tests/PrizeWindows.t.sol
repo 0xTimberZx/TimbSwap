@@ -262,7 +262,11 @@ contract PrizeWindowsTest is Test {
         uint256 ler = 3;
         uint256 sinkBefore = sink.balance;
         runUntilRound(ler + 5);                     // settling LER+4 sweeps the lapse
-        assertEq(sink.balance, sinkBefore + ENTRY_ETH, "escrow not forfeited to sink");
+        // Community-tilted lapse split (abandoned-ticket revenue): lapsePotBps of
+        // the ETH principal recycles into the live prize pot (players); the
+        // remainder — (BPS - lapsePotBps) — goes to the protocol sink.
+        uint256 toSink = ENTRY_ETH * (registry.BPS() - registry.lapsePotBps()) / registry.BPS();
+        assertEq(sink.balance, sinkBefore + toSink, "lapsed principal: sink share (BPS - lapsePotBps)");
         vm.startPrank(player);
         vm.expectRevert();
         registry.claimRefund(id);
@@ -340,7 +344,10 @@ contract PrizeWindowsTest is Test {
         uint256 id = _ticketId(T);
         uint256 sinkBefore = sink.balance;
         runUntilRound(T + 7);                        // settling T+6 sweeps the lapse
-        assertEq(sink.balance, sinkBefore + ENTRY_ETH, "escrow not forfeited at LER+6");
+        // Same community-tilted lapse split as above: sink receives only the
+        // (BPS - lapsePotBps) remainder; lapsePotBps recycles into the pot.
+        uint256 toSink = ENTRY_ETH * (registry.BPS() - registry.lapsePotBps()) / registry.BPS();
+        assertEq(sink.balance, sinkBefore + toSink, "lapsed principal: sink share at LER+6");
         vm.startPrank(player);
         vm.expectRevert();
         registry.claimRefund(id);                    // window truly closed now
