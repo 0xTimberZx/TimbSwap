@@ -29,27 +29,34 @@ First real swap deferred to the Phase-2 TIMBS/WETH pair (no throwaway smoke pair
 
 ---
 
-## Phase 2 — DeployGame (TIMBS + game + incentives) — ⏳ PENDING
+## Phase 2 — DeployGame (TIMBS + game + incentives) — ✅ LIVE
 
-To be filled in after DeployGame broadcasts. Verify each against the wiring
-matrix in `dev-docs/MAINNET_DEPLOY_RUNBOOK.md` §4 before `startGame`.
+Deployed 2026-09-11, verified on Sourcify (`exact_match`, all 14 contracts).
+Token set: native ETH (WETH) + TIMBS only. VRF: native payment, 2-gwei lane.
+Addresses below are the authoritative `run-latest.json` deployment records.
 
 | Contract | Address |
 |---|---|
-| TIMBS token | `TBD` |
-| PrizeEscrow | `TBD` |
-| EligibleTokenRegistry | `TBD` |
-| GameRegistry | `TBD` |
-| TimbPrize | `TBD` |
-| Prize VRFEntropy | `TBD` |
-| TimbYieldVault | `TBD` |
-| TimbStaking | `TBD` |
-| TimbFarm | `TBD` |
-| LockVault | `TBD` |
-| TimbTreasury | `TBD` |
-| TimbGovernance | `TBD` |
-| TimelockController | `TBD` |
-| TIMBS/WETH pair | `TBD` |
+| TIMBSToken | `0x44bc0ab521191e839c3cb5bb20c9d044c8471ea1` |
+| PrizeEscrow | `0xa9355021cef39be7b67fb81a1c91df53fce0dd32` |
+| EligibleTokenRegistry | `0x0fd3777190380a12f106f57c67913f7159bc8c34` |
+| GameRegistry | `0x8c40ed0cce3585b694a45106314b09dff4e04137` |
+| TimbPrize | `0x70e7c0c1470a5d79728cd5676940883e981365ed` |
+| Prize VRFEntropy | `0x862aa09cbdeb0d7b003b66773304c996ede7c4b9` |
+| TimbYieldVault | `0x73a33dbe76908cb2b05055931258878b0ae9b3cc` |
+| TimbStaking | `0xed8d6d5fe6eedcd173dbc09ef9b6474e4f155a83` |
+| TimbFarm | `0x1cb001784bc085fea2873782c1a0e71f4208a91f` |
+| TimbLockVault | `0x6bdc48bb03ecedf958a5163d34d47c23655b461c` |
+| TimbTreasury | `0xee3e403fa75ef3b17f4763880e019ad606837834` |
+| TimbGovernance | `0x26d1e27132d1d5cdb449d641938c7da26cd5be63` |
+| TimelockController | `0x13e227499b2ce81da39179d113304fa4367efe7a` |
+| TIMBS/WETH pair | `0x6103c1145a0090ec0e39e9e75e6efb3c0099b86f` |
+
+VRF subscription (native-funded), Prize VRFEntropy added as consumer:
+`72983366175497031969234161895668664021089442402555517736315009804992223907473`
+
+> Post-deploy sequence still pending: on-chain wiring-matrix verification (runbook
+> §4), fund/seed (§3), then `startGame`, then ownership handoff (§6).
 
 ---
 
@@ -58,9 +65,10 @@ matrix in `dev-docs/MAINNET_DEPLOY_RUNBOOK.md` §4 before `startGame`.
 | Item | Value | Status |
 |---|---|---|
 | Deployer | burner (gas-only; owns nothing after handoff) | — |
-| Gnosis Safe / multisig (`GOV_MULTISIG`) | `TBD` | pending |
-| TimelockController | `TBD` (Phase 2) | pending |
-| Ownable2Step handoff → timelock | all 13 contracts | pending (runbook §6) |
+| Gnosis Safe / multisig (`GOV_MULTISIG`) | `0xFbcD2D0581a54cEE87Ab2693B9E9b7dCC19c79F9` (2-of-3) | ✅ set (timelock proposer/executor) |
+| TimelockController | `0x13e227499b2ce81da39179d113304fa4367efe7a` | ✅ deployed |
+| Treasury / sink / initial TIMBS mint | `0xFbcD2D0581a54cEE87Ab2693B9E9b7dCC19c79F9` (the Safe) | ✅ set |
+| Ownable2Step handoff → timelock | all 13 contracts | ⏳ pending (runbook §6) |
 
 Factory `feeTo` and Router `treasury` are owner-mutable (`setFeeTo` /
 `setTreasury`), so the fee recipient can be repointed and ultimately governed by
