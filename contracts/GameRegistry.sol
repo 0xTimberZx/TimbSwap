@@ -143,6 +143,16 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     /// @notice TimbYieldVault — receives active-escrow weight updates.
     address public yieldVault;
 
+    /// @notice Whether "double letters" (repeated characters) are allowed in
+    ///         entry strings AND the winning string. Default false = both must be
+    ///         fully distinct (M1: entry space == outcome space, every round
+    ///         winnable). Governance-gated (onlyOwner → timelock/multisig after
+    ///         handoff). This is the SINGLE source of truth for both sides:
+    ///         _validateString reads it for entries, and
+    ///         TimbPrize._lockCurrentSegment reads it for the winning-string draw,
+    ///         so the two can never drift into an unwinnable configuration.
+    bool public allowRepeatedChars;
+
     // ─── Dynamic entry pricing (v5) ────────────────────────────────────────────
     // Entry costs are no longer static. Both are computed from live protocol
     // state, FIXED per round (predictable — what you see is what you pay), and
@@ -274,6 +284,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         forwarded to the prize (stale registry->prize wiring) and fell
     ///         to the protocol sink instead.
     event PotShareForwardFailed(uint256 indexed round, uint256 amount);
+    event AllowRepeatedCharsSet(bool allowed);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -328,20 +339,28 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
 
     // ─── String Validation ───────────────────────────────────────────────────
 
-    /// @dev 6 chars, A-Z / 0-9 only, no repeats (bitmask over 36 symbols).
-    function _validateString(bytes6 s) internal pure {
+    /// @dev 6 chars, A-Z / 0-9 only. Repeats ("double letters") are forbidden
+    ///      unless governance has enabled them via allowRepeatedChars — the entry
+    ///      rule and the winning-string draw (TimbPrize._lockCurrentSegment) both
+    ///      key off this ONE flag so the entry space and outcome space can never
+    ///      disagree (a distinct-only entry rule against a repeat-allowed winning
+    ///      string would make ~36% of rounds unwinnable — the M1 bug).
+    function _validateString(bytes6 s) internal view {
+        bool allowRepeats = allowRepeatedChars;
         uint64 seen = 0;
         for (uint256 i = 0; i < 6; i++) {
             bytes1 c = s[i];
             bool isUpper = c >= 0x41 && c <= 0x5A;
             bool isDigit = c >= 0x30 && c <= 0x39;
             if (!isUpper && !isDigit) revert InvalidCharacter(c);
-            uint256 idx = isUpper
-                ? uint256(uint8(c)) - 0x41
-                : uint256(uint8(c)) - 0x30 + 26;
-            uint64 bit = uint64(1 << idx);
-            if (seen & bit != 0) revert RepeatingCharacter(c);
-            seen |= bit;
+            if (!allowRepeats) {
+                uint256 idx = isUpper
+                    ? uint256(uint8(c)) - 0x41
+                    : uint256(uint8(c)) - 0x30 + 26;
+                uint64 bit = uint64(1 << idx);
+                if (seen & bit != 0) revert RepeatingCharacter(c);
+                seen |= bit;
+            }
         }
     }
 
@@ -1157,6 +1176,18 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     function setYieldVault(address _vault) external onlyOwner {
         yieldVault = _vault; // address(0) allowed = yield disabled
         emit YieldVaultSet(_vault);
+    }
+
+    /// @notice Toggle "double letters" — repeated characters in entries and the
+    ///         winning string. Ships false (distinct-only, M1). onlyOwner, so
+    ///         after the ownership handoff only the timelock/multisig (a
+    ///         governance action) can flip it. Because both the entry rule and
+    ///         the winning-string draw read this one flag, they always agree; a
+    ///         flip mid-round only affects entries and settlement from that point
+    ///         on, so prefer flipping at a round boundary.
+    function setAllowRepeatedChars(bool allowed) external onlyOwner {
+        allowRepeatedChars = allowed;
+        emit AllowRepeatedCharsSet(allowed);
     }
 
     /// @notice Escape hatch for a ticket/game inconsistency ("contract error
