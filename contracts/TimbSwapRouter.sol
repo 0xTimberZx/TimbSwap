@@ -49,6 +49,14 @@ interface IWETH {
 /**
  * @title TimbSwapRouter
  * @notice Routes swaps and liquidity through TimbSwap AMM pairs.
+ *
+ * @dev Token compatibility (M4): standard Uniswap-V2 semantics — there is NO
+ *      fee-on-transfer swap variant. Fee-on-transfer / deflationary tokens are
+ *      UNSUPPORTED: a FoT tokenIn delivers less than stated to the pair and the
+ *      k-invariant check reverts the swap; rebasing-up tokens leak the rebase to
+ *      skim(). Only standard, non-rebasing, non-FoT ERC-20s are supported.
+ *      Pairs are permissionless (anyone can createPair), so this is a caveat
+ *      emptor for such tokens, not an on-chain guarantee.
  */
 contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 

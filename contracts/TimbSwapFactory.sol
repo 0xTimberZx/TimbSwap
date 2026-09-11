@@ -150,6 +150,11 @@ contract TimbSwapFactory is Ownable2Step, ReentrancyGuard {
      * @dev Uses `new TimbSwapPair{salt: salt}` — real bytecode deployed
      *      in the same tx as the mapping update. No placeholder addresses.
      *      Tokens sorted so token0 < token1 (canonical ordering).
+     *
+     *      Token compatibility (M4): permissionless, but only standard ERC-20s
+     *      are supported. Fee-on-transfer / deflationary tokens brick their pool
+     *      (k-invariant revert on swap) and rebasing tokens leak to skim() —
+     *      creating such a pair is caveat emptor. See TimbSwapRouter's header.
      */
     function createPair(address tokenA, address tokenB)
         external
