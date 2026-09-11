@@ -29,8 +29,9 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
  *         the LIVE DEX that DeployCore.s.sol (phase 1) already deployed.
  *
  * Phase 1 (DeployCore) deployed and wired the standalone exchange primitive:
- * TimbSwapFactory + TimbSwapRouter + WETH (factory.setRouter, router.setWeth),
- * with the router's game hooks no-op (eligibleRegistry / timbPrize == address(0),
+ * TimbSwapFactory + TimbSwapRouter (factory.setRouter; WETH is an immutable
+ * router constructor arg), with the router's game hooks no-op
+ * (eligibleRegistry / timbPrize == address(0),
  * guarded in _maybeNudge). This script deploys everything else and switches the
  * game hooks on, so the exact same factory/router now also drive the prize game.
  *
@@ -332,6 +333,10 @@ contract DeployGame is Script {
         console.log("   yieldVault/entropy, TimbYieldVault.gameRegistry/timbPrize,");
         console.log("   PrizeEscrow.timbPrize, VRFEntropy.board, Router.timbPrize.");
         console.log("9. timbPrize.startGame() after the frontend is tested.");
+        console.log("9b. Before enabling buybacks: set treasury.setBuybackMaxEth,");
+        console.log("    and run a keeper that calls treasury.updateTwap() on a");
+        console.log("    schedule (executeBuyback needs a >= MIN_TWAP_PERIOD-old");
+        console.log("    observation or it reverts TwapNotReady) [M7].");
         console.log("10. GOVERNANCE HANDOFF (after full verification) - for each of");
         console.log("    the Ownable2Step contracts: owner.transferOwnership(timelock),");
         console.log("    then acceptOwnership() via a timelock proposal from the");

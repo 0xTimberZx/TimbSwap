@@ -33,6 +33,11 @@ contract MockPair {
         token0 = _token0; token1 = _token1; r0 = _r0; r1 = _r1; timbs = IERC20(_timbs);
     }
     function getReserves() external view returns (uint112, uint112, uint32) { return (r0, r1, 0); }
+    // Static mock: cumulatives are 0 and blockTimestampLast is 0, so the
+    // treasury's in-progress accumulation (spot * elapsed) makes the windowed
+    // average equal the constant spot price — which is what these tests want.
+    function price0CumulativeLast() external pure returns (uint256) { return 0; }
+    function price1CumulativeLast() external pure returns (uint256) { return 0; }
     function swap(uint256 amount0Out, uint256 amount1Out, address to) external {
         uint256 out = amount0Out > 0 ? amount0Out : amount1Out;
         timbs.transfer(to, out); // the TIMBS the treasury's math computed
@@ -86,10 +91,16 @@ contract TimbTreasuryTest is Test {
     function testBuybackThreeWaySplit() public {
         vm.deal(address(treasury), 1 ether);
 
+        // M7: seed the TWAP observation and let it age past MIN_TWAP_PERIOD so
+        // the buyback has a valid on-chain floor to price against.
+        treasury.updateTwap();
+        vm.warp(block.timestamp + 31 minutes);
+
         uint256 balBefore = timbs.balanceOf(address(treasury));
         uint256 supplyBefore = timbs.totalSupply();
 
-        treasury.executeBuyback(1 ether, 0);
+        // Non-zero minTimbsOut now required; the TWAP floor is the real gate.
+        treasury.executeBuyback(1 ether, 1);
 
         // Derive `bought` from the lifetime counters (this is the first buyback).
         uint256 burned    = treasury.totalTimbsBurned();

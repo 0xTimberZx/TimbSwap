@@ -29,6 +29,8 @@ using SafeERC20 for IERC20;
         function getReserves() external view returns (uint112, uint112, uint32);
         function swap(uint256 amount0Out, uint256 amount1Out, address to) external;
         function token0() external view returns (address);
+        function price0CumulativeLast() external view returns (uint256);
+        function price1CumulativeLast() external view returns (uint256);
     }
 
     interface IPrizeEscrow {
@@ -187,6 +189,24 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     /// @notice ETH the operator has withdrawn in the current window.
     uint256 public operatorSpentInWindow;
 
+    // ─── Buyback TWAP guard (M7) ─────────────────────────────────────────────
+    /// @notice Denominator for buyback deviation basis points.
+    uint256 private constant TWAP_BPS = 10_000;
+    /// @notice Minimum age of the stored TWAP observation before a buyback may
+    ///         use it — long enough that the average can't be moved in one block
+    ///         (or a handful), defeating a sandwich.
+    uint256 public constant MIN_TWAP_PERIOD = 30 minutes;
+    /// @notice Last TIMBS-per-ETH price accumulator (UQ112x112) snapshotted by
+    ///         updateTwap, and the timestamp it was taken at.
+    uint256 public twapTimbsPerEthCumulativeLast;
+    uint32  public twapTimestampLast;
+    /// @notice Max downward deviation of the buyback fill from the TWAP the
+    ///         buyback will accept, in bps. Default 3%. Owner/timelock-set.
+    uint256 public buybackMaxDeviationBps = 300;
+    /// @notice Max ETH a single buyback may spend (0 = unlimited). Bounds the
+    ///         size (and thus price impact) of any one buyback.
+    uint256 public buybackMaxEth;
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     event FeesReceived(address indexed from, uint256 amount);
@@ -209,6 +229,9 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     event StakingFunded(uint256 timbsAmount, uint256 duration);
     event BuybackBurnRatioSet(uint256 ratio);
     event BuybackReserveRatioSet(uint256 ratio);
+    event TwapUpdated(uint256 timbsPerEthCumulative, uint32 timestamp);
+    event BuybackMaxDeviationSet(uint256 bps);
+    event BuybackMaxEthSet(uint256 maxEth);
     event StakingSet(address indexed staking);
     event PrizeEscrowSet(address indexed escrow);
     event PairSet(address indexed pair);
@@ -228,6 +251,8 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     error NotAuthorised();
     error TransferFailed();
     error OperatorCapExceeded(uint256 requested, uint256 remaining);
+    error TwapNotReady(uint256 elapsed, uint256 required);
+    error BuybackTooLarge(uint256 requested, uint256 max);
 
     // ─── Modifiers ─────────────────────────────────────────────────────────────
 
@@ -282,16 +307,85 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
 
     // ─── Buyback Execution ────────────────────────────────────────────────────
 
+    // ─── Buyback TWAP oracle (M7) ────────────────────────────────────────────
+
+    /**
+     * @dev Current TIMBS-per-ETH price accumulator (UQ112x112), computed the
+     *      Uniswap-V2 way: the pair's stored cumulative plus the in-progress
+     *      period since its last _update, so it's fresh even between swaps.
+     *      Returns the accumulator + the (uint32-wrapped) block timestamp.
+     */
+    function _timbsPerEthCumulative()
+        internal
+        view
+        returns (uint256 cumulative, uint32 blockTimestamp)
+    {
+        ITimbSwapPair pair = ITimbSwapPair(timbsEthPair);
+        bool timbsIsToken0 = pair.token0() == address(timbsToken);
+        // TIMBS-per-ETH is token0-per-token1 when TIMBS is token0 (price1), else
+        // token1-per-token0 (price0).
+        cumulative = timbsIsToken0 ? pair.price1CumulativeLast()
+                                   : pair.price0CumulativeLast();
+
+        blockTimestamp = uint32(block.timestamp % 2**32);
+        (uint112 r0, uint112 r1, uint32 tsLast) = pair.getReserves();
+        if (tsLast != blockTimestamp && r0 != 0 && r1 != 0) {
+            uint32 timeElapsed;
+            unchecked { timeElapsed = blockTimestamp - tsLast; }
+            // Mirror TimbSwapPair._update's UQ112x112 accumulation for the
+            // in-progress period. Cumulatives are designed to overflow-wrap.
+            unchecked {
+                uint256 spot = timbsIsToken0
+                    ? uint256((uint224(r0) << 112) / r1)  // TIMBS(token0) per ETH(token1)
+                    : uint256((uint224(r1) << 112) / r0); // TIMBS(token1) per ETH(token0)
+                cumulative += spot * timeElapsed;
+            }
+        }
+    }
+
+    /**
+     * @notice Snapshot the TIMBS-per-ETH TWAP accumulator. Permissionless — it
+     *         only reads public pair state — so a keeper can refresh it on a
+     *         schedule. executeBuyback requires a snapshot at least
+     *         MIN_TWAP_PERIOD old, so the average it prices against cannot be
+     *         moved within a block (or a few) to enable a sandwich.
+     */
+    function updateTwap() public {
+        if (timbsEthPair == address(0)) revert ZeroAddress();
+        (uint256 cumulative, uint32 ts) = _timbsPerEthCumulative();
+        twapTimbsPerEthCumulativeLast = cumulative;
+        twapTimestampLast             = ts;
+        emit TwapUpdated(cumulative, ts);
+    }
+
+    /// @notice Max downward deviation from the TWAP a buyback will accept (bps).
+    function setBuybackMaxDeviationBps(uint256 bps) external onlyOwner {
+        if (bps > TWAP_BPS) revert InvalidRatio(bps);
+        buybackMaxDeviationBps = bps;
+        emit BuybackMaxDeviationSet(bps);
+    }
+
+    /// @notice Max ETH a single buyback may spend (0 = unlimited).
+    function setBuybackMaxEth(uint256 maxEth) external onlyOwner {
+        buybackMaxEth = maxEth;
+        emit BuybackMaxEthSet(maxEth);
+    }
+
     /**
      * @notice Execute a TIMBS buyback using ETH held in treasury.
      * @dev Buys TIMBS from TIMBS/ETH pair directly. Splits the purchase three
      *      ways — buybackBurnRatio% burned, buybackReserveRatio% kept as
      *      reserve, remainder retained as the waterfall slice for the epoch
-     *      keeper. Only the burn leaves the treasury. Slippage protected via
-     *      minTimbsOut.
+     *      keeper. Only the burn leaves the treasury.
+     *
+     *      M7: slippage is floored by an on-chain TWAP, not just the caller's
+     *      minTimbsOut — the effective minimum is max(minTimbsOut, TWAP floor),
+     *      so the buyback can't be sandwiched. A keeper must have called
+     *      updateTwap() at least MIN_TWAP_PERIOD earlier or this reverts
+     *      TwapNotReady. minTimbsOut must be > 0 and ethAmount <= buybackMaxEth.
      *
      * @param ethAmount    ETH to spend on buyback.
-     * @param minTimbsOut  Minimum TIMBS to receive (slippage protection).
+     * @param minTimbsOut  Caller's minimum TIMBS out; the TWAP floor may raise it.
      */
     function executeBuyback(uint256 ethAmount, uint256 minTimbsOut)
         external
@@ -301,6 +395,11 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         if (ethAmount == 0)                        revert ZeroAmount();
         if (ethAmount > address(this).balance)     revert InsufficientETH(ethAmount, address(this).balance);
         if (timbsEthPair == address(0))            revert ZeroAddress();
+        // M7: never accept a zero floor, and bound the buyback size.
+        if (minTimbsOut == 0)                      revert ZeroAmount();
+        if (buybackMaxEth != 0 && ethAmount > buybackMaxEth) {
+            revert BuybackTooLarge(ethAmount, buybackMaxEth);
+        }
 
         // Get reserves to calculate amountOut
         (uint112 r0, uint112 r1,) = ITimbSwapPair(timbsEthPair).getReserves();
@@ -328,8 +427,30 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         uint256 timbsOut = (amountInWithFee * reserveOut) /
                            (reserveIn * 1_000 + amountInWithFee);
 
-        if (timbsOut < minTimbsOut) {
-            revert SlippageExceeded(timbsOut, minTimbsOut);
+        // M7: derive a TWAP floor on-chain so the buyback can't be sandwiched —
+        // the acceptable minimum is the GREATER of the caller's minTimbsOut and
+        // (TWAP TIMBS/ETH × ethAmount) minus the allowed deviation. The TWAP
+        // observation must be at least MIN_TWAP_PERIOD old.
+        uint256 effectiveMin = minTimbsOut;
+        {
+            (uint256 cumNow, uint32 tsNow) = _timbsPerEthCumulative();
+            uint32 elapsed;
+            unchecked { elapsed = tsNow - twapTimestampLast; }
+            if (twapTimestampLast == 0 || elapsed < MIN_TWAP_PERIOD) {
+                revert TwapNotReady(elapsed, MIN_TWAP_PERIOD);
+            }
+            uint256 avgPriceUQ;
+            unchecked {
+                // UQ112x112 average TIMBS-per-ETH over the window.
+                avgPriceUQ = (cumNow - twapTimbsPerEthCumulativeLast) / elapsed;
+            }
+            uint256 twapExpectedOut = (avgPriceUQ * ethAmount) >> 112; // decode
+            uint256 twapFloor = (twapExpectedOut * (TWAP_BPS - buybackMaxDeviationBps)) / TWAP_BPS;
+            if (twapFloor > effectiveMin) effectiveMin = twapFloor;
+        }
+
+        if (timbsOut < effectiveMin) {
+            revert SlippageExceeded(timbsOut, effectiveMin);
         }
 
         if (weth == address(0)) revert ZeroAddress();
@@ -352,7 +473,7 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         }
 
         uint256 received = timbsToken.balanceOf(address(this)) - balBefore;
-        if (received < minTimbsOut) revert SlippageExceeded(received, minTimbsOut);
+        if (received < effectiveMin) revert SlippageExceeded(received, effectiveMin);
 
         // Three-way split: burn / reserve / waterfall. Only the burn leaves
         // the treasury — `reserve` and `waterfall` both stay in this contract's

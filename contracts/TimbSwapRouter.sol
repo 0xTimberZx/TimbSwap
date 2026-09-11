@@ -49,6 +49,14 @@ interface IWETH {
 /**
  * @title TimbSwapRouter
  * @notice Routes swaps and liquidity through TimbSwap AMM pairs.
+ *
+ * @dev Token compatibility (M4): standard Uniswap-V2 semantics — there is NO
+ *      fee-on-transfer swap variant. Fee-on-transfer / deflationary tokens are
+ *      UNSUPPORTED: a FoT tokenIn delivers less than stated to the pair and the
+ *      k-invariant check reverts the swap; rebasing-up tokens leak the rebase to
+ *      skim(). Only standard, non-rebasing, non-FoT ERC-20s are supported.
+ *      Pairs are permissionless (anyone can createPair), so this is a caveat
+ *      emptor for such tokens, not an on-chain guarantee.
  */
 contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
@@ -62,7 +70,10 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     address public eligibleRegistry;
     address public timbPrize;
     bool    public paused;
-    address public weth;
+    /// @notice WETH — set once at construction and never changed (Low fix: a
+    ///         mutable setter let the owner re-point ETH routing at a malicious
+    ///         contract). Immutable removes that vector entirely.
+    address public immutable weth;
 
     // ─── Prize-meter tuning (see dev-docs/PRIZE_GAME_BALANCE_SPEC.md) ──────────────
 
@@ -157,14 +168,17 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         address _factory,
         address _treasury,
         address _eligibleRegistry,
-        address _timbPrize
+        address _timbPrize,
+        address _weth
     ) Ownable(msg.sender) {
         if (_factory  == address(0)) revert ZeroAddress();
         if (_treasury == address(0)) revert ZeroAddress();
+        if (_weth     == address(0)) revert ZeroAddress();
         factory          = _factory;
         treasury         = _treasury;
         eligibleRegistry = _eligibleRegistry;
         timbPrize        = _timbPrize;
+        weth             = _weth; // immutable — no setter (Low fix)
     }
 
     // ─── Owner Config ────────────────────────────────────────────────────────
@@ -187,11 +201,6 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
     function pause()   external onlyOwner { paused = true;  emit Paused(msg.sender); }
     function unpause() external onlyOwner { paused = false; emit Unpaused(msg.sender); }
-
-    function setWeth(address _weth) external onlyOwner {
-        if (_weth == address(0)) revert ZeroAddress();
-        weth = _weth;
-    }
 
     // ─── Internal: Pair Helpers ───────────────────────────────────────────────
 
