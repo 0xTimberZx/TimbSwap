@@ -53,9 +53,7 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
  *   ROUTER_ADDRESS         TimbSwapRouter  from DeployCore output
  *   TREASURY_ADDRESS       treasury / team wallet
  *   PROTOCOL_SINK_ADDRESS  receives additional-round TIMBS + lapsed escrow
- *   WETH_ADDRESS           canonical WETH on the target chain
- *   DAPP_TOKEN_ADDRESS     existing DAPP token (eligible registry + lock vault)
- *   LINK_TOKEN_ADDRESS     LINK token (lock vault whitelist)
+ *   WETH_ADDRESS           canonical WETH on the target chain (native-ETH proxy)
  *   VRF_COORDINATOR        Chainlink VRF v2.5 coordinator (prize entropy, H1)
  *   VRF_KEY_HASH           the gas lane
  *   VRF_SUB_ID             subscription this entropy is a consumer of
@@ -114,8 +112,6 @@ contract DeployGame is Script {
         address treasuryWallet = vm.envAddress("TREASURY_ADDRESS");
         address protocolSink   = vm.envAddress("PROTOCOL_SINK_ADDRESS");
         address weth           = vm.envAddress("WETH_ADDRESS");
-        address dapp           = vm.envAddress("DAPP_TOKEN_ADDRESS");
-        address link           = vm.envAddress("LINK_TOKEN_ADDRESS");
 
         address vrfCoordinator = vm.envAddress("VRF_COORDINATOR");
         bytes32 vrfKeyHash     = vm.envBytes32("VRF_KEY_HASH");
@@ -154,10 +150,10 @@ contract DeployGame is Script {
         prizeEscrow = new PrizeEscrow();
         console.log("PrizeEscrow:        ", address(prizeEscrow));
 
-        address[] memory initialTokens = new address[](3);
+        // Eligible-token set: TIMBS + WETH (native ETH). No DAPP.
+        address[] memory initialTokens = new address[](2);
         initialTokens[0] = address(timbs);
         initialTokens[1] = weth;
-        initialTokens[2] = dapp;
         eligibleRegistry = new EligibleTokenRegistry(initialTokens);
         console.log("EligibleRegistry:   ", address(eligibleRegistry));
 
@@ -288,13 +284,10 @@ contract DeployGame is Script {
         eligibleRegistry.registerConsumer(address(timbPrize));
         console.log("EligibleRegistry: consumers registered");
 
-        // LockVault whitelist.
-        address[] memory lockTokens = new address[](3);
-        lockTokens[0] = weth;
-        lockTokens[1] = dapp;
-        lockTokens[2] = link;
-        lockVault.addManyToWhitelist(lockTokens);
-        console.log("LockVault: WETH + DAPP + LINK whitelisted");
+        // LockVault whitelist: native ETH (WETH) only — TIMBS is auto-whitelisted
+        // by the constructor. No DAPP, no LINK.
+        lockVault.addToWhitelist(weth);
+        console.log("LockVault: WETH whitelisted (TIMBS auto-whitelisted at deploy)");
 
         vm.stopBroadcast();
 
