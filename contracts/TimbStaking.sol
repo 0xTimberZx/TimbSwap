@@ -343,6 +343,15 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
         lastUpdateTime = block.timestamp;
         periodFinish   = block.timestamp + duration;
 
+        // Low: reward-solvency assert. The contract must hold enough reward TIMBS
+        // to pay the entire new period at the resulting rate, so a claim can never
+        // fail for lack of funds. rewardBalance excludes staked principal (TIMBS
+        // is both the stake and the reward token here).
+        uint256 rewardBalance = timbsToken.balanceOf(address(this)) - totalStaked;
+        if (rewardRatePerSecond * duration > rewardBalance) {
+            revert InsufficientRewardBalance(rewardRatePerSecond * duration, rewardBalance);
+        }
+
         emit RewardNotified(msg.sender, amount, duration);
     }
 
@@ -356,6 +365,17 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
         onlyOwner
         updateReward(address(0))
     {
+        // Low: reward-solvency assert. If a period is still active, the new rate
+        // must be coverable over the remaining period by the funded reward
+        // balance. (Once periodFinish has passed, accrual is capped at
+        // periodFinish, so a rate change emits nothing until the next notify.)
+        if (block.timestamp < periodFinish) {
+            uint256 remaining     = periodFinish - block.timestamp;
+            uint256 rewardBalance = timbsToken.balanceOf(address(this)) - totalStaked;
+            if (_ratePerSecond * remaining > rewardBalance) {
+                revert InsufficientRewardBalance(_ratePerSecond * remaining, rewardBalance);
+            }
+        }
         rewardRatePerSecond = _ratePerSecond;
         emit RewardRateSet(_ratePerSecond);
     }
