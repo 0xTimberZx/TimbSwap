@@ -416,8 +416,14 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         uint256 bal = timbsToken.balanceOf(address(this));
         if (timbsAmount > bal) revert ZeroAmount();
 
-        IERC20(address(timbsToken)).safeTransfer(timbStaking, timbsAmount);
+        // M5: single funding path. TimbStaking.notifyRewardAmount pulls the TIMBS
+        // itself via transferFrom, so approve it and let it pull — do NOT also
+        // pre-transfer (the old code did both, so it either reverted for lack of
+        // allowance or would have double-spent the amount). Clear the residual
+        // allowance afterwards, mirroring the addLiquidity idiom above.
+        IERC20(address(timbsToken)).forceApprove(timbStaking, timbsAmount);
         ITimbStaking(timbStaking).notifyRewardAmount(timbsAmount, duration);
+        IERC20(address(timbsToken)).forceApprove(timbStaking, 0);
 
         emit StakingFunded(timbsAmount, duration);
     }
