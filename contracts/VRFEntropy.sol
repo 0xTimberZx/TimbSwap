@@ -24,8 +24,9 @@ interface IVRFCoordinatorV2Plus {
 
 /**
  * @title VRFEntropy
- * @notice Asynchronous entropy for the gen-8 SegmentBoard: one Chainlink VRF
- *         word per segment, keyed by the board's own table+segment salt.
+ * @notice Asynchronous entropy for the TimbSwap prize game: one Chainlink VRF
+ *         word per segment, keyed by the board's own round+segment salt.
+ *         The "board" is TimbPrize, wired via setBoard().
  *
  * ## Why this exists
  *
