@@ -32,8 +32,6 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
  *         DeployGame.s.sol (phase 2, TIMBS + game + incentives).
  *
  *         Why deprecated:
- *           - It never calls router.setWeth (ETH swaps would be broken —
- *             DeployCore fixes this).
  *           - It never deploys or wires TimbYieldVault at all, so prize-pot
  *             yield could never accrue or sweep. DeployGame deploys the vault
  *             and wires it BOTH directions (vault<->prize, vault<->registry).
@@ -163,7 +161,9 @@ contract Deploy is Script {
             address(factory),
             treasuryWallet,
             address(0), // eligibleRegistry — set after
-            address(0)  // timbPrize — set after
+            address(0), // timbPrize — set after
+            weth        // immutable (Low fix); the old monolith relied on a
+                        // setWeth it never called — another reason it's deprecated
         );
         console.log("TimbSwapRouter:     ", address(router));
 

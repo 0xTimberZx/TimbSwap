@@ -237,8 +237,13 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
 
     function _computeOutcome(Proposal memory p) internal view returns (ProposalStatus) {
         uint256 totalVotes = p.forVotes + p.againstVotes;
+        // Low: a proposal whose creation-time voting-power snapshot was zero has
+        // no meaningful quorum. The old guard SKIPPED the quorum check in that
+        // case, so such a proposal could pass on a trickle of votes deposited
+        // after creation. Zero snapshot ⇒ quorum can never be met ⇒ fail.
+        if (p.totalVotingPower == 0) return ProposalStatus.Failed;
         uint256 quorumRequired = (p.totalVotingPower * quorumBps) / BPS_DENOMINATOR;
-        if (p.totalVotingPower > 0 && totalVotes < quorumRequired) {
+        if (totalVotes < quorumRequired) {
             return ProposalStatus.Failed;
         }
         return p.forVotes > p.againstVotes ? ProposalStatus.Passed : ProposalStatus.Failed;

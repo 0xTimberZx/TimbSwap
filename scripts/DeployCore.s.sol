@@ -59,14 +59,14 @@ contract DeployCore is Script {
             address(factory),
             treasury,
             address(0), // eligibleRegistry — set in phase 2
-            address(0)  // timbPrize       — set in phase 2
+            address(0), // timbPrize       — set in phase 2
+            weth        // immutable — ETH swaps work from construction (Low fix)
         );
         console.log("TimbSwapRouter: ", address(router));
 
-        // Wire the pair. setWeth is required for ETH swaps — the monolithic
-        // Deploy.s.sol never called it, so set it explicitly here.
+        // Wire the pair. WETH is now an immutable router constructor arg (no
+        // setWeth), so ETH swaps work immediately.
         factory.setRouter(address(router));
-        router.setWeth(weth);
 
         vm.stopBroadcast();
 
