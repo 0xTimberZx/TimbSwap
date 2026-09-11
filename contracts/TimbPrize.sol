@@ -40,6 +40,7 @@ interface IGameRegistry {
     function getRoundEntrants(uint256 round)
         external view returns (address[] memory);
     function roundEntrantsLength(uint256 round) external view returns (uint256);
+    function allowRepeatedChars() external view returns (bool);
     function activateRoundEntries(uint256 round, address[] calldata players) external;
     function recordWinners(uint256 round, address[] calldata winners) external;
     function setCurrentRound(uint256 round) external;
@@ -646,26 +647,30 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         uint256 base     = isLetter ? 0  : 26;           // A-Z start / 0-9 start
         uint256 size     = isLetter ? 26 : 10;           // class size
 
-        // M1: pick a class-preserving char that is DISTINCT from every
-        // already-locked segment. Entries forbid repeated characters, so a
-        // winning string with a repeat would be unmatchable and the round
-        // unwinnable (~36% of rounds). Segments lock in order 1..6, so avoiding
-        // earlier-locked chars yields a fully-distinct 6-char winning string
-        // while keeping the letter/digit steering intact. Deterministic linear
-        // probe from the VRF-derived start; a free slot always exists (at most 5
-        // earlier chars are excluded and each class has >= 10).
+        // M1: unless governance has enabled "double letters", pick a
+        // class-preserving char DISTINCT from every already-locked segment, so
+        // the 6-char winning string is fully distinct — matching the entry
+        // no-repeat rule. Both sides read the SAME flag (GameRegistry.
+        // allowRepeatedChars), so entry space and outcome space never disagree:
+        // a repeat winning string against a distinct-only entry rule would be
+        // unmatchable (~36% of rounds unwinnable). When repeats are allowed the
+        // raw class-preserving draw stands. Segments lock in order 1..6;
+        // deterministic linear probe from the VRF-derived start; a free slot
+        // always exists (<= 5 earlier chars excluded, each class >= 10).
         uint256 start = mix % size;
         bytes1  chosen = ALPHABET[base + start];
-        for (uint256 off = 0; off < size; off++) {
-            bytes1 cand = ALPHABET[base + (start + off) % size];
-            bool taken = false;
-            for (uint256 s = 1; s < currentSegment; s++) {
-                if (segmentDigitLocked[s] && segmentLockedChar[s] == cand) {
-                    taken = true;
-                    break;
+        if (!IGameRegistry(gameRegistry).allowRepeatedChars()) {
+            for (uint256 off = 0; off < size; off++) {
+                bytes1 cand = ALPHABET[base + (start + off) % size];
+                bool taken = false;
+                for (uint256 s = 1; s < currentSegment; s++) {
+                    if (segmentDigitLocked[s] && segmentLockedChar[s] == cand) {
+                        taken = true;
+                        break;
+                    }
                 }
+                if (!taken) { chosen = cand; break; }
             }
-            if (!taken) { chosen = cand; break; }
         }
         segmentLockedChar[currentSegment]  = chosen;
         segmentDigitLocked[currentSegment] = true;
