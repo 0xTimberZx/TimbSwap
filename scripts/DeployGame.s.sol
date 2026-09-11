@@ -29,8 +29,9 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
  *         the LIVE DEX that DeployCore.s.sol (phase 1) already deployed.
  *
  * Phase 1 (DeployCore) deployed and wired the standalone exchange primitive:
- * TimbSwapFactory + TimbSwapRouter + WETH (factory.setRouter, router.setWeth),
- * with the router's game hooks no-op (eligibleRegistry / timbPrize == address(0),
+ * TimbSwapFactory + TimbSwapRouter (factory.setRouter; WETH is an immutable
+ * router constructor arg), with the router's game hooks no-op
+ * (eligibleRegistry / timbPrize == address(0),
  * guarded in _maybeNudge). This script deploys everything else and switches the
  * game hooks on, so the exact same factory/router now also drive the prize game.
  *

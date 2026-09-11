@@ -360,6 +360,14 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
         lastUpdateTime = block.timestamp;
         periodFinish   = block.timestamp + duration;
 
+        // Low: reward-solvency assert. TIMBS is the reward token (LP is staked
+        // separately), so the whole TIMBS balance is the reward pool and must
+        // cover the entire new period at the resulting rate.
+        uint256 rewardBalance = timbsToken.balanceOf(address(this));
+        if (rewardRatePerSecond * duration > rewardBalance) {
+            revert InsufficientRewardBalance(rewardRatePerSecond * duration, rewardBalance);
+        }
+
         emit RewardNotified(msg.sender, amount, duration);
     }
 
@@ -371,6 +379,15 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
         onlyOwner
         updateReward(address(0))
     {
+        // Low: reward-solvency assert — while a period is active, the new rate
+        // must be coverable over the remaining period by the funded TIMBS balance.
+        if (block.timestamp < periodFinish) {
+            uint256 remaining     = periodFinish - block.timestamp;
+            uint256 rewardBalance = timbsToken.balanceOf(address(this));
+            if (_ratePerSecond * remaining > rewardBalance) {
+                revert InsufficientRewardBalance(_ratePerSecond * remaining, rewardBalance);
+            }
+        }
         rewardRatePerSecond = _ratePerSecond;
         emit RewardRateSet(_ratePerSecond);
     }

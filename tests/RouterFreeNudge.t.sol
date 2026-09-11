@@ -25,6 +25,7 @@ contract RouterFreeNudgeTest is Test {
 
     address factory  = address(0xF00);   // constructor only null-checks these
     address treasury = address(0x7EA);
+    address weth     = address(0x9E14);   // non-zero; ETH swaps not exercised here
     address alice    = address(0xA11CE);
 
     uint256 constant CAP = 10; // freeNudgeCapPerSeg default
@@ -35,7 +36,7 @@ contract RouterFreeNudgeTest is Test {
         prizeA.set(1, 2);
         prizeB.set(1, 2); // same (round, segment) as A — the collision case
 
-        router = new TimbSwapRouter(factory, treasury, address(0), address(prizeA));
+        router = new TimbSwapRouter(factory, treasury, address(0), address(prizeA), weth);
         // owner == this; default freeNudgeCapPerSeg == 10.
     }
 
