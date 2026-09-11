@@ -76,6 +76,12 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
     /// @notice Total LP tokens currently staked.
     uint256 public totalStaked;
 
+    /// @notice TIMBS committed to rewards but not yet paid out (H2). TIMBS is the
+    ///         reward token (LP is the staked token), so the whole TIMBS balance
+    ///         is the reward pool; recoverERC20 subtracts this so the owner can
+    ///         never pull the reward reserve — only foreign TIMBS above it.
+    uint256 public rewardReserve;
+
     /// @notice LP staked balance per address.
     mapping(address => uint256) public stakedBalance;
 
@@ -282,6 +288,7 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
         }
 
         pendingRewards[msg.sender] = 0;
+        rewardReserve = reward < rewardReserve ? rewardReserve - reward : 0; // H2
         timbsToken.safeTransfer(msg.sender, reward);
 
         emit RewardsClaimed(msg.sender, reward);
@@ -311,6 +318,7 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
             uint256 available = timbsToken.balanceOf(address(this));
             if (reward <= available) {
                 pendingRewards[msg.sender] = 0;
+                rewardReserve = reward < rewardReserve ? rewardReserve - reward : 0; // H2
                 timbsToken.safeTransfer(msg.sender, reward);
                 emit RewardsClaimed(msg.sender, reward);
             }
@@ -339,6 +347,7 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
         if (duration == 0) revert ZeroAmount();
 
         timbsToken.safeTransferFrom(msg.sender, address(this), amount);
+        rewardReserve += amount; // H2: this TIMBS is now owed to farmers
 
         if (block.timestamp < periodFinish) {
             uint256 remaining   = periodFinish - block.timestamp;
@@ -438,7 +447,18 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
      */
     function recoverERC20(address token, uint256 amount) external onlyOwner {
         if (token == address(lpToken)) {
+            // Never recover staked LP principal.
             uint256 recoverable = lpToken.balanceOf(address(this)) - totalStaked;
+            if (amount > recoverable) {
+                revert InsufficientRewardBalance(amount, recoverable);
+            }
+        } else if (token == address(timbsToken)) {
+            // H2: TIMBS is the reward token — never recover the committed reward
+            // reserve (previously this fell through to an unconditional transfer,
+            // letting the owner drain the entire reserve). Only foreign TIMBS
+            // above the reserve is recoverable.
+            uint256 bal         = timbsToken.balanceOf(address(this));
+            uint256 recoverable = bal > rewardReserve ? bal - rewardReserve : 0;
             if (amount > recoverable) {
                 revert InsufficientRewardBalance(amount, recoverable);
             }

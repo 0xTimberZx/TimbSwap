@@ -68,6 +68,12 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
     /// @notice Total TIMBS currently staked across all users.
     uint256 public totalStaked;
 
+    /// @notice TIMBS committed to rewards but not yet paid out (H2). Funded in
+    ///         notifyRewardAmount, reduced as rewards are claimed. recoverERC20
+    ///         subtracts this so the owner can never pull earned-but-unclaimed
+    ///         rewards — only genuinely foreign TIMBS above staked + reserve.
+    uint256 public rewardReserve;
+
     /// @notice Staked balance per address.
     mapping(address => uint256) public stakedBalance;
 
@@ -261,6 +267,7 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
         }
 
         pendingRewards[msg.sender] = 0;
+        rewardReserve = reward < rewardReserve ? rewardReserve - reward : 0; // H2
         timbsToken.safeTransfer(msg.sender, reward);
 
         emit RewardsClaimed(msg.sender, reward);
@@ -289,6 +296,7 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
             uint256 contractBalance = timbsToken.balanceOf(address(this)) - totalStaked;
             if (reward <= contractBalance) {
                 pendingRewards[msg.sender] = 0;
+                rewardReserve = reward < rewardReserve ? rewardReserve - reward : 0; // H2
                 timbsToken.safeTransfer(msg.sender, reward);
                 emit RewardsClaimed(msg.sender, reward);
             }
@@ -321,6 +329,7 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
         if (duration == 0) revert ZeroAmount();
 
         timbsToken.safeTransferFrom(msg.sender, address(this), amount);
+        rewardReserve += amount; // H2: this TIMBS is now owed to stakers
 
         if (block.timestamp < periodFinish) {
             // Roll remaining rewards into new period
@@ -412,8 +421,12 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
      */
     function recoverERC20(address token, uint256 amount) external onlyOwner {
         if (token == address(timbsToken)) {
-            // Only allow recovery of reward TIMBS above totalStaked
-            uint256 recoverable = timbsToken.balanceOf(address(this)) - totalStaked;
+            // H2: recover only TIMBS above BOTH staked principal AND committed
+            // rewards (rewardReserve) — never earned-but-unclaimed rewards. What
+            // remains is genuinely foreign TIMBS accidentally sent in.
+            uint256 committed   = totalStaked + rewardReserve;
+            uint256 bal         = timbsToken.balanceOf(address(this));
+            uint256 recoverable = bal > committed ? bal - committed : 0;
             if (amount > recoverable) revert InsufficientRewardBalance(amount, recoverable);
         }
         IERC20(token).safeTransfer(owner(), amount);

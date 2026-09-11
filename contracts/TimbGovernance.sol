@@ -48,7 +48,17 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     mapping(address => uint256) public votingPowerDeposited;
     uint256 public totalVotingPower;
     mapping(address => mapping(uint256 => bool)) public hasVoted;
+    /// @notice Append-only history of proposals a voter has voted on. Kept for
+    ///         off-chain history; NO LONGER iterated on-chain (M6).
     mapping(address => uint256[]) public voterParticipation;
+    /// @notice Per-voter lock high-water (M6): the latest executionDeadline among
+    ///         proposals this voter has voted on. withdrawVotingPower checks this
+    ///         one value instead of looping over voterParticipation (which grows
+    ///         unbounded and could OOG-lock a deposit forever). Conservative: a
+    ///         vote on a proposal that later fails still locks until that
+    ///         proposal's executionDeadline (at most EXECUTION_WINDOW longer than
+    ///         the exact per-proposal check), never less.
+    mapping(address => uint256) public votingLockUntil;
 
     event ProposalCreated(
         uint256 indexed id,
@@ -116,27 +126,18 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         address voter = msg.sender;
         if (amount > votingPowerDeposited[voter]) revert InsufficientVotingPower();
 
-        uint256[] storage participated = voterParticipation[voter];
-        for (uint256 i = 0; i < participated.length; i++) {
-            Proposal storage p = proposals[participated[i]];
-            if (_isLocked(p)) revert VotingPowerLocked(p.votingEndsAt);
-        }
+        // M6: O(1) lock check. Previously this looped over voterParticipation
+        // (append-only, one entry per vote), so a voter with many votes could
+        // permanently OOG here and never withdraw. votingLockUntil is the latest
+        // executionDeadline among their votes — the point past which none of
+        // their proposals can still be locked — so one comparison suffices.
+        uint256 lockedUntil = votingLockUntil[voter];
+        if (block.timestamp < lockedUntil) revert VotingPowerLocked(lockedUntil);
 
         votingPowerDeposited[voter] -= amount;
         totalVotingPower -= amount;
         timbsToken.transfer(voter, amount);
         emit VotingPowerWithdrawn(voter, amount);
-    }
-
-    function _isLocked(Proposal storage p) internal view returns (bool) {
-        ProposalStatus s = p.status;
-        if (s == ProposalStatus.Executed || s == ProposalStatus.Failed || s == ProposalStatus.Expired) {
-            return false;
-        }
-        if (block.timestamp <= p.votingEndsAt) return s == ProposalStatus.Active;
-        s = _computeOutcome(p);
-        if (s == ProposalStatus.Passed && block.timestamp > p.executionDeadline) return false;
-        return s == ProposalStatus.Active || s == ProposalStatus.Passed;
     }
 
     function createProposal(
@@ -183,6 +184,13 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
 
         hasVoted[msg.sender][proposalId] = true;
         voterParticipation[msg.sender].push(proposalId);
+        // M6: raise the voter's lock high-water to this proposal's execution
+        // deadline — the latest time it could still be locked (see _isLocked's
+        // old logic: past executionDeadline nothing is locked). One SSTORE per
+        // vote replaces the unbounded withdraw-time loop.
+        if (p.executionDeadline > votingLockUntil[msg.sender]) {
+            votingLockUntil[msg.sender] = p.executionDeadline;
+        }
 
         if (p.status == ProposalStatus.Pending) {
             p.status = ProposalStatus.Active;
