@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quests &amp; Points — TimbSwap</title>
+  <meta name="description" content="Timber Points leaderboard — earn TP on Arbitrum Sepolia testnet by trading (volume) and playing rounds (repeat play). Points build the mainnet airdrop allowlist." />
+  <link rel="canonical" href="https://timbswap.xyz/quests/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Quests &amp; Points — TimbSwap" />
+  <meta property="og:description" content="Earn Timber Points by trading and playing. Points build the mainnet airdrop allowlist." />
+  <meta property="og:url" content="https://timbswap.xyz/quests/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Quests &amp; Points — TimbSwap" />
+  <meta name="twitter:description" content="Earn Timber Points by trading and playing. Points build the mainnet airdrop allowlist." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="../assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="../docs/docs.css?v=20260739a" />
+  <style>
+    .qs-wrap { max-width: 1000px; margin: 0 auto; padding: 32px 6% 64px; }
+    .qs-eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--green); margin-bottom: 10px; }
+    .qs-title { font-size: clamp(28px, 4vw, 44px); font-weight: 700; letter-spacing: -1px; }
+    .qs-sub { color: var(--text-2); max-width: 60ch; margin: 12px 0 6px; line-height: 1.6; }
+    .qs-season { font-family: var(--mono); font-size: 12.5px; color: var(--text-3); margin-top: 8px; }
+
+    .qs-earn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 26px 0; }
+    .qs-earn-card { background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius-lg); padding: 18px 18px; }
+    .qs-earn-card .qe-tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--green); margin-bottom: 6px; }
+    .qs-earn-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .qs-earn-card p { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+    @media (max-width: 720px) { .qs-earn { grid-template-columns: 1fr; } }
+
+    .qs-cta { display: flex; gap: 12px; flex-wrap: wrap; margin: 6px 0 22px; }
+
+    .qs-standing { background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; margin: 22px 0; }
+    .qs-standing h2 { font-size: 17px; margin-bottom: 10px; }
+    .qs-check-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .qs-input { flex: 1 1 260px; min-width: 0; background: var(--bg); border: var(--bw) solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--mono); font-size: 13px; padding: 11px 13px; }
+    .qs-input:focus { outline: none; border-color: var(--green); }
+    .qs-you { margin-top: 14px; }
+    .qs-you-card { background: var(--bg3); border: var(--bw) solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .qs-you-card.flagged { border-color: rgba(224,165,46,0.4); }
+    .qs-you-h { font-size: 15px; }
+    .qs-you-h strong { color: var(--green); }
+    .qs-you-sub { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); margin-top: 4px; }
+
+    .qs-board-head { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 10px; }
+    .qs-board-head h2 { font-size: 20px; }
+    .qs-board-head .qs-count { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+    .table-wrap { overflow-x: auto; }
+    .qs-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 560px; }
+    .qs-table th, .qs-table td { text-align: left; padding: 11px 14px; border-bottom: var(--bw) solid var(--border); }
+    .qs-table th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
+    .qs-table td.qs-rank { font-family: var(--mono); color: var(--text-3); width: 48px; }
+    .qs-table td.qs-addr { font-family: var(--mono); }
+    .qs-table td.qs-tp { font-family: var(--mono); font-weight: 700; color: var(--green); }
+    .qs-table tr:last-child td { border-bottom: none; }
+    .qs-badge { color: #ffd75e; }
+    .qs-empty { text-align: center; color: var(--text-3); padding: 26px 10px; }
+
+    .qs-note { font-size: 12.5px; color: var(--text-3); line-height: 1.6; margin-top: 22px; border-top: var(--bw) solid var(--border); padding-top: 16px; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a href="/gov/">Protocol</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="../faucet/">Faucet</a>
+          <a href="../quests/" class="nav-active">Quests</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="../explore/">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+          <a href="../litepaper/">Litepaper</a>
+          <a href="../bounty/">Bug Bounty</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="/gov/">Protocol</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <a href="../faucet/">Faucet</a>
+    <a href="../quests/">Quests</a>
+    <a class="nav-off">Airdrop</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a class="nav-off">Lock Vault</a>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+    <a href="../litepaper/">Litepaper</a>
+    <a href="../bounty/">Bug Bounty</a>
+    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+  </div>
+
+  <div class="qs-wrap">
+    <div class="qs-eyebrow">TIMBER POINTS</div>
+    <h1 class="qs-title">Play the season. Earn your place.</h1>
+    <p class="qs-sub">
+      Timber Points (TP) reward the wallets that actually use TimbSwap on testnet.
+      They cost nothing to earn, and they build the <strong>mainnet airdrop
+      allowlist</strong> — the wallets that played are who we carry into the
+      mainnet transition.
+    </p>
+    <div class="qs-season" id="qs-season">Loading season…</div>
+
+    <div class="qs-earn">
+      <div class="qs-earn-card">
+        <div class="qe-tag">HEADLINE</div>
+        <h3>Volume</h3>
+        <p>Every eligible <strong>swap</strong> nudges the meter and earns TP. Trade more, climb more — with a curve that keeps it fair.</p>
+      </div>
+      <div class="qs-earn-card">
+        <div class="qe-tag">HEADLINE</div>
+        <h3>Repeat play</h3>
+        <p>Enter a <strong>round</strong>, then keep coming back. Consecutive rounds build a <strong>streak multiplier</strong> — the strongest lever on the board.</p>
+      </div>
+      <div class="qs-earn-card">
+        <div class="qe-tag">BONUS</div>
+        <h3>Do both ✦</h3>
+        <p>Trade <em>and</em> play across rounds to earn the <strong>diversity bonus</strong>. Winning a pot helps too — but showing up is what wins the season.</p>
+      </div>
+    </div>
+
+    <div class="qs-cta">
+      <a href="../compete/" class="btn-primary">Play a round</a>
+      <a href="../swap/" class="btn-secondary">Get tokens &amp; swap</a>
+      <a href="/#waitlist" class="btn-secondary">Join the mainnet list</a>
+    </div>
+
+    <div class="qs-standing">
+      <h2>Your standing</h2>
+      <div class="qs-check-row">
+        <input class="qs-input" id="qs-addr" type="text" spellcheck="false" autocomplete="off" placeholder="0x… your wallet" aria-label="Wallet address" />
+        <button class="btn-secondary" id="qs-check" type="button">Check rank</button>
+      </div>
+      <div class="qs-you" id="qs-you" hidden></div>
+    </div>
+
+    <div class="qs-board-head">
+      <h2>Leaderboard</h2>
+      <span class="qs-count">top 100</span>
+    </div>
+    <div class="table-wrap">
+      <table class="qs-table">
+        <thead>
+          <tr><th>#</th><th>Wallet</th><th>TP</th><th>Rounds</th><th>Swaps</th><th>Streak</th></tr>
+        </thead>
+        <tbody id="qs-board">
+          <tr><td colspan="6" class="qs-empty">Loading leaderboard…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="qs-note">
+      Timber Points are <strong>off-chain and non-transferable</strong> — a score, not a token, computed from your on-chain
+      activity. On testnet nothing has monetary value. TP establishes <strong>eligibility and a participation rate</strong> for
+      the mainnet airdrop allowlist — never a promised amount. Scores update roughly hourly and can be recomputed if a
+      farm is found. See the <a href="../litepaper/">litepaper</a> for the full picture.
+    </p>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="/litepaper/">Litepaper</a>
+      <a href="/bounty/">Bug Bounty</a>
+      <a href="/quests/">Quests</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+    </div>
+  </footer>
+
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
+  <script>
+    function toggleMobileNav() { document.getElementById("mobile-nav").classList.toggle("open"); }
+    function toggleWalletMenu(e) { e.stopPropagation(); document.getElementById("wallet-info").classList.toggle("open"); }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) nav.classList.remove("open");
+      const wi = document.getElementById("wallet-info");
+      if (wi && !wi.contains(e.target)) wi.classList.remove("open");
+    });
+
+    async function handleConnect() {
+      const ok = await connectWallet();
+      if (!ok) return;
+      DebugHub.startSession(userAddress);
+      document.getElementById("connect-btn").classList.add("hidden");
+      document.getElementById("wallet-info").classList.remove("hidden");
+      document.getElementById("network-badge").classList.remove("hidden");
+      document.getElementById("wallet-addr").textContent = fmtAddr(userAddress);
+      if (window.questsCheck) window.questsCheck(userAddress);
+      listenForAccountChanges((newAddr) => {
+        if (!newAddr) { handleDisconnect(); return; }
+        document.getElementById("wallet-addr").textContent = fmtAddr(newAddr);
+        if (window.questsCheck) window.questsCheck(newAddr);
+      });
+    }
+    function handleDisconnect() {
+      DebugHub.endSession();
+      provider = null; signer = null; userAddress = null;
+      document.getElementById("connect-btn").classList.remove("hidden");
+      document.getElementById("wallet-info").classList.add("hidden");
+      document.getElementById("network-badge").classList.add("hidden");
+    }
+
+    (async () => {
+      DebugHub.logCheckpoint("Quests:Page Loaded", "pass");
+      try {
+        const addr = await autoReconnect();
+        if (addr) {
+          document.getElementById("connect-btn")?.classList.add("hidden");
+          document.getElementById("wallet-info")?.classList.remove("hidden");
+          document.getElementById("network-badge")?.classList.remove("hidden");
+          const el = document.getElementById("wallet-addr");
+          if (el) el.textContent = fmtAddr(addr);
+          DebugHub.startSession(addr);
+          if (window.questsCheck) window.questsCheck(addr);
+        }
+      } catch {}
+    })();
+  </script>
+  <script src="../quests.js?v=1"></script>
+</body>
+</html>

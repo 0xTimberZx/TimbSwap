@@ -8,5 +8,13 @@ routes = [
   { pattern = "timbswap.xyz/api/*", zone_name = "timbswap.xyz" }
 ]
 
+# Non-secret vars — the Supabase edge-function URLs the /api/* routes relay to.
+# Not sensitive (public function URLs). Replace the ref before deploying.
+[vars]
+WAITLIST_UPSTREAM = "https://REPLACE_WITH_SUPABASE_REF.supabase.co/functions/v1/waitlist"
+QUESTS_UPSTREAM   = "https://REPLACE_WITH_SUPABASE_REF.supabase.co/functions/v1/quests"
+
 # Secrets are NOT set here — add them with `wrangler secret put`:
-#   ALCHEMY_RPC_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#   ALCHEMY_RPC_URL        (for POST /api/rpc)
+#   WAITLIST_PROXY_SECRET  (optional; for POST /api/waitlist — must match the
+#                           waitlist edge function's WAITLIST_PROXY_SECRET)

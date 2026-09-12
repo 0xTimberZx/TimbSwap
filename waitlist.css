@@ -1,0 +1,141 @@
+/* ─── Mainnet capture / waitlist (landing) ────────────────────────────────
+   Rides the same design tokens as style.css (var(--bg2), --green, --border…).
+   Kept in its own file so the capture layer drops in without touching the large
+   shared stylesheet. The bar-glow keyframe is defined in style.css. */
+.waitlist {
+  padding: 56px 6% 64px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.waitlist [hidden] { display: none !important; }
+
+.wl-card {
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 36px;
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+  animation: bar-glow 7s ease-in-out infinite;   /* same breathing glow as the hero scroll card */
+}
+@media (prefers-reduced-motion: reduce) { .wl-card { animation: none; } }
+
+.wl-eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: var(--green);
+  margin-bottom: 12px;
+}
+.wl-title {
+  font-size: clamp(24px, 3.2vw, 36px);
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+.wl-title .w-green { color: var(--green); }
+.wl-sub {
+  font-size: 15px;
+  color: var(--text-2);
+  line-height: 1.6;
+  max-width: 54ch;
+  margin: 14px auto 26px;
+}
+
+.wl-form { max-width: 520px; margin: 0 auto; }
+.wl-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.wl-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  background: var(--bg);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  padding: 12px 14px;
+  transition: border-color 0.15s;
+}
+.wl-input::placeholder { color: var(--text-3); }
+.wl-input:focus { outline: none; border-color: var(--green); }
+
+.wl-btn {
+  flex: 0 0 auto;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  padding: 12px 22px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.wl-btn:hover { opacity: 0.85; }
+.wl-btn:disabled { opacity: 0.6; cursor: progress; }
+
+.wl-more { margin-top: 12px; text-align: left; }
+.wl-more > summary {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  cursor: pointer;
+  list-style: none;
+  padding: 4px 2px;
+}
+.wl-more > summary::-webkit-details-marker { display: none; }
+.wl-more > summary:hover { color: var(--text-2); }
+.wl-more[open] > summary { color: var(--text-2); margin-bottom: 4px; }
+.wl-more .wl-input { width: 100%; margin-top: 8px; }
+
+.wl-msg {
+  margin-top: 12px;
+  font-size: 13.5px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: rgba(245, 158, 11, 0.10);
+  border: 1px solid rgba(245, 158, 11, 0.30);
+  color: #e0a52e;
+  text-align: left;
+}
+
+.wl-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  text-align: left;
+  max-width: 520px;
+  margin: 4px auto 0;
+  background: rgba(20, 241, 149, 0.07);
+  border: var(--bw) solid rgba(20, 241, 149, 0.28);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.wl-check {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--green); color: #000;
+  border-radius: 50%; font-weight: 700; font-size: 16px;
+}
+.wl-success-text { font-size: 14px; color: var(--text-2); line-height: 1.55; }
+.wl-success-text strong { color: var(--text); display: block; margin-bottom: 2px; }
+.wl-success-text a { color: var(--green); border-bottom: 1px solid var(--border); }
+.wl-success-text a:hover { border-color: var(--green); }
+
+.wl-alt {
+  margin-top: 22px;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+.wl-alt a { color: var(--text-2); border-bottom: 1px solid var(--border); }
+.wl-alt a:hover { color: var(--green); border-color: var(--green); }
+
+@media (max-width: 480px) {
+  .wl-card { padding: 30px 20px; }
+  .wl-btn { flex: 1 1 100%; }
+}

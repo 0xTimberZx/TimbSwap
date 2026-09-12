@@ -1,0 +1,39 @@
+name: TimbSwap Points Scorer
+
+on:
+  schedule:
+    - cron: "7 * * * *"           # hourly, offset so it isn't on the same tick as other keepers
+  workflow_dispatch:
+
+# Incremental + idempotent (per-season cursors in Postgres); overlap is harmless
+# but pointless, so don't stack runs.
+concurrency:
+  group: timbswap-points-scorer
+  cancel-in-progress: false
+
+jobs:
+  score:
+    name: Fold new activity into Timber Points
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Run points scorer
+        working-directory: scripts
+        env:
+          ARB_RPC:              ${{ secrets.ARB_RPC }}
+          ARB_SEPOLIA_RPC:      ${{ secrets.ARB_SEPOLIA_RPC }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node points-scorer.js

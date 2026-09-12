@@ -36,6 +36,7 @@
     }
   </script>
   <link rel="stylesheet" href="style.css?v=20260902a" />
+  <link rel="stylesheet" href="waitlist.css?v=1" />
 </head>
 <body>
 
@@ -51,7 +52,7 @@
         <div class="nav-dropdown">
           <a href="/swap/">Swap</a>
           <a href="/analytics/">Analytics</a>
-          <a class="nav-off">Governance</a>
+          <a href="/gov/">Protocol</a>
         </div>
       </div>
       <div class="nav-group">
@@ -60,6 +61,7 @@
           <a href="/farm/">Farm</a>
           <a href="/compete/">Compete</a>
           <a href="/faucet/">Faucet</a>
+          <a href="/quests/">Quests</a>
           <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
         </div>
       </div>
@@ -69,6 +71,8 @@
           <a class="nav-off">Lock Vault</a>
           <a href="/explore/">V2 Pools</a>
           <a href="/docs/">Docs</a>
+          <a href="/litepaper/">Litepaper</a>
+          <a href="/gov/#bounty">Bug Bounty</a>
           <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
         </div>
       </div>
@@ -99,16 +103,19 @@
     <div class="nav-mobile-section">DASHBOARD</div>
     <a href="/swap/">Swap</a>
     <a href="/analytics/">Analytics</a>
-    <a class="nav-off">Governance</a>
+    <a href="/gov/">Protocol</a>
     <div class="nav-mobile-section">EARN TIMBS</div>
     <a href="/farm/">Farm</a>
     <a href="/compete/">Compete</a>
     <a href="/faucet/">Faucet</a>
+    <a href="/quests/">Quests</a>
     <a class="nav-off">Airdrop</a>
     <div class="nav-mobile-section">TOOLS</div>
     <a class="nav-off">Lock Vault</a>
     <a href="/explore/">V2 Pools</a>
     <a href="/docs/">Docs</a>
+    <a href="/litepaper/">Litepaper</a>
+    <a href="/gov/#bounty">Bug Bounty</a>
     <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
   </div>
 
@@ -375,9 +382,56 @@
     <div class="trust-item"><span class="t-label">SOURCE</span><a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener">Open-source on GitHub ↗︎</a></div>
     <div class="trust-item"><span class="t-label">CONTRACTS</span><a href="/docs/#authenticity">Address table in Docs</a></div>
     <div class="trust-item"><span class="t-label">LITEPAPER</span><a href="/litepaper/">Read the litepaper</a></div>
+    <div class="trust-item"><span class="t-label">BOUNTY</span><a href="/gov/#bounty">Bug bounty — up to $500</a></div>
     <div class="trust-item"><span class="t-label">EXPLORER</span><a href="https://arbiscan.io/address/0x0000000000000000000000000000000000000000" target="_blank" rel="noopener">Factory on Arbiscan ↗︎</a></div>
     <div class="trust-item"><span class="t-label">AUDIT</span><span class="t-muted">Independent audit gates mainnet — testnet today</span></div>
   </div>
+
+  <!-- Mainnet capture: convert the visitor after the pitch. Testnet is live now;
+       mainnet is gated on the independent audit. The ask is honest — early access
+       + a priority allowlist spot, never a promise of payment. -->
+  <section class="waitlist" id="waitlist" aria-label="Join the mainnet list">
+    <div class="wl-card">
+      <div class="wl-eyebrow">MAINNET IS COMING</div>
+      <h2 class="wl-title">Be first when <span class="w-green">TimbSwap</span> goes live.</h2>
+      <p class="wl-sub">
+        Testnet is live today; mainnet opens once the independent audit clears.
+        Join the list for early access, a priority spot on the airdrop allowlist,
+        and first call on the bug bounty. One email, no spam — leave anytime.
+      </p>
+
+      <form class="wl-form" id="wl-form" novalidate>
+        <div class="wl-row">
+          <input class="wl-input" id="wl-email" type="email" inputmode="email"
+                 autocomplete="email" placeholder="you@email.com" aria-label="Email address" required />
+          <button class="wl-btn" id="wl-submit" type="submit">Join the list</button>
+        </div>
+        <details class="wl-more">
+          <summary>Add wallet &amp; Telegram (optional — helps the allowlist)</summary>
+          <input class="wl-input" id="wl-wallet" type="text" spellcheck="false"
+                 autocomplete="off" placeholder="0x… wallet (optional)" aria-label="Wallet address (optional)" />
+          <input class="wl-input" id="wl-tg" type="text" spellcheck="false"
+                 autocomplete="off" placeholder="@telegram (optional)" aria-label="Telegram handle (optional)" />
+        </details>
+        <div class="wl-msg" id="wl-msg" role="alert" hidden></div>
+      </form>
+
+      <div class="wl-success" id="wl-success" hidden>
+        <div class="wl-check">✓</div>
+        <div class="wl-success-text">
+          <strong>You're on the list.</strong>
+          Watch your inbox for the mainnet call. In the meantime the testnet is
+          live — <a href="/faucet/">grab test tokens</a>, <a href="/quests/">earn points</a>, and take a round for a spin.
+        </div>
+      </div>
+
+      <div class="wl-alt">
+        Prefer Telegram? <a href="https://t.me/timbswapann" target="_blank" rel="noopener">Join the channel ↗︎</a>
+        · <a href="https://x.com/timbswap" target="_blank" rel="noopener">Follow on X ↗︎</a>
+        · <a href="/gov/#bounty">Hunt the bug bounty</a>
+      </div>
+    </div>
+  </section>
 
   <footer class="footer">
     <div class="footer-left">
@@ -385,6 +439,9 @@
     </div>
     <div class="footer-links">
       <a href="/docs/">Docs</a>
+      <a href="/litepaper/">Litepaper</a>
+      <a href="/gov/#bounty">Bug Bounty</a>
+      <a href="/quests/">Quests</a>
       <a href="https://arbiscan.io/address/0x0000000000000000000000000000000000000000" target="_blank">Factory ↗︎</a>
       <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
       <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
@@ -395,6 +452,7 @@
 
   <script>document.write('<script src="config.js?t=' + Date.now() + '"><\/script>');</script>
 <script src="landing.js?v=20260904c"></script>
+<script src="waitlist.js?v=1"></script>
   <script>
     function toggleMobileNav() {
       document.getElementById("mobile-nav").classList.toggle("open");
