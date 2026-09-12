@@ -44,7 +44,8 @@ settlement/liveness griefing.
 ## Scope (out)
 
 - The **frontend / static site**, `config.js`, and any off-chain keeper or
-  telemetry infrastructure.
+  telemetry infrastructure — *cosmetic* issues only. A display bug that could
+  **mislead a user into a losing on-chain action** is in scope as **T1** below.
 - **Testnet** (Arbitrum Sepolia) deployments — no value, not in scope.
 - **Third-party** code and infra: Chainlink VRF, OpenZeppelin, the Arbitrum
   sequencer/bridge, RPC providers, wallets.
@@ -63,16 +64,42 @@ paid in **ETH or USDC**. Amounts below are the **capped-beta starting bands** �
 they scale with the live value-at-risk and grow after the independent audit. Any
 single payout is capped at the program budget.
 
-| Severity | Definition (examples) | Reward (starting band) |
-|---|---|---|
-| **Critical** | Direct theft or permanent loss/freeze of user or protocol funds; mint/inflate TIMBS; drain the pot/escrow/vault | **$1,000 – $5,000** |
-| **High** | Steal unclaimed rewards; break reward solvency; steer prize outcomes; trap funds recoverably | **$500 – $1,500** |
-| **Medium** | Bounded value loss; settlement/liveness DoS that's recoverable; accounting errors | **$100 – $500** |
-| **Low** | Minor issues, hard-to-trigger edge cases, defense-in-depth | **$50 – $150** |
+| Tier | Class | What lands here | Reward (starting band) |
+|---|---|---|---|
+| **T1** | UI / display | A display or labelling bug that could **mislead a user into a losing on-chain action** (e.g. wrong pot/price/reward numbers shown). Pure cosmetic issues are out of scope. | **$50 – $150** |
+| **T2** | Operational / fallback | Keeper/automation failures, the observability events firing (`YieldHarvestFailed`, `PotShareForwardFailed`, …), VRF stall / `rerequest` griefing, **recoverable** settlement/liveness DoS. Value stuck or degraded, not lost. | **$150 – $500** |
+| **T3** | Misrouting / contractual | Value routed to the wrong place or mis-split: buyback 5/20/75, lapse 70/30, pot/escrow/refund accounting. Bounded, usually per-round. Off-chain-signaling **governance** manipulation (voting-power/quorum bypass) lands here — real authority is the timelock/multisig, so it cannot directly move funds during beta. | **$500 – $1,500** |
+| **T4** | Token & DEX structural | TIMBS mint/inflate/cap- or transfer-cap-bypass, whitelist bypass, DEX `k`-invariant break, **reward-solvency** break (paying tokens the contract doesn't hold), LP theft. | **$1,500 – $5,000** |
+| **T5** | Deep exploit / drain | Full drain of `PrizeEscrow` / `TimbYieldVault` / `TimbTreasury` / the pair; **prize-outcome manipulation** (predicting or biasing the VRF draw); owner/privilege escalation; chained multi-contract exploit. | **10–20% of value-at-risk, floor ~$5,000** |
+
+Reentrancy that bypasses the `nonReentrant` guards is priced by its **impact** —
+a reentrancy that drains escrow is a T5, not a tier of its own.
 
 Final severity and reward are at the maintainers' discretion, guided by the
 [Immunefi severity classification](https://immunefi.com/immunefi-vulnerability-severity-classification-system-v2-3/)
 as a reference. First valid reporter of a unique issue is eligible.
+
+### Why disclosure beats exploitation (flow vs. stock)
+
+Two independent controls keep the honest payout larger than the exploit payoff,
+each covering a different class of bug:
+
+- **Flow bugs** siphon what *moves through* a round — ticket entries, pot
+  contributions, lapse splits, buyback throughput. The **6-hour round frame**
+  bounds these: realizable value ≈ one round's flow × the few rounds before
+  monitoring + a multisig `pause()` stop it (see
+  [`dev-docs/CAPPED_BETA_GUARDRAILS.md`](./dev-docs/CAPPED_BETA_GUARDRAILS.md)).
+  The haul is small, so a T2–T3 bounty dominates. Most of the game-mechanic
+  surface is here.
+- **Stock bugs** hit *accumulated* value — draining escrow, a vault, the
+  treasury, or the LP in a single transaction. The round frame does **nothing**
+  for these; there are no rounds to wait out. Here it is the **value-at-risk
+  ceiling** that keeps the exploit prize bounded, and the T5 band scales to it
+  so disclosing still wins.
+
+The two levers do different jobs — the round frame bounds *flow*, the VaR cap
+bounds *stock* — and together they make "collect the bounty and close the gap"
+the rational move across the whole table.
 
 ## Rules of engagement
 
