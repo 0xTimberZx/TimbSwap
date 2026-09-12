@@ -11,6 +11,8 @@
 //   /api/waitlist         → Supabase `waitlist` edge fn. Var: WAITLIST_UPSTREAM;
 //                           optional secret: WAITLIST_PROXY_SECRET. Adds the
 //                           caller's real IP + country as X-Real-IP / X-Client-Country.
+//   /api/quests           → Supabase `quests` edge fn (read-only leaderboard).
+//                           Var: QUESTS_UPSTREAM.
 // Anything else falls through to the origin (GitHub Pages).
 //
 // The /api/debughub_events telemetry sink was REMOVED for the capped beta: the
@@ -23,6 +25,7 @@
 //   ALCHEMY_RPC_URL             keyed Alchemy Arbitrum-One URL (public anyway)
 //   WAITLIST_UPSTREAM           (var) Supabase waitlist function URL
 //   WAITLIST_PROXY_SECRET       (secret, optional) shared with the waitlist fn
+//   QUESTS_UPSTREAM             (var) Supabase quests function URL
 //
 // Route + deploy: see workers/README.md.
 
@@ -62,6 +65,24 @@ async function readBody(request, origin) {
   return { text };
 }
 
+// Relay a POST body to a Supabase edge function, echoing its JSON response.
+// Optional extraHeaders are merged into the upstream request.
+async function relay(upstream, text, origin, extraHeaders) {
+  try {
+    const up = await fetch(upstream, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(extraHeaders || {}) },
+      body: text,
+    });
+    return new Response(await up.text(), {
+      status: up.status,
+      headers: { ...cors(origin), "Content-Type": "application/json" },
+    });
+  } catch {
+    return json({ error: "upstream unreachable" }, 502, origin);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -81,21 +102,23 @@ export default {
       if (err) return err;
 
       const headers = {
-        "content-type": "application/json",
         "X-Real-IP": request.headers.get("CF-Connecting-IP") || "",
         "X-Client-Country": (request.cf && request.cf.country) || "",
       };
       if (env.WAITLIST_PROXY_SECRET) headers["X-Proxy-Secret"] = env.WAITLIST_PROXY_SECRET;
+      return relay(env.WAITLIST_UPSTREAM, text, origin, headers);
+    }
 
-      try {
-        const up = await fetch(env.WAITLIST_UPSTREAM, { method: "POST", headers, body: text });
-        return new Response(await up.text(), {
-          status: up.status,
-          headers: { ...cors(origin), "Content-Type": "application/json" },
-        });
-      } catch {
-        return json({ error: "upstream unreachable" }, 502, origin);
-      }
+    // ── /api/quests → relay to the Supabase `quests` edge function (read-only
+    // leaderboard). Same-origin so Brave doesn't drop it; no secret needed. ──
+    if (path === "/api/quests") {
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
+      if (request.method !== "POST")    return json({ error: "POST only" }, 405, origin);
+      if (!env.QUESTS_UPSTREAM)         return json({ error: "quests unavailable" }, 503, origin);
+
+      const { text, err } = await readBody(request, origin);
+      if (err) return err;
+      return relay(env.QUESTS_UPSTREAM, text || "{}", origin);
     }
 
     // Only /api/rpc remains; everything else (incl. the removed /api/debughub_events)
