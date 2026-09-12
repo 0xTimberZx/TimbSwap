@@ -30,6 +30,9 @@ keeper; the next run recomputes every wallet.
   {swap, play, stake, LP, lock} — the main anti-Sybil weight under low KYC.
 - Wins (`WinningsClaimed`) are worth a little. Full model: `INCENTIVES.md` §4–5.
 
+**By design, TP rewards WALLET ACTIVITY, not unique users.** There is no referral
+lever — see "Descoped" below.
+
 ## Deploy (one-time)
 
 ### 1. Database
@@ -98,13 +101,24 @@ curl -s https://timbswap.xyz/api/quests -H 'content-type: application/json' -d '
 # expect: {"ok":true,"season":{...},"leaderboard":[...]}   (empty board before the first run)
 ```
 
-## Still to wire (v3)
+## Descoped — referrals / social / email
 
-- **Referrals / social / email** columns exist but are not yet fed. Referrals need
-  a capture step first: link a referred **wallet** to a **referrer code** (extend
-  the `waitlist` `ref`/UTM capture), then award on an activation bar
-  (INCENTIVES §6). Social/email fold in from the `waitlist` table.
-- **Per-round** swap attribution + per-day caps, and funding-graph / timing Sybil
-  clustering (INCENTIVES §7) are a later pass over the same ledger.
+**Referrals are intentionally NOT part of this program** (founder decision). On a
+free-gas testnet a referral rewards *account creation*, which is a Sybil vector,
+not real usage — and the program deliberately measures **wallet activity** over
+unique-user growth. Referral/social/email were dropped rather than deferred; do
+not re-introduce a referral lever on testnet. (Unique-user growth is a mainnet
+concern, where real gas is the natural deterrent.)
+
+The `referrals` column on `points_wallets` is left in place but **unused** —
+harmless, and cheaper to ignore than to migrate away.
+
+## Still to wire (later, over the same ledger)
+
+- **Per-round** swap attribution + per-day caps (v1/v2 count season-total eligible
+  swaps and rely on the √-curve to bound volume farming).
+- **Funding-graph / timing Sybil clustering** (INCENTIVES §7) — an automated pass
+  that sets `sybil_flag` before the cut line, on top of today's reviewer flag +
+  human review.
 - **Hold-duration** weighting for stake/LP/lock: v2 credits participation as a
   flag (did it at least once); per-round-held accrual is a future refinement.
