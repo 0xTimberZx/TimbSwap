@@ -57,6 +57,26 @@ settlement/liveness griefing.
 - Gas-optimization suggestions, best-practice notes without a concrete exploit,
   and automated-scanner output without a working PoC.
 
+### Wallet & frontend interaction
+
+"Wallet connection issues" split on one line — is a user's **money** at risk, or
+just their **convenience**?
+
+- **Out** (a normal bug / support request, not the bounty): failure to connect,
+  disconnect, wrong-network detection, chain-switch prompts — and any fault in
+  the wallet software, the WalletConnect relay, or an RPC provider (third-party).
+- **In**: anything that can **misdirect or drain funds** —
+  - a **`config.js` contract address pointing to a wrong/unintended contract**,
+    so approvals and swaps route to the wrong place → **T3 (misrouting)**;
+  - a **transaction or signature that does more than the UI states** — e.g. an
+    oversized/unbounded token approval where none is needed → **T1**, scaling up
+    by impact;
+  - **chain/network confusion** that leads a user to sign on the wrong network
+    believing they are on Arbitrum One → **T1**.
+
+Rule of thumb: *connection* problems are out; *interaction* problems that can
+cost a user funds are in.
+
 ## Severity & rewards
 
 Severity is **impact-based** (roughly funds-at-risk × likelihood). Rewards are
