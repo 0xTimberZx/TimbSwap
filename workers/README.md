@@ -1,18 +1,23 @@
 # TimbSwap first-party API (Cloudflare Worker)
 
-`timbswap-api.js` serves the app's backend calls from the site's **own origin**
+`timbswap-api.js` serves the app's on-chain reads from the site's **own origin**
 so Brave Shields / adblockers can't throttle or block them (they were failing as
-third-party calls to Alchemy/Supabase). It handles two POST routes and passes
-everything else through to the origin (GitHub Pages):
+third-party calls to Alchemy). It handles one POST route and passes everything
+else through to the origin (GitHub Pages):
 
 | Route | Forwards to | Purpose |
 |-------|-------------|---------|
 | `POST /api/rpc` | Alchemy JSON-RPC (`ALCHEMY_RPC_URL`) | all on-chain reads (single + batch) |
-| `POST /api/debughub_events` | Supabase REST (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`) | DebugHub telemetry |
 
-Because `/api/*` is now **same-origin** with the site, the browser skips CORS and
-Brave treats it as first-party — the RPC and telemetry issues both disappear for
-every browser.
+Because `/api/*` is **same-origin** with the site, the browser skips CORS and
+Brave treats it as first-party — the RPC issues disappear for every browser.
+
+> **Removed:** `POST /api/debughub_events` (DebugHub telemetry sink). Client
+> telemetry is localStorage-only during the capped beta (see `config.js`), so
+> nothing calls it, and an unauthenticated service-role write sink was pointless
+> surface. The `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` secrets are now unused
+> — delete them in the Cloudflare dashboard. See `SECURITY.md` before re-adding a
+> sink (harden it and bring it into bounty scope first).
 
 ## Migration steps (one-time)
 
@@ -27,37 +32,27 @@ every browser.
    ```sh
    cd workers
    npx wrangler login
-   npx wrangler secret put ALCHEMY_RPC_URL            # the keyed Alchemy Arb-Sepolia URL
-   npx wrangler secret put SUPABASE_URL               # https://REPLACE_WITH_MAINNET_SUPABASE_REF.supabase.co
-   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY  # Supabase service-role key (server-side only)
+   npx wrangler secret put ALCHEMY_RPC_URL            # the keyed Alchemy Arbitrum-One URL
    npx wrangler deploy
    ```
    `wrangler.toml` already pins the route `timbswap.xyz/api/*` and the entrypoint.
 
-3. **Smoke-test the routes** (from any terminal):
+3. **Smoke-test the route** (from any terminal):
    ```sh
-   # RPC — expect {"jsonrpc":"2.0","id":1,"result":"0x66eee"}
+   # RPC — expect a JSON-RPC result, e.g. {"jsonrpc":"2.0","id":1,"result":"0xa4b1"}
    curl -s https://timbswap.xyz/api/rpc \
      -H 'content-type: application/json' \
      -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
-
-   # Telemetry — expect HTTP 204
-   curl -s -o /dev/null -w '%{http_code}\n' https://timbswap.xyz/api/debughub_events \
-     -H 'content-type: application/json' \
-     -d '{"app":"TimbSwap","type":"checkpoint","name":"relay-smoke","status":"pass"}'
    ```
 
 4. **Tell Claude "Cloudflare is live"** and the config flip lands:
    - `config.js`: `DEDICATED_RPC` → `https://timbswap.xyz/api/rpc`
-   - `config.js` DebugHub: `telemetryUrl` → `https://timbswap.xyz/api/debughub_events`
 
-   Until that flip, the app keeps using the Supabase-hosted proxy + direct
-   telemetry, so nothing breaks while DNS propagates.
+   Until that flip, the app keeps using the fallback RPC, so nothing breaks while
+   DNS propagates.
 
 ## Notes
-- The service-role key stays a Worker secret — never in page JS. (Anon key also
-  works, since RLS already allows the telemetry insert; service-role is what the
-  earlier relay used.)
 - The `ALCHEMY_RPC_URL` upstream is a public frontend RPC regardless; keeping it
   a Worker secret just lets you rotate it without a redeploy of the site.
-- Supersedes the earlier standalone `debughub-relay.js` (folded into this Worker).
+- Supersedes the earlier standalone `debughub-relay.js`; the telemetry relay it
+  folded in has since been removed (see the note above).
