@@ -60,17 +60,18 @@ settlement/liveness griefing.
 ## Severity & rewards
 
 Severity is **impact-based** (roughly funds-at-risk × likelihood). Rewards are
-paid in **ETH or USDC**. Amounts below are the **capped-beta starting bands** —
-they scale with the live value-at-risk and grow after the independent audit. Any
-single payout is capped at the program budget.
+paid in **ETH or USDC**. Amounts below are the **capped-beta starting bands**.
+During the capped beta **no single payout exceeds $500** (the program cap); the
+bands and the cap rise after the independent audit as the value-at-risk ceiling
+is lifted.
 
-| Tier | Class | What lands here | Reward (starting band) |
+| Tier | Class | What lands here | Reward (capped beta) |
 |---|---|---|---|
-| **T1** | UI / display | A display or labelling bug that could **mislead a user into a losing on-chain action** (e.g. wrong pot/price/reward numbers shown). Pure cosmetic issues are out of scope. | **$50 – $150** |
-| **T2** | Operational / fallback | Keeper/automation failures, the observability events firing (`YieldHarvestFailed`, `PotShareForwardFailed`, …), VRF stall / `rerequest` griefing, **recoverable** settlement/liveness DoS. Value stuck or degraded, not lost. | **$150 – $500** |
-| **T3** | Misrouting / contractual | Value routed to the wrong place or mis-split: buyback 5/20/75, lapse 70/30, pot/escrow/refund accounting. Bounded, usually per-round. Off-chain-signaling **governance** manipulation (voting-power/quorum bypass) lands here — real authority is the timelock/multisig, so it cannot directly move funds during beta. | **$500 – $1,500** |
-| **T4** | Token & DEX structural | TIMBS mint/inflate/cap- or transfer-cap-bypass, whitelist bypass, DEX `k`-invariant break, **reward-solvency** break (paying tokens the contract doesn't hold), LP theft. | **$1,500 – $5,000** |
-| **T5** | Deep exploit / drain | Full drain of `PrizeEscrow` / `TimbYieldVault` / `TimbTreasury` / the pair; **prize-outcome manipulation** (predicting or biasing the VRF draw); owner/privilege escalation; chained multi-contract exploit. | **10–20% of value-at-risk, floor ~$5,000** |
+| **T1** | UI / display | A display or labelling bug that could **mislead a user into a losing on-chain action** (e.g. wrong pot/price/reward numbers shown). Pure cosmetic issues are out of scope. | **credit + up to $50** |
+| **T2** | Operational / fallback | Keeper/automation failures, the observability events firing (`YieldHarvestFailed`, `PotShareForwardFailed`, …), VRF stall / `rerequest` griefing, **recoverable** settlement/liveness DoS. Value stuck or degraded, not lost. | **$50 – $100** |
+| **T3** | Misrouting / contractual | Value routed to the wrong place or mis-split: buyback 5/20/75, lapse 70/30, pot/escrow/refund accounting. Bounded, usually per-round. Off-chain-signaling **governance** manipulation (voting-power/quorum bypass) lands here — real authority is the timelock/multisig, so it cannot directly move funds during beta. | **$100 – $250** |
+| **T4** | Token & DEX structural | TIMBS mint/inflate/cap- or transfer-cap-bypass, whitelist bypass, DEX `k`-invariant break, **reward-solvency** break (paying tokens the contract doesn't hold), LP theft. | **$250 – $450** |
+| **T5** | Deep exploit / drain | Full drain of `PrizeEscrow` / `TimbYieldVault` / `TimbTreasury` / the pair; **prize-outcome manipulation** (predicting or biasing the VRF draw); owner/privilege escalation; chained multi-contract exploit. | **up to $500** (program cap) |
 
 Reentrancy that bypasses the `nonReentrant` guards is priced by its **impact** —
 a reentrancy that drains escrow is a T5, not a tier of its own.
@@ -94,8 +95,15 @@ each covering a different class of bug:
 - **Stock bugs** hit *accumulated* value — draining escrow, a vault, the
   treasury, or the LP in a single transaction. The round frame does **nothing**
   for these; there are no rounds to wait out. Here it is the **value-at-risk
-  ceiling** that keeps the exploit prize bounded, and the T5 band scales to it
-  so disclosing still wins.
+  ceiling** that keeps the exploit prize bounded so disclosing still wins.
+
+**The cap and the ceiling move together.** A $500 top bounty only out-competes a
+drain while the drainable stock stays roughly at or below it. That makes the
+program cap a *discipline on accumulation*: total reachable value (LP + pot +
+staked + vault + treasury) must be held low enough that $500 remains the rational
+choice over exploiting. When accumulation approaches that line, it is a
+graduation trigger — raise the cap and the bands, or tighten the on-chain caps
+([`dev-docs/CAPPED_BETA_GUARDRAILS.md`](./dev-docs/CAPPED_BETA_GUARDRAILS.md)).
 
 The two levers do different jobs — the round frame bounds *flow*, the VaR cap
 bounds *stock* — and together they make "collect the bounty and close the gap"
