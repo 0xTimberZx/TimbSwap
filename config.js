@@ -1124,20 +1124,28 @@ _applyTheme(_currentTheme());
 // Loaded by SDK script tag in each page. Fallback stub defined here
 // so DebugHub never breaks TimbSwap if the SDK fails to load.
 //
-// telemetryUrl points the SDK at our SAME-ORIGIN telemetry relay — the Cloudflare
-// Worker on `timbswap.xyz/api/*` (workers/timbswap-api.js), which inserts into the
-// hub's Supabase table server-side with the service-role key. Same-origin so Brave
-// Shields / adblockers never block it (the direct supabase.co REST insert was a
-// blocked third-party call in Brave). supabaseUrl/Key remain as the SDK's fallback
-// sink for builds that predate telemetryUrl support. The SDK reads these lazily at
-// send time, so setting them here (after the SDK script tag) is fine. Anon key is
-// public by design — RLS is the boundary. See dev-docs/debughub-network/.
+// CAPPED-BETA POSTURE: telemetry is localStorage-ONLY on mainnet. We deliberately
+// omit telemetryUrl / supabaseUrl / supabaseKey, so the SDK's transmit() is a
+// no-op (see assets/dh.js: "Omit them and the SDK behaves exactly like 1.1.0 —
+// localStorage only"). Nothing about user wallets or activity leaves the device.
+//
+// Why: the network sink shipped a real off-chain surface on the money origin —
+// every user's wallet address + chain id + events POSTed to a backend whose table
+// allowed public anon SELECT. That is user-data exposure we don't want live while
+// real value is at stake, and it contradicted the bug bounty's "telemetry is out
+// of scope / never touch user data" stance (see SECURITY.md). Per-user debugging
+// still works via the local #debug snapshot path — no backend required.
+//
+// To re-enable an AGGREGATED hub post-audit, first harden the backend (no public
+// anon SELECT; read behind service-role/auth; hash or drop wallet addresses;
+// rate-limit the relay) AND bring it explicitly into the bounty scope. Until then
+// the same-origin relay route (workers/timbswap-api.js:/api/debughub_events)
+// should stay disabled so there is no live sink to reach.
 
 window.DEBUGHUB_CONFIG = {
-  appName:      "TimbSwap",
-  telemetryUrl: "https://timbswap.xyz/api/debughub_events",
-  supabaseUrl:  "https://REPLACE_WITH_MAINNET_SUPABASE_REF.supabase.co",
-  supabaseKey:  "REPLACE_WITH_MAINNET_SUPABASE_PUBLISHABLE_KEY"
+  appName: "TimbSwap"
+  // No telemetryUrl / supabaseUrl / supabaseKey during the capped beta →
+  // localStorage-only. See the block above before adding a network sink back.
 };
 
 if (!window.DebugHub) {

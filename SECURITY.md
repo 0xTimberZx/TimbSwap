@@ -46,6 +46,9 @@ settlement/liveness griefing.
 - The **frontend / static site**, `config.js`, and any off-chain keeper or
   telemetry infrastructure — *cosmetic* issues only. A display bug that could
   **mislead a user into a losing on-chain action** is in scope as **T1** below.
+  (During the capped beta client telemetry is **localStorage-only** — no network
+  sink, so no user-data pipeline to exploit; if an aggregated sink is re-enabled
+  post-audit it will be hardened and brought explicitly into scope.)
 - **Testnet** (Arbitrum Sepolia) deployments — no value, not in scope.
 - **Third-party** code and infra: Chainlink VRF, OpenZeppelin, the Arbitrum
   sequencer/bridge, RPC providers, wallets.
