@@ -2,15 +2,20 @@
 
 `timbswap-api.js` serves the app's on-chain reads from the site's **own origin**
 so Brave Shields / adblockers can't throttle or block them (they were failing as
-third-party calls to Alchemy). It handles one POST route and passes everything
-else through to the origin (GitHub Pages):
+third-party calls to Alchemy). It handles POST routes and passes everything else
+through to the origin (GitHub Pages):
 
 | Route | Forwards to | Purpose |
 |-------|-------------|---------|
 | `POST /api/rpc` | Alchemy JSON-RPC (`ALCHEMY_RPC_URL`) | all on-chain reads (single + batch) |
+| `POST /api/waitlist` | Supabase `waitlist` edge fn (`WAITLIST_UPSTREAM`) | mainnet signup capture |
 
 Because `/api/*` is **same-origin** with the site, the browser skips CORS and
-Brave treats it as first-party — the RPC issues disappear for every browser.
+Brave treats it as first-party — the RPC issues (and now the signup POST)
+disappear for every browser. For `/api/waitlist` the Worker also forwards the
+caller's real IP (`X-Real-IP`) and country (`X-Client-Country`) — which only
+Cloudflare sees — plus an optional `X-Proxy-Secret`, so the public Supabase
+function can trust only proxied calls. See `dev-docs/WAITLIST.md`.
 
 > **Removed:** `POST /api/debughub_events` (DebugHub telemetry sink). Client
 > telemetry is localStorage-only during the capped beta (see `config.js`), so
@@ -33,16 +38,23 @@ Brave treats it as first-party — the RPC issues disappear for every browser.
    cd workers
    npx wrangler login
    npx wrangler secret put ALCHEMY_RPC_URL            # the keyed Alchemy Arbitrum-One URL
+   # For the waitlist route: set WAITLIST_UPSTREAM in wrangler.toml [vars] first, then
+   npx wrangler secret put WAITLIST_PROXY_SECRET      # optional; must match the waitlist fn
    npx wrangler deploy
    ```
    `wrangler.toml` already pins the route `timbswap.xyz/api/*` and the entrypoint.
 
-3. **Smoke-test the route** (from any terminal):
+3. **Smoke-test the routes** (from any terminal):
    ```sh
    # RPC — expect a JSON-RPC result, e.g. {"jsonrpc":"2.0","id":1,"result":"0xa4b1"}
    curl -s https://timbswap.xyz/api/rpc \
      -H 'content-type: application/json' \
      -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+
+   # Waitlist — expect {"ok":true,"status":"new"}
+   curl -s https://timbswap.xyz/api/waitlist \
+     -H 'content-type: application/json' \
+     -d '{"email":"you@example.com","source":"smoke-test"}'
    ```
 
 4. **Tell Claude "Cloudflare is live"** and the config flip lands:
@@ -54,5 +66,7 @@ Brave treats it as first-party — the RPC issues disappear for every browser.
 ## Notes
 - The `ALCHEMY_RPC_URL` upstream is a public frontend RPC regardless; keeping it
   a Worker secret just lets you rotate it without a redeploy of the site.
+- The full waitlist deploy (DB migration + edge function + Worker) is documented
+  in `dev-docs/WAITLIST.md`.
 - Supersedes the earlier standalone `debughub-relay.js`; the telemetry relay it
   folded in has since been removed (see the note above).

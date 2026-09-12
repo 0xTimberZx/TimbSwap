@@ -8,6 +8,9 @@
 //
 // Routes (POST):
 //   /api/rpc              → Alchemy JSON-RPC (single + batch). Env: ALCHEMY_RPC_URL
+//   /api/waitlist         → Supabase `waitlist` edge fn. Var: WAITLIST_UPSTREAM;
+//                           optional secret: WAITLIST_PROXY_SECRET. Adds the
+//                           caller's real IP + country as X-Real-IP / X-Client-Country.
 // Anything else falls through to the origin (GitHub Pages).
 //
 // The /api/debughub_events telemetry sink was REMOVED for the capped beta: the
@@ -16,8 +19,10 @@
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets are now unused — delete them in
 // the Cloudflare dashboard. See config.js and SECURITY.md before re-adding a sink.
 //
-// Secrets (wrangler secret put ...):
+// Secrets / vars (wrangler secret put / [vars] in wrangler.toml):
 //   ALCHEMY_RPC_URL             keyed Alchemy Arbitrum-One URL (public anyway)
+//   WAITLIST_UPSTREAM           (var) Supabase waitlist function URL
+//   WAITLIST_PROXY_SECRET       (secret, optional) shared with the waitlist fn
 //
 // Route + deploy: see workers/README.md.
 
@@ -26,7 +31,7 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.timbswap.xyz",
   "https://0xtimberzx.github.io",
 ]);
-const MAX_BODY_BYTES = 128 * 1024; // RPC batches + telemetry rows are small; generous cap
+const MAX_BODY_BYTES = 128 * 1024; // RPC batches + signup rows are small; generous cap
 
 function cors(origin) {
   // Same-origin calls send no Origin and need no CORS; echo an allowed Origin for
@@ -63,7 +68,37 @@ export default {
     const path = url.pathname;
     const origin = request.headers.get("Origin") || "";
 
-    // Only handle /api/rpc; everything else (incl. the removed /api/debughub_events)
+    // ── /api/waitlist → relay to the Supabase `waitlist` edge function, same-origin
+    // so Brave treats the signup POST as first-party. We add the caller's real IP
+    // and country (Cloudflare knows them; the upstream function does not) and an
+    // optional shared secret so the public function only trusts proxied calls. ──
+    if (path === "/api/waitlist") {
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
+      if (request.method !== "POST")    return json({ error: "POST only" }, 405, origin);
+      if (!env.WAITLIST_UPSTREAM)       return json({ error: "waitlist unavailable" }, 503, origin);
+
+      const { text, err } = await readBody(request, origin);
+      if (err) return err;
+
+      const headers = {
+        "content-type": "application/json",
+        "X-Real-IP": request.headers.get("CF-Connecting-IP") || "",
+        "X-Client-Country": (request.cf && request.cf.country) || "",
+      };
+      if (env.WAITLIST_PROXY_SECRET) headers["X-Proxy-Secret"] = env.WAITLIST_PROXY_SECRET;
+
+      try {
+        const up = await fetch(env.WAITLIST_UPSTREAM, { method: "POST", headers, body: text });
+        return new Response(await up.text(), {
+          status: up.status,
+          headers: { ...cors(origin), "Content-Type": "application/json" },
+        });
+      } catch {
+        return json({ error: "upstream unreachable" }, 502, origin);
+      }
+    }
+
+    // Only /api/rpc remains; everything else (incl. the removed /api/debughub_events)
     // falls through to the static site (origin), which 404s the dead telemetry path.
     if (path !== "/api/rpc") {
       return fetch(request);
