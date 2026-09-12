@@ -5,7 +5,7 @@ rails the app already runs:
 
 | Part | File(s) | Role |
 |------|---------|------|
-| Ledger | `supabase/migrations/20260912100000_points.sql` | seasons, per-wallet scores, TP formula (in SQL) |
+| Ledger | `supabase/migrations/20260912100000_points.sql` (+ `..110000_points_v2.sql`) | seasons, per-wallet scores, TP formula (in SQL) |
 | Scorer | `scripts/points-scorer.js` + `.github/workflows/points-scorer.yml` | hourly keeper that folds new on-chain activity in |
 | Read | `supabase/functions/quests` → Worker `POST /api/quests` → `/quests/` page | public leaderboard + "check my rank" |
 
@@ -14,20 +14,27 @@ cursors, so an hourly cron stays cheap across a 6-week season. The **TP formula
 lives in SQL** (`points_recompute`) — retune weights there without redeploying the
 keeper; the next run recomputes every wallet.
 
-## What earns TP (Season 1 headline levers)
+## What earns TP
 
+**Headline levers (Season 1):**
 - **Volume** — eligible **swaps**, attributed to the real trader (`tx.from`, not the
   router). √-curved so a script can't brute-force the board.
 - **Repeat play** — **rounds entered** (from `getRoundEntrants`), with a
   **streak multiplier** for consecutive rounds (the strongest lever).
-- Wins are worth a little; the **diversity bonus** (traded *and* played ≥ 2 rounds)
-  is the main anti-Sybil weight. Full model + weights: `INCENTIVES.md` §4–5.
+
+**Supporting (Sybil weight + diversity), wired in v2:**
+- **Stake** (`TimbStaking.Staked`), **LP farm** (`TimbFarm.Staked` +
+  `TimbBoostFarm.Deposited`), **lock** (`TimbLockVault.Locked`) each grant a flat
+  participation TP and set a flag.
+- The **diversity bonus** (×1.15) fires when a wallet did **≥3 distinct** of
+  {swap, play, stake, LP, lock} — the main anti-Sybil weight under low KYC.
+- Wins (`WinningsClaimed`) are worth a little. Full model: `INCENTIVES.md` §4–5.
 
 ## Deploy (one-time)
 
 ### 1. Database
 ```sh
-supabase db push          # applies 20260912100000_points.sql (seeds a DRAFT season-0)
+supabase db push          # applies both points migrations (seeds a DRAFT season-0)
 ```
 
 ### 2. Read function
@@ -49,6 +56,11 @@ Add repo **Actions secrets** (reuse the ones the other keepers use):
 `ARB_SEPOLIA_RPC` (prefer a keyed endpoint for wide `getLogs`), `SUPABASE_URL`,
 `SUPABASE_SERVICE_KEY`, and optionally `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.
 The workflow runs hourly and on `workflow_dispatch`.
+
+The scorer reads contract addresses from `config.js` by name
+(`TimbPrize`, `GameRegistry`, `TimbsEthPair`, and — optionally — `TimbStaking`,
+`TimbFarm`, `TimbBoostFarm`, `TimbLockVault`). A module missing from `config.js`
+is **skipped**, not fatal, so scoring still runs on the modules that are wired.
 
 ## Open a season
 
@@ -86,12 +98,13 @@ curl -s https://timbswap.xyz/api/quests -H 'content-type: application/json' -d '
 # expect: {"ok":true,"season":{...},"leaderboard":[...]}   (empty board before the first run)
 ```
 
-## Notes & v2
+## Still to wire (v3)
 
-- **Sybil resistance** in v1 is: √-curve on volume, streak/diversity weighting,
-  reviewer `sybil_flag`, and human review of the cut line. Funding-graph and
-  timing clustering (INCENTIVES §7) are a v2 pass over the same ledger.
-- **Referrals / social / email** columns exist but are fed later from the
-  `waitlist` + referral tables; the on-chain scorer sets play/volume/wins only.
-- Per-**round** swap attribution and per-day caps are a v2 refinement; v1 counts
-  season-total eligible swaps and relies on the √-curve to bound volume farming.
+- **Referrals / social / email** columns exist but are not yet fed. Referrals need
+  a capture step first: link a referred **wallet** to a **referrer code** (extend
+  the `waitlist` `ref`/UTM capture), then award on an activation bar
+  (INCENTIVES §6). Social/email fold in from the `waitlist` table.
+- **Per-round** swap attribution + per-day caps, and funding-graph / timing Sybil
+  clustering (INCENTIVES §7) are a later pass over the same ledger.
+- **Hold-duration** weighting for stake/LP/lock: v2 credits participation as a
+  flag (did it at least once); per-round-held accrual is a future refinement.

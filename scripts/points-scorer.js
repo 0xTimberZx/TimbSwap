@@ -12,6 +12,8 @@
 //   Volume       ← Pair Swap events, attributed to the REAL trader (tx.from, not the
 //                  event's `sender` which is the router)
 //   Wins         ← TimbPrize WinningsClaimed events
+//   Participation← stake / LP-farm / boost / lock events (the indexed user IS the
+//                  real actor — no tx.from needed): feed the diversity bonus
 //
 // The TP formula lives in SQL (points_recompute); this keeper only feeds aggregates.
 //
@@ -37,12 +39,15 @@ const MAX_ROUNDS_RUN = Number(process.env.POINTS_MAX_ROUNDS  || 200);     // rou
 
 const sbHeaders = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
 
+function cfgSrc() { return fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8"); }
 function addrFromConfig(key) {
-  const src = fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8");
-  const m = src.match(new RegExp("\\b" + key + '\\s*:\\s*"(0x[0-9a-fA-F]{40})"'));
+  const m = cfgSrc().match(new RegExp("\\b" + key + '\\s*:\\s*"(0x[0-9a-fA-F]{40})"'));
   if (!m) throw new Error(`Address "${key}" not found in config.js`);
   return ethers.getAddress(m[1]);
 }
+// Optional lookup: returns null (skip) instead of throwing when a contract
+// isn't present in config.js — so a not-yet-wired module doesn't fail the run.
+function optAddr(key) { try { return addrFromConfig(key); } catch { return null; } }
 
 async function tg(chatId, text) {
   if (!TG_TOKEN || !chatId) return;
@@ -97,9 +102,10 @@ async function main() {
   }
 
   const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const optContract = (key, abi) => { const a = optAddr(key); return a ? new ethers.Contract(a, abi, provider) : null; };
+
   const PRIZE    = new ethers.Contract(addrFromConfig("TimbPrize"), [
     "function currentRound() view returns (uint256)",
-    "function gameStarted() view returns (bool)",
     "event WinningsClaimed(address indexed winner, uint256 indexed round, uint256 amount)",
   ], provider);
   const REGISTRY = new ethers.Contract(addrFromConfig("GameRegistry"), [
@@ -109,9 +115,9 @@ async function main() {
     "event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)",
   ], provider);
 
-  const chainHead   = await provider.getBlockNumber();
-  const toBlock     = s.end_block != null ? Math.min(s.end_block, chainHead) : chainHead;
-  const fromBlock   = (s.last_scored_block != null ? Number(s.last_scored_block) + 1 : Number(s.start_block));
+  const chainHead = await provider.getBlockNumber();
+  const toBlock   = s.end_block != null ? Math.min(Number(s.end_block), chainHead) : chainHead;
+  const fromBlock = (s.last_scored_block != null ? Number(s.last_scored_block) + 1 : Number(s.start_block));
 
   // ── 1) Repeat play: fold newly settled rounds ──
   let roundsAdded = 0;
@@ -130,16 +136,17 @@ async function main() {
     }
   } catch (e) { console.warn("[points] round pass:", e.shortMessage || e.message); }
 
-  // ── 2) Volume: fold Swap events, attributed to tx.from (the real trader) ──
+  // ── 2) Volume + wins + participation flags (same incremental block window) ──
   let swapsAdded = 0;
   if (toBlock >= fromBlock) {
+    // Volume: Swap events attributed to tx.from (the real trader).
     try {
       const evs = await scanEvents(PAIR, PAIR.filters.Swap(), fromBlock, toBlock);
       const txFromCache = new Map();
       const perTrader = new Map(); // addr -> { n, fb }
       for (const ev of evs) {
         let from = txFromCache.get(ev.transactionHash);
-        if (!from) {
+        if (from === undefined) {
           try { const tx = await provider.getTransaction(ev.transactionHash); from = tx && tx.from ? tx.from.toLowerCase() : null; }
           catch { from = null; }
           txFromCache.set(ev.transactionHash, from);
@@ -152,8 +159,10 @@ async function main() {
       const rows = [...perTrader.entries()].map(([a, v]) => ({ a, n: v.n, fb: v.fb }));
       if (rows.length) await sbRpc("points_apply_swaps", { p_season: s.id, p_rows: rows });
       swapsAdded = evs.length;
+    } catch (e) { console.warn("[points] swap pass:", e.shortMessage || e.message); }
 
-      // ── 3) Wins: fold WinningsClaimed in the same block window ──
+    // Wins: WinningsClaimed.
+    try {
       const claims = await scanEvents(PRIZE, PRIZE.filters.WinningsClaimed(), fromBlock, toBlock);
       const perWinner = new Map();
       for (const ev of claims) {
@@ -162,10 +171,32 @@ async function main() {
       }
       const winRows = [...perWinner.entries()].map(([a, n]) => ({ a, n }));
       if (winRows.length) await sbRpc("points_apply_wins", { p_season: s.id, p_rows: winRows });
-    } catch (e) { console.warn("[points] swap/win pass:", e.shortMessage || e.message); }
+    } catch (e) { console.warn("[points] win pass:", e.shortMessage || e.message); }
+
+    // Participation flags: stake / LP-farm / boost / lock. The indexed user/locker
+    // is the real actor, so no tx.from mapping is needed. Missing modules skip.
+    try {
+      const flags = new Map(); // addr -> {stake,lp,lock}
+      const mark = (addr, key) => { const a = addr.toLowerCase(); const cur = flags.get(a) || {}; cur[key] = true; flags.set(a, cur); };
+
+      const staking = optContract("TimbStaking", ["event Staked(address indexed user, uint256 amount)"]);
+      if (staking) (await scanEvents(staking, staking.filters.Staked(), fromBlock, toBlock)).forEach(ev => mark(ev.args.user, "stake"));
+
+      const farm = optContract("TimbFarm", ["event Staked(address indexed user, uint256 lpAmount)"]);
+      if (farm) (await scanEvents(farm, farm.filters.Staked(), fromBlock, toBlock)).forEach(ev => mark(ev.args.user, "lp"));
+
+      const boost = optContract("TimbBoostFarm", ["event Deposited(address indexed user, uint256 indexed pid, uint256 lpAmount)"]);
+      if (boost) (await scanEvents(boost, boost.filters.Deposited(), fromBlock, toBlock)).forEach(ev => mark(ev.args.user, "lp"));
+
+      const lock = optContract("TimbLockVault", ["event Locked(uint256 indexed lockId, address indexed locker, address indexed token, uint256 amount, uint256 unlockAt, bool isTimbs)"]);
+      if (lock) (await scanEvents(lock, lock.filters.Locked(), fromBlock, toBlock)).forEach(ev => mark(ev.args.locker, "lock"));
+
+      const rows = [...flags.entries()].map(([a, f]) => ({ a, stake: !!f.stake, lp: !!f.lp, lock: !!f.lock }));
+      if (rows.length) await sbRpc("points_apply_flags", { p_season: s.id, p_rows: rows });
+    } catch (e) { console.warn("[points] flags pass:", e.shortMessage || e.message); }
   }
 
-  // ── 4) Recompute display_tp + advance cursors ──
+  // ── 3) Recompute display_tp + advance cursors ──
   const walletsTotal = await sbRpc("points_recompute", { p_season: s.id });
   await sbPatch(`seasons?id=eq.${s.id}`, {
     last_scored_block: toBlock, last_processed_round: lastRound, updated_at: new Date().toISOString(),
