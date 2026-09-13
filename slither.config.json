@@ -1,0 +1,9 @@
+{
+  "//": "Slither config for the TimbSwap CI static-analysis gate (.github/workflows/slither.yml).",
+  "//scope": "Analyze our own contracts only. lib/ is third-party (OpenZeppelin, forge-std) and out of bounty/audit scope; tests/ and scripts/ are not deployed.",
+  "filter_paths": "lib/|tests/|scripts/",
+  "exclude_dependencies": true,
+  "exclude_informational": false,
+  "exclude_low": false,
+  "disable_color": true
+}
