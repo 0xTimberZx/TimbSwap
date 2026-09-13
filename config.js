@@ -13,6 +13,12 @@ const CHAIN_NAME = "Arbitrum Sepolia";
 // so both must be set together to enforce it). window.* so faucet.js can read it.
 window.TURNSTILE_SITE_KEY = "";
 
+// Faucet UI mirror of the mainnet-TIMB airdrop leg. Set true ONLY once the
+// airdrop-dispatch function is live and AIRDROP_ENABLED is set on the faucet-claim
+// edge function — this just shows/hides the "+ real TIMB" explainer on the faucet
+// page; the edge function's own flag is what actually enqueues payouts.
+window.AIRDROP_ENABLED = false;
+
 // Independent public RPCs for READ traffic. Free public endpoints rate-limit
 // per-IP under heavy browsing (several tabs polling), which stalls reads on
 // every page ("fine at first, spoils after exploring"). makeReadProvider()

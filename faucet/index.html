@@ -141,7 +141,45 @@
           this tops players up, it doesn't onboard a cold wallet.
           <a href="../compete/">Enter a round →</a>
         </p>
+
+        <!-- Shown only when the mainnet-TIMB airdrop leg is live (config.js:
+             window.AIRDROP_ENABLED). faucet.js toggles it. -->
+        <div id="faucet-airdrop" class="faucet-airdrop" hidden>
+          <div class="faucet-airdrop-badge">+ real TIMB</div>
+          <p>
+            Each claim also sends you <strong>1 TIMB on Arbitrum One</strong> (mainnet)
+            — a pre-launch reward for testnet players. It arrives within a few minutes.
+            <br />
+            <span class="faucet-airdrop-fine">
+              It is <strong>not tradeable through TimbSwap yet</strong> — there's no
+              liquidity pool until the mainnet game starts. One per round, subject to a
+              hard cap, and the reward can change or end at any time.
+            </span>
+          </p>
+        </div>
       </div>
+    </div>
+
+    <!-- ─── Disclaimers ───────────────────────────────────────────────────── -->
+    <div class="faucet-disclaimer">
+      <p><strong>Capped beta — please read.</strong></p>
+      <ul>
+        <li><strong>Unaudited.</strong> The faucet and airdrop contracts are
+          pre-audit. Interact only with what you're comfortable risking.</li>
+        <li><strong>Testnet gas has no value.</strong> The ETH drip is Arbitrum
+          Sepolia test ETH — it is not real money and cannot be sold or bridged.</li>
+        <li><strong>Not an investment.</strong> TIMB is a utility/participation
+          token, distributed free; nothing here is an offer, solicitation, or a
+          promise of value, liquidity, or return.</li>
+        <li><strong>Eligibility &amp; caps.</strong> Claims require a live Active
+          ticket, are limited to once per 24h, and are subject to on-chain caps.
+          Rewards may be reduced, paused, or ended at any time.</li>
+        <li><strong>Privacy.</strong> A Cloudflare Turnstile human-check runs on
+          claim; your wallet address is recorded to enforce the cooldown and to
+          send the reward. No other personal data is collected.</li>
+        <li>Use at your own risk, and only in compliance with the laws that apply
+          to you.</li>
+      </ul>
     </div>
   </div>
 
