@@ -9,6 +9,8 @@ through to the origin (GitHub Pages):
 |-------|-------------|---------|
 | `POST /api/rpc` | Alchemy JSON-RPC (`ALCHEMY_RPC_URL`) | all on-chain reads (single + batch) |
 | `POST /api/waitlist` | Supabase `waitlist` edge fn (`WAITLIST_UPSTREAM`) | mainnet signup capture |
+| `POST /api/quests` | Supabase `quests` edge fn (`QUESTS_UPSTREAM`) | read-only leaderboard |
+| `POST /api/faucet-claim` | Supabase `faucet-claim` edge fn (`FAUCET_UPSTREAM`) | faucet claim gatekeeper (adds `X-Real-IP` for Turnstile; optional `FAUCET_PROXY_SECRET`) |
 
 Because `/api/*` is **same-origin** with the site, the browser skips CORS and
 Brave treats it as first-party — the RPC issues (and now the signup POST)
@@ -40,6 +42,8 @@ function can trust only proxied calls. See `dev-docs/WAITLIST.md`.
    npx wrangler secret put ALCHEMY_RPC_URL            # the keyed Alchemy Arbitrum-One URL
    # For the waitlist route: set WAITLIST_UPSTREAM in wrangler.toml [vars] first, then
    npx wrangler secret put WAITLIST_PROXY_SECRET      # optional; must match the waitlist fn
+   # For the faucet route: set FAUCET_UPSTREAM in wrangler.toml [vars] first, then
+   npx wrangler secret put FAUCET_PROXY_SECRET        # optional; must match the faucet-claim fn
    npx wrangler deploy
    ```
    `wrangler.toml` already pins the route `timbswap.xyz/api/*` and the entrypoint.
@@ -55,6 +59,12 @@ function can trust only proxied calls. See `dev-docs/WAITLIST.md`.
    curl -s https://timbswap.xyz/api/waitlist \
      -H 'content-type: application/json' \
      -d '{"email":"you@example.com","source":"smoke-test"}'
+
+   # Faucet — expect 403 "No active ticket…" for a random address (proves the
+   # route + edge fn are reachable; a real claim needs an Active ticket + Turnstile)
+   curl -s https://timbswap.xyz/api/faucet-claim \
+     -H 'content-type: application/json' \
+     -d '{"address":"0x0000000000000000000000000000000000000001"}'
    ```
 
 4. **Tell Claude "Cloudflare is live"** and the config flip lands:
