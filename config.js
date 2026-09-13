@@ -155,8 +155,8 @@ const ADDRESSES = {
   TimbSwapFactory:      "0x0000000000000000000000000000000000000000",
   TimbSwapRouter:       "0x0000000000000000000000000000000000000000", // v8 — multi-hop path routing
   EligibleTokenRegistry:"0x0000000000000000000000000000000000000000",
-  GameRegistry:         "0x0000000000000000000000000000000000000000", // gen-3 re-migration — permissionless activateRoundEntries (keeper-driven, no longer onlyTimbPrize). Prev: 0x0000000000000000000000000000000000000000
-  TimbPrize:            "0x0000000000000000000000000000000000000000", // gen-3 re-migration — aligned prize bound to the new registry (retires gen-2 tickets, reclaimable from old registry). Prev: 0x0000000000000000000000000000000000000000; pre-gen-2: 0x0000000000000000000000000000000000000000
+  GameRegistry:         "0xbab1cbaf0de094322a49b379d0ac4510d1f78530", // live Sepolia registry (generation 2). Keepers read this; the faucet edge fn checks the SAME address for Active-ticket eligibility.
+  TimbPrize:            "0x35976f4d2260127848a6274d2ec89ee054412432", // live Sepolia prize (generations). settler.js drives settleSegment here; TimbPrize advances rounds and activates entrants.
   PrizeVRFEntropy:      "0x0000000000000000000000000000000000000000", // gen-3 re-migration — dedicated VRF draw per prize segment (shares the board's sub). Prev: 0x0000000000000000000000000000000000000000
   TimbStaking:          "0x0000000000000000000000000000000000000000",
   TimbFarm:             "0x0000000000000000000000000000000000000000",
