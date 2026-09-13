@@ -154,6 +154,13 @@ async function handleClaim() {
 // ─── Init ────────────────────────────────────────────────────────────────────────
 (async function init() {
   setClaimEnabled(false, "Connect wallet to claim");
+  // Reveal the "+ real TIMB" explainer only when the airdrop leg is live.
+  try {
+    if (window.AIRDROP_ENABLED) {
+      const a = document.getElementById("faucet-airdrop");
+      if (a) a.hidden = false;
+    }
+  } catch (_e) {}
   try {
     const addr = await autoReconnect();
     if (addr) {

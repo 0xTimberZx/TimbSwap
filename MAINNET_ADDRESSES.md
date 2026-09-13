@@ -60,6 +60,27 @@ VRF subscription (native-funded), Prize VRFEntropy added as consumer:
 
 ---
 
+## Airdrop distributor (capped-beta reward) — ⏳ pending deploy
+
+The mainnet sink for the cross-chain TIMB airdrop: an eligible **testnet** faucet
+claim is bridged off-chain by the dispatcher, which calls `distribute()` here to
+send real TIMB from a small pre-funded float. See `contracts/TimbAirdropDistributor.sol`
+and the private `dev-docs/MAINNET_AIRDROP_SPEC.md`.
+
+| Contract | Address | Notes |
+|---|---|---|
+| **TimbAirdropDistributor** | `0x…` (pending `DeployAirdropDistributor.s.sol`) | **UNAUDITED stub** — audit before funding. Custodies a small TIMB float; `claimed[round][recipient]` makes double-send impossible; `totalCap`/`perRoundCap` bound the spend. Dispatcher-gated + guardian pause. |
+
+> **Value-at-risk:** the pre-funded TIMB float is the only asset here — keep it
+> small and capped. Fold the float + caps into the capped-beta guardrails and add
+> this contract to `SECURITY.md` bounty scope **once it's deployed and funded**.
+
+> **Testnet contracts (not mainnet):** `GasFaucet` (the keep-alive gas faucet) is
+> deployed on **Arbitrum Sepolia**, not here — its address lives in `config.js`
+> `ADDRESSES.GasFaucet`, not in this mainnet ledger. Also UNAUDITED.
+
+---
+
 ## Ownership / governance
 
 | Item | Value | Status |
