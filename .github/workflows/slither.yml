@@ -1,0 +1,56 @@
+name: slither
+
+# Free continuous static analysis on the contracts. Runs in CI (GitHub runners
+# can fetch solc; the sandbox can't), so every contract change gets a Slither
+# pass before it ships — the cheapest first cut at what a paid audit would find.
+# See dev-docs/AUDIT_PREP.md.
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "foundry.toml"
+      - "slither.config.json"
+      - ".github/workflows/slither.yml"
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "foundry.toml"
+      - "slither.config.json"
+      - ".github/workflows/slither.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # publish findings to the repo Security tab
+
+jobs:
+  analyze:
+    name: static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive   # lib/openzeppelin-contracts + lib/forge-std
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Slither
+        uses: crytic/slither-action@v0.4.0
+        id: slither
+        continue-on-error: true   # report-and-triage; don't hard-block PRs on noisy detectors
+        with:
+          target: .
+          slither-config: slither.config.json
+          sarif: results.sarif
+          fail-on: high
+
+      - name: Upload SARIF to code scanning
+        if: always() && steps.slither.outputs.sarif != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
