@@ -165,7 +165,7 @@ const ADDRESSES = {
   TimbYieldVault:       "0x0000000000000000000000000000000000000000", // fresh deploy — clears stranded/colliding weight
   TimbTreasury:         "0x0000000000000000000000000000000000000000", // v4 — three-way buyback split (burn/reserve/waterfall) + protocol-owned liquidity
   TimbGovernance:       "0x0000000000000000000000000000000000000000",
-  GasFaucet:            "0xe6ce84664e92581afa928d79c6902a120aa03941", // Sepolia — keep-alive testnet-TIMBS drip for Active-ticket holders (scripts/faucet-worker.js reads this)
+  GasFaucet:            "0xbaf1441bcfc7de699ef2965bae0cf96111c1b619", // Sepolia — keep-alive testnet-TIMBS drip, bound to the gen-3 registry (redeployed for the migration). Prev (gen-2): 0xe6ce84664e92581afa928d79c6902a120aa03941
   TimbsEthPair:         "0x0000000000000000000000000000000000000000",
   WETH:                 "0x0000000000000000000000000000000000000000",
 
