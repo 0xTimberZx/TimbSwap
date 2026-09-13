@@ -1,0 +1,46 @@
+/* faucet.css — faucet page specifics. Layout reuses .lock-page / .lock-card /
+   .card-title / .lock-field / .lock-label from style.css for theme consistency. */
+
+.faucet-card { max-width: 460px; margin: 0 auto; }
+
+.faucet-addr {
+  font-family: "Space Mono", ui-monospace, monospace;
+  font-size: 0.95rem;
+  word-break: break-all;
+  padding: 12px 14px;
+  border: 1px solid rgba(127, 127, 127, 0.28);
+  border-radius: 10px;
+  opacity: 0.9;
+}
+
+.faucet-turnstile {
+  margin: 16px 0 4px;
+  min-height: 65px;               /* reserve space so the card doesn't jump */
+  display: flex;
+  justify-content: center;
+}
+
+.faucet-claim-btn {
+  width: 100%;
+  margin-top: 14px;
+  justify-content: center;
+}
+.faucet-claim-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.faucet-status {
+  margin-top: 14px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  min-height: 1.2em;
+  text-align: center;
+}
+.faucet-status.ok   { color: #3ecf8e; }
+.faucet-status.warn { color: #e0a13c; }
+
+.faucet-note {
+  margin-top: 20px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+.faucet-note a { white-space: nowrap; }
