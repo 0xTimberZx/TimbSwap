@@ -155,9 +155,9 @@ const ADDRESSES = {
   TimbSwapFactory:      "0x0000000000000000000000000000000000000000",
   TimbSwapRouter:       "0x0000000000000000000000000000000000000000", // v8 — multi-hop path routing
   EligibleTokenRegistry:"0x0000000000000000000000000000000000000000",
-  GameRegistry:         "0xbab1cbaf0de094322a49b379d0ac4510d1f78530", // live Sepolia registry (generation 2). Keepers read this; the faucet edge fn checks the SAME address for Active-ticket eligibility.
-  TimbPrize:            "0x35976f4d2260127848a6274d2ec89ee054412432", // live Sepolia prize (generations). settler.js drives settleSegment here; TimbPrize advances rounds and activates entrants.
-  PrizeVRFEntropy:      "0x0000000000000000000000000000000000000000", // gen-3 re-migration — dedicated VRF draw per prize segment (shares the board's sub). Prev: 0x0000000000000000000000000000000000000000
+  GameRegistry:         "0x474d43efb4184f8c0c12f3f69394257da524c71f", // gen-3 Sepolia registry (permissionless activateRoundEntries). Keepers read this; the faucet edge fn checks the SAME address. Prev (gen-2, retired): 0xbab1cbaf0de094322a49b379d0ac4510d1f78530
+  TimbPrize:            "0x53ac69cf33b0a4ffdcb8d18d5f16ecedb571101b", // gen-3 Sepolia prize, bound to the new registry + VRFEntropy. settler.js drives settleSegment here. Prev (gen-2, retired): 0x35976f4d2260127848a6274d2ec89ee054412432
+  PrizeVRFEntropy:      "0x25297387ba089357c687572b66b295f58223ac93", // gen-3 dedicated VRF draw per prize segment (TablesVRF sub). Consumer must be added on the sub before segment arm.
   TimbStaking:          "0x0000000000000000000000000000000000000000",
   TimbFarm:             "0x0000000000000000000000000000000000000000",
   TimbBoostFarm:        "0x0000000000000000000000000000000000000000", // boosted extra-pair farms (USDT/LINK/DAPP…), TIMBS emission funded by the epoch-keeper waterfall boost tier
