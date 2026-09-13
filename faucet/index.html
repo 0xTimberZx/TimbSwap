@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Faucet — TimbSwap</title>
+  <meta name="description" content="Active-ticket keep-alive faucet on TimbSwap — a gas drip for live players on Arbitrum Sepolia." />
+  <link rel="canonical" href="https://timbswap.xyz/faucet/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Faucet — TimbSwap" />
+  <meta property="og:description" content="Active-ticket keep-alive faucet on TimbSwap — a gas drip for live players." />
+  <meta property="og:url" content="https://timbswap.xyz/faucet/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Faucet — TimbSwap" />
+  <meta name="twitter:description" content="Active-ticket keep-alive faucet on TimbSwap — a gas drip for live players." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="../assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <!-- Cloudflare Turnstile (anti-bot). Renders explicitly from faucet.js using
+       the site key in config.js, so it no-ops cleanly if not configured. -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="faucet.css?v=20260913a" />
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a href="/gov/">Protocol</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a class="nav-off">Faucet</a>
+          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../lock/">Lock Vault</a>
+          <a href="../explore/">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="/gov/">Protocol</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <a class="nav-off">Faucet</a>
+    <a class="nav-off">Airdrop</a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a href="../lock/">Lock Vault</a>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+  </div>
+
+  <div class="lock-page">
+    <h1 class="page-h1">Faucet</h1>
+    <p class="page-sub">A keep-alive gas drip for live players. Hold an <strong>Active ticket</strong> and claim once every 24 hours — the drip covers gas, and an equal amount grows the current round's pot.</p>
+
+    <div class="lock-grid">
+      <div class="lock-card faucet-card">
+        <h2 class="card-title">Claim gas</h2>
+
+        <div class="lock-field">
+          <label class="lock-label">Wallet</label>
+          <div id="faucet-addr" class="faucet-addr">Connect a wallet to claim.</div>
+        </div>
+
+        <!-- Turnstile mounts here (explicit render from faucet.js). -->
+        <div id="turnstile-widget" class="faucet-turnstile"></div>
+
+        <button id="faucet-claim-btn" class="btn-connect faucet-claim-btn" onclick="handleClaim()" disabled>
+          Connect wallet to claim
+        </button>
+
+        <div id="faucet-status" class="faucet-status" role="status" aria-live="polite"></div>
+
+        <p class="faucet-note">
+          Eligibility is a live <strong>Active</strong> ticket in the game — the ticket
+          you minted to enter is the anti-bot gate. No pre-existing balance needed;
+          this tops players up, it doesn't onboard a cold wallet.
+          <a href="../compete/">Enter a round →</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
+  <script src="faucet.js?v=20260913a"></script>
+</body>
+</html>

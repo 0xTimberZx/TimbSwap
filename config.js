@@ -7,6 +7,12 @@
 const CHAIN_ID   = 42161;
 const CHAIN_NAME = "Arbitrum Sepolia";
 
+// Cloudflare Turnstile site key (PUBLIC — safe in client JS) for the faucet claim
+// page. Set to your real site key; leave "" to render the faucet with no human
+// check (the edge function also skips verification when TURNSTILE_SECRET is unset,
+// so both must be set together to enforce it). window.* so faucet.js can read it.
+window.TURNSTILE_SITE_KEY = "";
+
 // Independent public RPCs for READ traffic. Free public endpoints rate-limit
 // per-IP under heavy browsing (several tabs polling), which stalls reads on
 // every page ("fine at first, spoils after exploring"). makeReadProvider()
@@ -150,6 +156,7 @@ const ADDRESSES = {
   TimbYieldVault:       "0x0000000000000000000000000000000000000000", // fresh deploy — clears stranded/colliding weight
   TimbTreasury:         "0x0000000000000000000000000000000000000000", // v4 — three-way buyback split (burn/reserve/waterfall) + protocol-owned liquidity
   TimbGovernance:       "0x0000000000000000000000000000000000000000",
+  GasFaucet:            "0x0000000000000000000000000000000000000000", // keep-alive gas + TIMBS drip for Active-ticket holders (scripts/faucet-worker.js reads this)
   TimbsEthPair:         "0x0000000000000000000000000000000000000000",
   WETH:                 "0x0000000000000000000000000000000000000000",
 

@@ -13,6 +13,9 @@
 //                           caller's real IP + country as X-Real-IP / X-Client-Country.
 //   /api/quests           → Supabase `quests` edge fn (read-only leaderboard).
 //                           Var: QUESTS_UPSTREAM.
+//   /api/faucet-claim     → Supabase `faucet-claim` edge fn. Var: FAUCET_UPSTREAM;
+//                           optional secret: FAUCET_PROXY_SECRET. Adds the caller's
+//                           real IP as X-Real-IP (for Turnstile remoteip).
 // Anything else falls through to the origin (GitHub Pages).
 //
 // The /api/debughub_events telemetry sink was REMOVED for the capped beta: the
@@ -26,6 +29,8 @@
 //   WAITLIST_UPSTREAM           (var) Supabase waitlist function URL
 //   WAITLIST_PROXY_SECRET       (secret, optional) shared with the waitlist fn
 //   QUESTS_UPSTREAM             (var) Supabase quests function URL
+//   FAUCET_UPSTREAM             (var) Supabase faucet-claim function URL
+//   FAUCET_PROXY_SECRET         (secret, optional) shared with the faucet-claim fn
 //
 // Route + deploy: see workers/README.md.
 
@@ -119,6 +124,23 @@ export default {
       const { text, err } = await readBody(request, origin);
       if (err) return err;
       return relay(env.QUESTS_UPSTREAM, text || "{}", origin);
+    }
+
+    // ── /api/faucet-claim → relay to the Supabase `faucet-claim` edge function,
+    // same-origin so Brave treats the claim POST as first-party. We add the
+    // caller's real IP (Turnstile's siteverify wants remoteip) and an optional
+    // shared secret so the public function only trusts proxied calls. ──
+    if (path === "/api/faucet-claim") {
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
+      if (request.method !== "POST")    return json({ error: "POST only" }, 405, origin);
+      if (!env.FAUCET_UPSTREAM)         return json({ error: "faucet unavailable" }, 503, origin);
+
+      const { text, err } = await readBody(request, origin);
+      if (err) return err;
+
+      const headers = { "X-Real-IP": request.headers.get("CF-Connecting-IP") || "" };
+      if (env.FAUCET_PROXY_SECRET) headers["X-Proxy-Secret"] = env.FAUCET_PROXY_SECRET;
+      return relay(env.FAUCET_UPSTREAM, text, origin, headers);
     }
 
     // Only /api/rpc remains; everything else (incl. the removed /api/debughub_events)
