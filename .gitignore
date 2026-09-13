@@ -33,3 +33,13 @@ scratchpad/
 
 # ─── Scratch (was tracked once by accident; regenerable or dead) ──────────────
 tmp/
+
+# ─── Private planning docs ────────────────────────────────────────────────────
+# dev-docs/ is for LOCAL planning notes (economics, launch kit, incentive design,
+# audit findings, etc.) — kept OUT of the public repo. Everything here is ignored
+# by default; only the explicitly allowlisted ops runbooks below are tracked.
+# To publish a specific doc on purpose, add a "!dev-docs/<file>" line.
+dev-docs/*
+!dev-docs/WAITLIST.md
+!dev-docs/QUESTS_DEPLOY.md
+!dev-docs/AUDIT_PREP.md
