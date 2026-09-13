@@ -43,3 +43,4 @@ dev-docs/*
 !dev-docs/WAITLIST.md
 !dev-docs/QUESTS_DEPLOY.md
 !dev-docs/AUDIT_PREP.md
+!dev-docs/FAUCET_GOLIVE.md

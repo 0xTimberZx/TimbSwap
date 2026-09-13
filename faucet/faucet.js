@@ -97,7 +97,7 @@ function onConnected(addr) {
   document.getElementById("network-badge").classList.remove("hidden");
   document.getElementById("wallet-addr").textContent = _fmt(addr);
   document.getElementById("faucet-addr").textContent = addr;
-  setClaimEnabled(true, "Claim gas");
+  setClaimEnabled(true, "Claim testnet TIMBS");
   setStatus("");
 }
 
@@ -133,19 +133,19 @@ async function handleClaim() {
     try { body = await res.json(); } catch (_e) {}
 
     if (res.status === 202 || body.ok) {
-      setStatus("Gas is on the way — it lands in your wallet within a minute. 🌲", "ok");
+      setStatus("Your testnet TIMBS is on the way — it lands in your wallet within a minute. 🌲", "ok");
       DebugHub.logCheckpoint("Faucet Claim Queued", "pass");
       setClaimEnabled(false, "Queued ✓");
     } else {
       const msg = body.error || "Couldn't claim right now — try again shortly.";
       setStatus(msg, "warn");
       DebugHub.logCheckpoint("Faucet Claim Rejected", "fail");
-      setClaimEnabled(true, "Claim gas");
+      setClaimEnabled(true, "Claim testnet TIMBS");
     }
   } catch (e) {
     setStatus("Network error — please try again.", "warn");
     DebugHub.logError("handleClaim", e);
-    setClaimEnabled(true, "Claim gas");
+    setClaimEnabled(true, "Claim testnet TIMBS");
   } finally {
     resetTurnstile(); // one solve per attempt
   }

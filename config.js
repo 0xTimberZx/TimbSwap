@@ -4,7 +4,7 @@
 
 // ─── Chain ───────────────────────────────────────────────────────────────────
 
-const CHAIN_ID   = 42161;
+const CHAIN_ID   = 421614;
 const CHAIN_NAME = "Arbitrum Sepolia";
 
 // Cloudflare Turnstile site key (PUBLIC — safe in client JS) for the faucet claim
@@ -25,10 +25,10 @@ window.AIRDROP_ENABLED = false;
 // spreads reads across all of them so no single endpoint's throttling freezes
 // the UI. Order = priority.
 const PUBLIC_RPCS = [
-  "https://sepolia-rollup.arbitrum.io/rpc",       // official Arbitrum
-  "https://arbitrum-one-rpc.publicnode.com",  // PublicNode
-  "https://arbitrum-one.drpc.org",            // dRPC
-  "https://arbitrum-one.gateway.tenderly.co", // Tenderly gateway
+  "https://sepolia-rollup.arbitrum.io/rpc",        // official Arbitrum Sepolia
+  "https://arbitrum-sepolia-rpc.publicnode.com",   // PublicNode
+  "https://arbitrum-sepolia.drpc.org",             // dRPC
+  "https://arbitrum-sepolia.gateway.tenderly.co",  // Tenderly gateway
 ];
 
 // Dedicated read endpoint. Reads route through our OWN SAME-ORIGIN RPC proxy —
@@ -41,8 +41,11 @@ const PUBLIC_RPCS = [
 // them, and the browser skips CORS entirely. Relaying to ONE Alchemy node keeps
 // reads consistent (no divergent-head reverts — see the note below). Upstream
 // Alchemy URL lives in the Worker's ALCHEMY_RPC_URL secret (defaults to the
-// public keyed URL, which a frontend RPC exposes regardless):
-//   https://arb-mainnet.g.alchemy.com/v2/REPLACE_WITH_MAINNET_ALCHEMY_KEY
+// public keyed URL, which a frontend RPC exposes regardless). While the app runs
+// on Arbitrum SEPOLIA that secret MUST be a Sepolia endpoint, e.g.
+//   https://arb-sepolia.g.alchemy.com/v2/<key>
+// or the pinned StaticJsonRpcProvider (CHAIN_ID 421614) rejects the mainnet head.
+// NB: the faucet page does not use this proxy — it only POSTs /api/faucet-claim.
 // (The Supabase-hosted `rpc` function remains deployed as a manual fallback.)
 const DEDICATED_RPC = "https://timbswap.xyz/api/rpc";
 const _hasDedicated = typeof DEDICATED_RPC === "string" &&
@@ -73,7 +76,7 @@ const CHAIN_CONFIG = {
   chainName: CHAIN_NAME,
   nativeCurrency: { name: "Ethereum", symbol: "ETH", decimals: 18 },
   rpcUrls:        PUBLIC_RPCS,
-  blockExplorerUrls: ["https://arbiscan.io"]
+  blockExplorerUrls: ["https://sepolia.arbiscan.io"]
 };
 
 // ─── Resilient read provider ──────────────────────────────────────────────────
@@ -162,7 +165,7 @@ const ADDRESSES = {
   TimbYieldVault:       "0x0000000000000000000000000000000000000000", // fresh deploy — clears stranded/colliding weight
   TimbTreasury:         "0x0000000000000000000000000000000000000000", // v4 — three-way buyback split (burn/reserve/waterfall) + protocol-owned liquidity
   TimbGovernance:       "0x0000000000000000000000000000000000000000",
-  GasFaucet:            "0x0000000000000000000000000000000000000000", // keep-alive gas + TIMBS drip for Active-ticket holders (scripts/faucet-worker.js reads this)
+  GasFaucet:            "0xe6ce84664e92581afa928d79c6902a120aa03941", // Sepolia — keep-alive testnet-TIMBS drip for Active-ticket holders (scripts/faucet-worker.js reads this)
   TimbsEthPair:         "0x0000000000000000000000000000000000000000",
   WETH:                 "0x0000000000000000000000000000000000000000",
 
