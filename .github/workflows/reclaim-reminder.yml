@@ -1,8 +1,6 @@
 name: TimbSwap Reclaim Reminder
 
 on:
-  schedule:
-    - cron: "17 * * * *"           # hourly; reminders aren't second-sensitive
   workflow_dispatch:
 
 # Read-only on-chain + idempotent DMs (deduped in Postgres), so overlap is

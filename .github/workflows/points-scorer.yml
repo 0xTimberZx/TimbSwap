@@ -1,8 +1,6 @@
 name: TimbSwap Points Scorer
 
 on:
-  schedule:
-    - cron: "7 * * * *"           # hourly, offset so it isn't on the same tick as other keepers
   workflow_dispatch:
 
 # Incremental + idempotent (per-season cursors in Postgres); overlap is harmless

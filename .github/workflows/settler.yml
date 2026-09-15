@@ -1,9 +1,6 @@
 name: TimbSwap Settler
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
-    - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -65,32 +62,3 @@ jobs:
           else
             node settler.js
           fi
-
-      # ── Self-chaining (optional) ────────────────────────────────────────
-      # GitHub throttles the */10 cron unpredictably (observed: a 2.4 h
-      # hole). If a SETTLER_DISPATCH_TOKEN secret exists (a fine-grained
-      # PAT with Actions read/write on this repo — the default
-      # GITHUB_TOKEN cannot trigger workflow runs), each finishing run
-      # dispatches the next one, making the keeper self-perpetuating with
-      # cron as a mere backstop that restarts a broken chain.
-      # Self-chain ONLY on a successful run. A failed run must NOT re-dispatch —
-      # otherwise a fast-failing settler (e.g. a contract/settler ABI mismatch)
-      # turns `if: always()` into a ~15s infinite fail-loop that floods runs and
-      # notifications. On failure the */10 cron is the backstop that restarts the
-      # chain, exactly as intended.
-      - name: Dispatch next settler run
-        if: success() && github.event.inputs.mode != 'health' && github.event.schedule != '0 12 * * *'
-        env:
-          DISPATCH_TOKEN: ${{ secrets.SETTLER_DISPATCH_TOKEN }}
-        run: |
-          if [ -z "$DISPATCH_TOKEN" ]; then
-            echo "No SETTLER_DISPATCH_TOKEN secret — relying on cron for the next run."
-            exit 0
-          fi
-          curl -sS -X POST \
-            -H "Authorization: Bearer $DISPATCH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/settler.yml/dispatches" \
-            -d '{"ref":"main","inputs":{"mode":"settle"}}' \
-            && echo "Next settler run dispatched — chain continues." \
-            || echo "Dispatch failed — cron backstop will pick up."
