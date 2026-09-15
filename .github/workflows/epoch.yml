@@ -6,8 +6,6 @@ name: TimbSwap Epoch Distributor
 # emissions self-target over ~6 rounds.
 
 on:
-  schedule:
-    - cron: "17 */2 * * *"   # every 2 hours (offset to dodge top-of-hour load)
   workflow_dispatch:
     inputs:
       mode:

@@ -1,8 +1,6 @@
 name: TimbSwap Match Notifier
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"         # snappy: DM soon after segment 1 locks
   workflow_dispatch:
 
 # Read-only on-chain + idempotent DMs (deduped in Postgres); overlap is harmless.

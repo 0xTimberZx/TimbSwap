@@ -1,8 +1,6 @@
 name: TimbSwap Faucet
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 # One faucet sender at a time: it lingers ~55 min polling for new reservations
@@ -45,25 +43,3 @@ jobs:
           FAUCET_POLL_SECONDS:           ${{ vars.FAUCET_POLL_SECONDS }}
           FAUCET_DRAIN_LIMIT:            ${{ vars.FAUCET_DRAIN_LIMIT }}
         run: node faucet-worker.js
-
-      # ── Self-chaining (optional) ────────────────────────────────────────
-      # Like the settler: if a FAUCET_DISPATCH_TOKEN secret exists (fine-grained
-      # PAT, Actions read/write), each successful run dispatches the next so the
-      # keeper is self-perpetuating, with the */10 cron as a backstop. Only on
-      # success — a fast-failing run must not become an infinite re-dispatch loop.
-      - name: Dispatch next faucet run
-        if: success()
-        env:
-          DISPATCH_TOKEN: ${{ secrets.FAUCET_DISPATCH_TOKEN }}
-        run: |
-          if [ -z "$DISPATCH_TOKEN" ]; then
-            echo "No FAUCET_DISPATCH_TOKEN secret — relying on cron for the next run."
-            exit 0
-          fi
-          curl -sS -X POST \
-            -H "Authorization: Bearer $DISPATCH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/faucet.yml/dispatches" \
-            -d '{"ref":"main"}' \
-            && echo "Next faucet run dispatched." \
-            || echo "Dispatch failed — cron backstop will pick up."
