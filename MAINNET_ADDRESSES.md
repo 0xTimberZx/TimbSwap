@@ -60,24 +60,22 @@ VRF subscription (native-funded), Prize VRFEntropy added as consumer:
 
 ---
 
-## Airdrop distributor (capped-beta reward) — ⏳ pending deploy
+## Airdrop distributor (capped-beta reward) — ✅ LIVE
 
-The mainnet sink for the cross-chain TIMB airdrop: an eligible **testnet** faucet
-claim is bridged off-chain by the dispatcher, which calls `distribute()` here to
-send real TIMB from a small pre-funded float. See `contracts/TimbAirdropDistributor.sol`
-and the private `dev-docs/MAINNET_AIRDROP_SPEC.md`.
+Deployed 2026-09-15. The mainnet sink for the cross-chain TIMB airdrop: an
+eligible **testnet** faucet claim is bridged off-chain by the dispatcher, which
+calls `distribute()` here to send real TIMB from a small pre-funded float. See
+`contracts/TimbAirdropDistributor.sol` and the private `dev-docs/MAINNET_AIRDROP_SPEC.md`.
 
 | Contract | Address | Notes |
 |---|---|---|
-| **TimbAirdropDistributor** | `0x…` (pending `DeployAirdropDistributor.s.sol`) | **UNAUDITED stub** — audit before funding. Custodies a small TIMB float; `claimed[round][recipient]` makes double-send impossible; `totalCap`/`perRoundCap` bound the spend. Dispatcher-gated + guardian pause. |
+| **TimbAirdropDistributor** | `0x955e5800245164EC4DCd1da9062115bBdA132c83` | Deploy tx `0x3436fe14…3d5a9b2`, block 505442198. **UNAUDITED stub.** `amountPerClaim` 1 TIMB · `totalCap` = `perRoundCap` = 10,000 TIMB · round 1 for the beta (so `claimed[1][addr]` = one claim per address, ever). `owner` = Safe `0xFbcD…79F9` · `dispatcher` = `0x77F434D288Ca29a322ae4C947Ae3ae6a04e29921` (hot key, gas only) · `guardian` = deployer (fast pause). Float: 1,000 TIMB from the Safe. |
 
-> **Value-at-risk:** the pre-funded TIMB float is the only asset here — keep it
-> small and capped. The risk docs are already wired: `SECURITY.md` lists this
-> contract in scope (T3 duplicate/round-cap, T4 float drain/`totalCap`/gate
-> bypass) and the capped-beta guardrails carry the lever table (proposed
-> `amountPerClaim` 1 TIMB · `totalCap` 10,000 · `perRoundCap` = `totalCap` ·
-> float ≤ 10 % of cap per tranche). **At deploy time** fill this row's address
-> + tx, confirm the numbers on-chain, and tick the guardrails fill-in line.
+> **Value-at-risk:** the pre-funded float (1,000 TIMB, topped up in tranches ≤ 10 %
+> of cap) is the only asset here. `SECURITY.md` lists this contract in scope
+> (T3 duplicate/round-cap, T4 float drain/`totalCap`/gate bypass); the
+> capped-beta guardrails carry the lever table with the on-chain values
+> confirmed.
 
 > **Testnet contracts (not mainnet):** `GasFaucet` (the keep-alive gas faucet) is
 > deployed on **Arbitrum Sepolia**, not here — its address lives in `config.js`
