@@ -72,8 +72,12 @@ and the private `dev-docs/MAINNET_AIRDROP_SPEC.md`.
 | **TimbAirdropDistributor** | `0x…` (pending `DeployAirdropDistributor.s.sol`) | **UNAUDITED stub** — audit before funding. Custodies a small TIMB float; `claimed[round][recipient]` makes double-send impossible; `totalCap`/`perRoundCap` bound the spend. Dispatcher-gated + guardian pause. |
 
 > **Value-at-risk:** the pre-funded TIMB float is the only asset here — keep it
-> small and capped. Fold the float + caps into the capped-beta guardrails and add
-> this contract to `SECURITY.md` bounty scope **once it's deployed and funded**.
+> small and capped. The risk docs are already wired: `SECURITY.md` lists this
+> contract in scope (T3 duplicate/round-cap, T4 float drain/`totalCap`/gate
+> bypass) and the capped-beta guardrails carry the lever table (proposed
+> `amountPerClaim` 1 TIMB · `totalCap` 10,000 · `perRoundCap` = `totalCap` ·
+> float ≤ 10 % of cap per tranche). **At deploy time** fill this row's address
+> + tx, confirm the numbers on-chain, and tick the guardrails fill-in line.
 
 > **Testnet contracts (not mainnet):** `GasFaucet` (the keep-alive gas faucet) is
 > deployed on **Arbitrum Sepolia**, not here — its address lives in `config.js`
