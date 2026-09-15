@@ -35,6 +35,12 @@ The **deployed Arbitrum One contracts** recorded in
 - **Token & incentives** — `TIMBSToken`, `TimbStaking`, `TimbFarm`,
   `TimbLockVault`, `TimbYieldVault`, `TimbTreasury`.
 - **Governance** — `TimbGovernance`, `TimelockController`.
+- **Airdrop** *(once deployed and listed in `MAINNET_ADDRESSES.md`)* —
+  `TimbAirdropDistributor`, the Arbitrum One sink for the testnet-claim →
+  mainnet-TIMB airdrop. It custodies a small pre-funded TIMB float behind
+  `totalCap` / `perRoundCap` / a one-way `claimed[round][recipient]` flag.
+  In scope: draining or exceeding the float or caps, paying an address twice,
+  bypassing the dispatcher/owner gate or the pause.
 
 We're most interested in: **theft or permanent loss/freezing of user or protocol
 funds**, breaking the reward-solvency invariant (paying tokens not held), prize
@@ -46,6 +52,13 @@ settlement/liveness griefing.
 - The **frontend / static site**, `config.js`, and any off-chain keeper or
   telemetry infrastructure — *cosmetic* issues only. A display bug that could
   **mislead a user into a losing on-chain action** is in scope as **T1** below.
+  The airdrop's **off-chain half** (the faucet-claim gate, Turnstile, the
+  `airdrop_outbox` table, the `airdrop-dispatch` sender) follows the same rule:
+  getting an *ineligible* address queued is **T2** at most, because the
+  on-chain caps and `claimed[]` flag bound what any queued row can ever be
+  worth; only an off-chain fault that produces a **duplicate or over-cap
+  on-chain payment** lands in T3–T4 — and that requires a contract bug, which
+  is in scope above.
   (During the capped beta client telemetry is **localStorage-only** — no network
   sink, so no user-data pipeline to exploit; if an aggregated sink is re-enabled
   post-audit it will be hardened and brought explicitly into scope.)
@@ -92,8 +105,8 @@ is lifted.
 |---|---|---|---|
 | **T1** | UI / display | A display or labelling bug that could **mislead a user into a losing on-chain action** (e.g. wrong pot/price/reward numbers shown). Pure cosmetic issues are out of scope. | **credit + up to $50** |
 | **T2** | Operational / fallback | Keeper/automation failures, the observability events firing (`YieldHarvestFailed`, `PotShareForwardFailed`, …), VRF stall / `rerequest` griefing, **recoverable** settlement/liveness DoS. Value stuck or degraded, not lost. | **$50 – $100** |
-| **T3** | Misrouting / contractual | Value routed to the wrong place or mis-split: buyback 5/20/75, lapse 70/30, pot/escrow/refund accounting. Bounded, usually per-round. Off-chain-signaling **governance** manipulation (voting-power/quorum bypass) lands here — real authority is the timelock/multisig, so it cannot directly move funds during beta. | **$100 – $250** |
-| **T4** | Token & DEX structural | TIMBS mint/inflate/cap- or transfer-cap-bypass, whitelist bypass, DEX `k`-invariant break, **reward-solvency** break (paying tokens the contract doesn't hold), LP theft. | **$250 – $450** |
+| **T3** | Misrouting / contractual | Value routed to the wrong place or mis-split: buyback 5/20/75, lapse 70/30, pot/escrow/refund accounting. Bounded, usually per-round. Off-chain-signaling **governance** manipulation (voting-power/quorum bypass) lands here — real authority is the timelock/multisig, so it cannot directly move funds during beta. **Airdrop:** a duplicate payment to one address (`claimed[]` bypass) or a `perRoundCap` breach — bounded by `totalCap`. | **$100 – $250** |
+| **T4** | Token & DEX structural | TIMBS mint/inflate/cap- or transfer-cap-bypass, whitelist bypass, DEX `k`-invariant break, **reward-solvency** break (paying tokens the contract doesn't hold), LP theft. **Airdrop:** draining the distributor float, exceeding `totalCap`, or calling `distribute()` without the dispatcher/owner key or through the pause. | **$250 – $450** |
 | **T5** | Deep exploit / drain | Full drain of `PrizeEscrow` / `TimbYieldVault` / `TimbTreasury` / the pair; **prize-outcome manipulation** (predicting or biasing the VRF draw); owner/privilege escalation; chained multi-contract exploit. | **up to $500** (program cap) |
 
 Reentrancy that bypasses the `nonReentrant` guards is priced by its **impact** —
@@ -123,8 +136,12 @@ each covering a different class of bug:
 **The cap and the ceiling move together.** A $500 top bounty only out-competes a
 drain while the drainable stock stays roughly at or below it. That makes the
 program cap a *discipline on accumulation*: total reachable value (LP + pot +
-staked + vault + treasury) must be held low enough that $500 remains the rational
-choice over exploiting. When accumulation approaches that line, it is a
+staked + vault + treasury + the airdrop distributor's float, when that leg is
+live) must be held low enough that $500 remains the rational choice over
+exploiting. The airdrop float is a *stock* in this sense — it sits in one
+contract and a bug takes all of it at once — which is why it is kept small
+and topped up in tranches rather than funded to the cap
+([`dev-docs/CAPPED_BETA_GUARDRAILS.md` §1](./dev-docs/CAPPED_BETA_GUARDRAILS.md)). When accumulation approaches that line, it is a
 graduation trigger — raise the cap and the bands, or tighten the on-chain caps
 ([`dev-docs/CAPPED_BETA_GUARDRAILS.md`](./dev-docs/CAPPED_BETA_GUARDRAILS.md)).
 
