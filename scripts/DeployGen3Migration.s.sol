@@ -207,9 +207,9 @@ contract DeployGen3Migration is Script {
         console.log("  EXPECT_OLD_PRIZE   ", expectPrize);
         console.log("  EXPECT_OLD_REGISTRY", expectRegistry);
 
-        require(escrowPrize == expectPrize,    "PRE-FLIGHT: escrow.timbPrize != EXPECT_OLD_PRIZE — wrong game / stale .env");
-        require(routerPrize == expectPrize,    "PRE-FLIGHT: router.timbPrize != EXPECT_OLD_PRIZE — wrong game / stale .env");
-        require(vaultPrize  == expectPrize,    "PRE-FLIGHT: vault.timbPrize != EXPECT_OLD_PRIZE — wrong game / stale .env");
-        require(vaultReg    == expectRegistry, "PRE-FLIGHT: vault.gameRegistry != EXPECT_OLD_REGISTRY — wrong game / stale .env");
+        require(escrowPrize == expectPrize,    "PRE-FLIGHT: escrow.timbPrize != EXPECT_OLD_PRIZE - wrong game / stale .env");
+        require(routerPrize == expectPrize,    "PRE-FLIGHT: router.timbPrize != EXPECT_OLD_PRIZE - wrong game / stale .env");
+        require(vaultPrize  == expectPrize,    "PRE-FLIGHT: vault.timbPrize != EXPECT_OLD_PRIZE - wrong game / stale .env");
+        require(vaultReg    == expectRegistry, "PRE-FLIGHT: vault.gameRegistry != EXPECT_OLD_REGISTRY - wrong game / stale .env");
     }
 }
