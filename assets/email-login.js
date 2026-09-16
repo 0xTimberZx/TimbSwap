@@ -190,15 +190,29 @@
     if (!i || !tx || typeof tx.data !== "string" || tx.data.length < 10) return null;
     try { return i.parseTransaction({ data: tx.data, value: tx.value || 0 }); } catch (_e) { return null; }
   }
+  // Pages outside KNOWN_ABI (the SwapTables pages, ethers v6) register their
+  // own selector → label and address → name maps (tables/wallet.js).
+  const _extraLabels = {};
+  const _extraNames = {};
+  function registerCalls(list) {
+    for (const c of list || []) if (c && c.selector) _extraLabels[String(c.selector).toLowerCase()] = c.label || c.selector;
+  }
+  function registerContracts(map) {
+    for (const [a, n] of Object.entries(map || {})) if (a) _extraNames[String(a).toLowerCase()] = n;
+  }
+
   function actionLabel(tx) {
     if (!tx.data || tx.data === "0x") return "Send ETH";
+    const sel = String(tx.data).slice(0, 10).toLowerCase();
+    if (_extraLabels[sel]) return _extraLabels[sel];
     const p = decodeTx(tx);
-    return p ? (LABELS[p.name] || p.name) : "Contract call " + String(tx.data).slice(0, 10);
+    return p ? (LABELS[p.name] || p.name) : "Contract call " + sel;
   }
 
   function contractName(addr) {
+    const a = String(addr || "").toLowerCase();
+    if (_extraNames[a]) return _extraNames[a];
     try {
-      const a = String(addr || "").toLowerCase();
       for (const [name, v] of Object.entries(ADDRESSES)) if (String(v).toLowerCase() === a) return name;
     } catch (_e) {}
     return null;
@@ -776,5 +790,5 @@
     return dflt;
   }
 
-  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, guard, get address() { return _address; } };
+  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, guard, registerCalls, registerContracts, get address() { return _address; } };
 })();
