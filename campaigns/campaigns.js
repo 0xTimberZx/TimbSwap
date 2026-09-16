@@ -1,4 +1,4 @@
-// competition.js — USDT Prize Week: live prize-wallet verification + receipts.
+// competition.js — USDT Prize Month: live prize-wallet verification + receipts.
 //
 // ── Fill these in to go live (everything else is automatic) ──────────────────
 // PRIZE_WALLET: the Arbitrum One address holding the prize USDT. Once set, the
@@ -6,7 +6,7 @@
 // COMP_DATES: shown in the hero status pill, e.g. "JUL 14 – JUL 20 · ends Sunday 23:59 UTC".
 // RECEIPTS: append one entry per payout — it renders with an Arbiscan link.
 const PRIZE_WALLET = "";              // e.g. "0xYourPrizeWallet"
-const COMP_DATES   = "";              // e.g. "JUL 14 – JUL 20 · ends Sunday 23:59 UTC"
+const COMP_DATES   = "SEP 25 – OCT 25 · ends Sunday 23:59 UTC"; // Fri Sep 25 → Sun Oct 25, 2026 (30 days)
 const PRIZE_POOL   = "$25 grand · 5 × $5 raffle";
 const RECEIPTS     = [
   // { label: "Grand prize — $25 to 0x1234…abcd", tx: "0x…" },
