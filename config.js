@@ -33,7 +33,7 @@ const SITE_ROOT = (function () {
 // so bumping this one string is what makes browsers and the CDN pick up a
 // new version of those files — GitHub Pages serves them with a 10-minute
 // max-age that Cloudflare honours. Bump on every change to either file.
-window.ASSET_VER = "20260916b";
+window.ASSET_VER = "20260916c";
 
 // Resolve a root-absolute site path ("/compete/") against SITE_ROOT, so JS
 // navigation works on sub-path hosting too. Anything else passes through.
