@@ -419,10 +419,6 @@ const SESSION_KEY = "timbswap_wallet";
 // (Privy embedded). autoReconnect needs it to know whether to rehydrate the
 // embedded provider before it looks for window.ethereum.
 const SESSION_KIND_KEY = "timbswap_wallet_kind";
-// The connect method the user picked last time, so the chooser sheet is a
-// one-time thing per browser. Cleared by a manual Disconnect (which is how a
-// user switches methods).
-const CONNECT_METHOD_KEY = "timbswap_connect_method";
 
 function _saveSession(address, kind) {
   try { sessionStorage.setItem(SESSION_KEY, address); } catch {}
@@ -434,15 +430,8 @@ function _getSessionKind() {
   try { return sessionStorage.getItem(SESSION_KIND_KEY) || "injected"; } catch { return "injected"; }
 }
 
-function _getConnectMethod() {
-  try { return localStorage.getItem(CONNECT_METHOD_KEY); } catch { return null; }
-}
-function _saveConnectMethod(m) {
-  try { localStorage.setItem(CONNECT_METHOD_KEY, m); } catch {}
-}
-function _clearConnectMethod() {
-  try { localStorage.removeItem(CONNECT_METHOD_KEY); } catch {}
-}
+// One-time cleanup of the retired "remembered connect method" key.
+try { localStorage.removeItem("timbswap_connect_method"); } catch {}
 
 function _clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY); } catch {}
@@ -484,12 +473,11 @@ function clearWalletChrome() {
 // auto-reconnected the wallet the user just disconnected. Clear the session and
 // reset the chain/provider flags too, so a manual disconnect actually sticks.
 function disconnectWallet() {
-  _endSession(false);
+  _endSession();
 }
 
-// Shared teardown. keepMethod=true (idle expiry) leaves the remembered connect
-// method alone — the user did not choose to switch, they just walked away.
-function _endSession(keepMethod) {
+// Shared teardown (manual Disconnect and idle expiry alike).
+function _endSession() {
   // Decide by session KIND, not by whether the Privy provider happens to be
   // loaded: on a fresh page load (idle expiry in autoReconnect) it isn't yet,
   // and the Privy session must still be ended.
@@ -504,7 +492,6 @@ function _endSession(keepMethod) {
     // End the Privy session too, so the next connect genuinely asks again.
     _loadEmailLogin().then((ok) => { if (ok) window.TimbEmailWallet.logout(); }).catch(() => {});
   }
-  if (!keepMethod) _clearConnectMethod(); // a manual disconnect is how you switch methods
   _clearSession();
   try { sessionStorage.removeItem(LAST_ACTIVE_KEY); } catch {}
 }
@@ -534,7 +521,7 @@ function _idleFor() {
 function _idleExpired() { return _idleFor() > IDLE_TIMEOUT_MS; }
 function _expireSession() {
   try { DebugHub.logCheckpoint("Session expired (idle " + Math.round(IDLE_TIMEOUT_MS / 60000) + " min)", "pass"); } catch {}
-  _endSession(true);
+  _endSession();
   clearWalletChrome();
   // Hard refresh: a new URL (cache-busting query) makes the browser and the CDN
   // fetch the page fresh, so an expired session also lands on the latest site.
@@ -574,8 +561,12 @@ function _loadEmailLogin() {
 
 // Decide how this connect should happen: "injected" (extension), "email"
 // (Privy embedded wallet) or null (user dismissed the chooser). With no
-// PRIVY_APP_ID this is exactly the old behaviour. With one set: a remembered
-// choice wins; no extension → straight to email; otherwise ask once.
+// PRIVY_APP_ID this is exactly the old behaviour. With one set: no extension
+// → straight to email; otherwise the chooser, EVERY time a session is started
+// (a saved session auto-reconnects without it; only a fresh connect asks).
+// The earlier "remember the last choice" shortcut was dropped: with both
+// wallet kinds on one browser it silently locked users into whichever they
+// picked first.
 async function _pickConnectMethod() {
   const hasInjected = !!window.ethereum;
   if (!window.PRIVY_APP_ID) {
@@ -583,9 +574,6 @@ async function _pickConnectMethod() {
     alert("No wallet detected. Please use MetaMask or Brave Wallet.");
     return null;
   }
-  const remembered = _getConnectMethod();
-  if (remembered === "injected" && hasInjected) return "injected";
-  if (remembered === "email") return "email";
   if (!(await _loadEmailLogin())) {
     // The sheet failed to load (offline / blocked): fall back to the extension
     // if there is one, otherwise there is nothing to connect with.
@@ -594,9 +582,7 @@ async function _pickConnectMethod() {
     return null;
   }
   if (!hasInjected) return "email";
-  const pick = await window.TimbEmailWallet.chooseMethod({ hasInjected });
-  if (pick) _saveConnectMethod(pick);
-  return pick;
+  return window.TimbEmailWallet.chooseMethod({ hasInjected });
 }
 
 function _getSavedAddress() {
@@ -853,7 +839,7 @@ async function autoReconnect() {
   // the timeout is ended instead of restored (email wallets log out of Privy).
   if (_idleExpired()) {
     try { DebugHub.logCheckpoint("Session expired (idle " + Math.round(IDLE_TIMEOUT_MS / 60000) + " min)", "pass"); } catch {}
-    _endSession(true);
+    _endSession();
     clearWalletChrome();
     return null;
   }

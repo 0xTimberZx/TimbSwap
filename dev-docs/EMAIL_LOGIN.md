@@ -15,9 +15,8 @@ Privy app exists and the mirror pass below is done.
 ```
 Connect Wallet  →  _pickConnectMethod()
                      ├─ PRIVY_APP_ID unset      → "injected" (old behaviour, no sheet)
-                     ├─ remembered choice        → that
                      ├─ no window.ethereum       → "email"
-                     └─ both possible            → chooser sheet (asked once, remembered)
+                     └─ both possible            → chooser sheet, on every fresh connect
                   →  "email": TimbEmailWallet.login()  (sheet: email → code → wallet ready)
                               ⇒ _embeddedProvider = Privy EIP-1193 provider
                   →  the normal tail: eth_requestAccounts → _initProvider → _ensureChain → _saveSession(addr, kind)
@@ -54,16 +53,16 @@ email.
   to MetaMask is a Privy feature we have not surfaced yet.
 - **Session.** Privy keeps its own session in `localStorage`; ours records
   `timbswap_wallet_kind = "email"` next to the saved address so `autoReconnect`
-  rehydrates the Privy provider first. A manual Disconnect logs out of Privy and
-  forgets the remembered method (that is how you switch methods).
+  rehydrates the Privy provider first. A manual Disconnect logs out of Privy. Every
+  fresh connect shows the chooser again when both methods are possible (no
+  remembered choice — a saved session still auto-reconnects without it).
 - **Idle timeout — 360 minutes, every wallet kind.** `config.js` stamps the
   last interaction (pointer / key / touch / scroll, at most every 15 s) in
   `sessionStorage`; a connected session whose stamp is older than 6 h is torn
   down (email wallets log out of Privy) and the page hard-refreshes to the
   gated view (a cache-busting `?_r=` reload, so it also picks up the latest
   site files). Checked on every page load, once a minute, and when the tab comes
-  back into view. Idle expiry keeps the remembered connect method; a manual
-  Disconnect clears it.
+  back into view.
 - **Signing — confirmation sheet.** The headless SDK has no popup of its own,
   so the provider handed to `config.js` is wrapped by `guard()` in
   `email-login.js`: every write request (`eth_sendTransaction`, `personal_sign`,
@@ -139,8 +138,8 @@ bridge uses, so a rename upstream fails the build instead of a user's browser.
       profile): Connect → goes straight to the email step; code arrives;
       "wallet ready" shows an address; nav shows connected; refresh keeps it;
       Disconnect logs out; next Connect asks again.
-- [ ] App ID set, browser **with** MetaMask: chooser shows both; pick browser
-      wallet → identical to today; Disconnect → chooser returns.
+- [ ] App ID set, browser **with** MetaMask: chooser shows both on every fresh
+      connect; pick browser wallet → identical to today.
 - [ ] **Brave with Shields up** (our main tested browser): the Privy iframe
       needs third-party storage. If sign-in fails with the "storage" message,
       document the Shields setting users need, or gate the option on a probe.
