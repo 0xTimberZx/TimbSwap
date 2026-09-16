@@ -56,8 +56,19 @@ email.
   `timbswap_wallet_kind = "email"` next to the saved address so `autoReconnect`
   rehydrates the Privy provider first. A manual Disconnect logs out of Privy and
   forgets the remembered method (that is how you switch methods).
-- **Signing.** The headless SDK signs when the page asks — there is no Privy
-  confirmation modal. Each page's button already states what it is about to do.
+- **Signing — confirmation sheet.** The headless SDK has no popup of its own,
+  so the provider handed to `config.js` is wrapped by `guard()` in
+  `email-login.js`: every write request (`eth_sendTransaction`, `personal_sign`,
+  typed data, chain add) opens a sheet first — action (decoded for the calls
+  the site makes: "Enter a ticket", "Swap ETH for tokens", …), contract name
+  from `ADDRESSES`, amount in ETH, from, network — and only reaches Privy after
+  Confirm. Reject / Escape throws the standard EIP-1193 4001 error every call
+  site already handles. Reads pass straight through.
+  **Limit:** this stops bugs and accidental sends; a script with full control
+  of the page could still drive the sheet. The out-of-page answer is Privy's
+  transaction MFA (dashboard → Authentication → MFA; the headless SDK then
+  needs an MFA prompt built on `privy.mfaPromises`) — phase two. Until then the
+  wallet-ready copy tells users to keep only what they are playing with in it.
 - **Cold start.** The wallet starts with 0 ETH, so it cannot mint a first
   ticket. The "wallet ready" step shows the address with a copy button and says
   so. Gas sponsorship (ERC-4337 / paymaster) is the phase-two answer; it is not

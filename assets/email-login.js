@@ -84,7 +84,151 @@
       wallet: account, entropyId, entropyIdVerifier,
     });
     _address = account.address;
-    return provider;
+    return guard(provider);
+  }
+
+  // ── Confirmation guard ──────────────────────────────────────────────────────
+  // The headless SDK signs whatever the page asks, with no popup of its own —
+  // an extension wallet would show one. So every write request (send / sign)
+  // goes through a confirmation sheet FIRST; the wallet only sees it after the
+  // user taps Confirm. Reject throws the standard EIP-1193 "user rejected"
+  // error (code 4001), which every call site already handles for extensions.
+  // Reads (eth_call, eth_estimateGas, balances, chain id …) pass straight
+  // through. Note the limit: this protects against bugs and accidental sends;
+  // a script that fully controls the page could still drive the sheet. The
+  // out-of-page answer is Privy's transaction MFA (see dev-docs/EMAIL_LOGIN.md).
+  const WRITE_METHODS = new Set([
+    "eth_sendTransaction", "eth_signTransaction", "eth_sign", "personal_sign",
+    "eth_signTypedData", "eth_signTypedData_v3", "eth_signTypedData_v4",
+    "wallet_addEthereumChain",
+  ]);
+
+  function guard(provider) {
+    const g = {
+      isTimbEmailWallet: true,
+      async request(args) {
+        if (args && WRITE_METHODS.has(args.method)) {
+          const ok = await confirmRequest(args);
+          if (!ok) {
+            const err = new Error("User rejected the request.");
+            err.code = 4001;
+            throw err;
+          }
+        }
+        return provider.request(args);
+      },
+      on(ev, fn) { try { provider.on && provider.on(ev, fn); } catch (_e) {} return g; },
+      removeListener(ev, fn) { try { provider.removeListener && provider.removeListener(ev, fn); } catch (_e) {} return g; },
+      off(ev, fn) { return g.removeListener(ev, fn); },
+    };
+    return g;
+  }
+
+  // Human labels for the calls the site makes (selector → label). Built with
+  // ethers' keccak when the page has ethers (every page does); unknown
+  // selectors show as "Contract call 0x…".
+  const KNOWN_SIGS = [
+    "submitEntry(bytes6,bool,uint256)", "replaceEntry(bytes6,uint256)", "cancelEntry()",
+    "claimRefund(uint256)", "claimWinnings(uint256)", "reclaimFromPastGame(uint256)",
+    "advanceScroll(uint256)", "approve(address,uint256)",
+    "swapExactETHForTokens(uint256,uint256,address,address,uint256,bool)",
+    "swapExactTokensForETH(uint256,uint256,address,address,uint256,bool)",
+    "swapExactTokensForTokens(uint256,uint256,address,address,address,uint256,bool)",
+    "swapExactTokensForTokensPath(uint256,uint256,address[],address,uint256,bool)",
+    "addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256,uint256,uint256)",
+    "removeLiquidity(address,address,uint256,uint256,uint256,address,uint256,uint256)",
+    "provideLiquidityETH(address,uint256,uint256,uint256,uint256)",
+    "stake(uint256)", "unstake(uint256)", "claimRewards()", "claimRewards(uint256)",
+    "deposit()", "deposit(uint256,uint256)", "withdraw(uint256)", "withdraw(uint256,uint256)",
+    "lock(address,uint256,uint256)", "unwrapWeth(uint256)",
+    "castVote(uint256,bool)", "depositVotingPower(uint256)", "withdrawVotingPower(uint256)",
+    "resolveProposal(uint256)",
+  ];
+  const LABELS = {
+    submitEntry: "Enter a ticket", replaceEntry: "Replace your ticket", cancelEntry: "Cancel your ticket",
+    claimRefund: "Claim ticket refund", claimWinnings: "Claim winnings", reclaimFromPastGame: "Reclaim from past game",
+    advanceScroll: "Advance the scroll", approve: "Approve token spending",
+    swapExactETHForTokens: "Swap ETH for tokens", swapExactTokensForETH: "Swap tokens for ETH",
+    swapExactTokensForTokens: "Swap tokens", swapExactTokensForTokensPath: "Swap tokens",
+    addLiquidity: "Add liquidity", removeLiquidity: "Remove liquidity", provideLiquidityETH: "Add liquidity",
+    stake: "Stake", unstake: "Unstake", claimRewards: "Claim rewards",
+    deposit: "Deposit", withdraw: "Withdraw", lock: "Lock tokens", unwrapWeth: "Unwrap WETH",
+    castVote: "Cast vote", depositVotingPower: "Deposit voting power", withdrawVotingPower: "Withdraw voting power",
+    resolveProposal: "Resolve proposal",
+  };
+  let _selectorMap = null;
+  function selectorLabel(data) {
+    const sel = (typeof data === "string" && data.length >= 10) ? data.slice(0, 10).toLowerCase() : null;
+    if (!sel || sel === "0x") return "Send ETH";
+    if (!_selectorMap) {
+      _selectorMap = {};
+      try {
+        for (const sig of KNOWN_SIGS) _selectorMap[ethers.utils.id(sig).slice(0, 10)] = sig.split("(")[0];
+      } catch (_e) { /* ethers missing → labels unavailable */ }
+    }
+    const name = _selectorMap[sel];
+    return name ? (LABELS[name] || name) : "Contract call " + sel;
+  }
+
+  function contractName(addr) {
+    try {
+      const a = String(addr || "").toLowerCase();
+      for (const [name, v] of Object.entries(ADDRESSES)) if (String(v).toLowerCase() === a) return name;
+    } catch (_e) {}
+    return null;
+  }
+
+  function fmtEth(hexOrNum) {
+    try {
+      const wei = BigInt(hexOrNum || 0);
+      if (wei === 0n) return "0 ETH";
+      const s = wei.toString().padStart(19, "0");
+      const whole = s.slice(0, -18), frac = s.slice(-18).replace(/0+$/, "").slice(0, 6);
+      return whole + (frac ? "." + frac : "") + " ETH";
+    } catch (_e) { return String(hexOrNum); }
+  }
+
+  function short(a) { return a ? a.slice(0, 6) + "…" + a.slice(-4) : ""; }
+
+  function row(k, v, mono) {
+    return h("div", { class: "tsheet-row" }, h("span", { class: "tsheet-k", text: k }), h("span", { class: "tsheet-v" + (mono ? " tsheet-mono" : ""), text: v }));
+  }
+
+  // Build the rows for one request, then wait for Confirm / Reject.
+  function confirmRequest(args) {
+    const p = open("Confirm with your email wallet");
+    const rows = [];
+    const m = args.method;
+    if (m === "eth_sendTransaction" || m === "eth_signTransaction") {
+      const tx = (args.params && args.params[0]) || {};
+      const name = contractName(tx.to);
+      rows.push(row("Action", selectorLabel(tx.data)));
+      rows.push(row("To", name ? name + " (" + short(tx.to) + ")" : (tx.to || "(contract creation)"), !name));
+      rows.push(row("Amount", fmtEth(tx.value)));
+    } else if (m === "personal_sign" || m === "eth_sign") {
+      const raw = String((args.params && args.params[0]) || "");
+      let text = raw;
+      try { if (/^0x[0-9a-f]*$/i.test(raw)) text = new TextDecoder().decode(Uint8Array.from(raw.slice(2).match(/../g).map((x) => parseInt(x, 16)))); } catch (_e) {}
+      rows.push(row("Action", "Sign a message"));
+      rows.push(row("Message", text.length > 300 ? text.slice(0, 300) + "…" : text, true));
+    } else if (m.startsWith("eth_signTypedData")) {
+      let dom = "", type = "";
+      try { const td = typeof args.params[1] === "string" ? JSON.parse(args.params[1]) : args.params[1]; dom = (td.domain && td.domain.name) || ""; type = td.primaryType || ""; } catch (_e) {}
+      rows.push(row("Action", "Sign typed data"));
+      if (dom) rows.push(row("App", dom));
+      if (type) rows.push(row("Type", type));
+    } else {
+      rows.push(row("Action", m));
+    }
+    rows.push(row("From", short(_address), true));
+    rows.push(row("Network", chainName()));
+    setBody(
+      h("p", { class: "tsheet-note", text: "Your email wallet only signs after you confirm. Check the action and amount." }),
+      h("div", { class: "tsheet-rows" }, ...rows),
+      h("div", { class: "tsheet-actions" },
+        h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(true) }, h("strong", { text: "Confirm" })),
+        h("button", { class: "tsheet-btn", type: "button", onclick: () => close(false) }, h("strong", { text: "Reject" }))));
+    return p.then((v) => v === true);
   }
 
   // ── Auth primitives ─────────────────────────────────────────────────────────
@@ -198,6 +342,12 @@
   font-family: var(--sans); font-size: 13px; cursor: pointer; text-decoration: underline;
 }
 .tsheet-link:disabled { color: var(--text-3); cursor: default; text-decoration: none; }
+.tsheet-rows { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
+.tsheet-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.tsheet-k { color: var(--text-2); flex: 0 0 auto; }
+.tsheet-v { text-align: right; word-break: break-word; }
+.tsheet-mono { font-family: var(--mono); font-size: 12px; }
+.tsheet-actions { display: flex; flex-direction: column; gap: 8px; }
 .tsheet-addr {
   display: block; padding: 10px 12px; word-break: break-all;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
@@ -334,6 +484,7 @@
         addr,
         h("div", { class: "tsheet-links" }, copy),
         h("p", { class: "tsheet-note", text: "It starts empty. To enter a ticket it needs a little ETH for gas and the entry cost — send some to this address first. Come back here any time with the same email." }),
+        h("p", { class: "tsheet-note", text: "Every transaction or signature from this wallet asks you to confirm on this site first. Keep only what you are playing with in it." }),
         h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(w) }, h("strong", { text: "Continue" })));
     }
 
@@ -356,5 +507,5 @@
     return dflt;
   }
 
-  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, get address() { return _address; } };
+  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, guard, get address() { return _address; } };
 })();
