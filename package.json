@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@privy-io/js-sdk-core": "0.76.0",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "qrcode-generator": "2.0.4"
   }
 }

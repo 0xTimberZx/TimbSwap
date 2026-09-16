@@ -18,6 +18,12 @@
 //   login()                  → Promise<{ provider, address } | null>  (null = cancelled)
 //   restore()                → Promise<provider | null>  (silent, no UI)
 //   logout()                 → Promise<void>
+//   security()               → Promise<void>  (Wallet security sheet: authenticator on/off)
+//
+// Transaction MFA: once the user adds an authenticator app (TOTP), Privy's
+// iframe refuses to sign until it gets the current 6-digit code — the SDK
+// emits `mfaRequired`, this file asks for the code in the sheet and hands it
+// back. That check runs inside Privy's wallet, not on this page.
 //
 // Privacy: the email address goes to Privy (their terms/privacy apply), never
 // to TimbSwap's own backend. TimbSwap only ever sees the resulting wallet
@@ -28,6 +34,7 @@
 
   const ROOT   = (typeof SITE_ROOT !== "undefined" && SITE_ROOT) ? SITE_ROOT : "/";
   const VENDOR = ROOT + "vendor/privy-core.js?v=" + (window.ASSET_VER || "1");
+  const QRLIB  = ROOT + "vendor/qrcode.js?v=" + (window.ASSET_VER || "1");
   const CHAIN  = (typeof CHAIN_ID !== "undefined") ? CHAIN_ID : 421614;
 
   let _mod = null;      // the vendored SDK module
@@ -35,6 +42,7 @@
   let _iframe = null;   // Privy's secure-context iframe (holds the device key share)
   let _loading = null;  // memoised load()
   let _address = null;  // current embedded wallet address (after login/restore)
+  let _user = null;     // Privy user (linked accounts, enrolled MFA methods)
 
   function available() { return !!window.PRIVY_APP_ID; }
 
@@ -70,6 +78,7 @@
       });
       await loaded;
       await _privy.initialize();
+      wireMfa();
       return _privy;
     })();
     _loading.catch(() => { _loading = null; }); // allow a retry after a failed load
@@ -77,6 +86,7 @@
   }
 
   async function _providerFor(user) {
+    _user = user || _user;
     const account = _mod.getUserEmbeddedEthereumWallet(user);
     if (!account) return null;
     const { entropyId, entropyIdVerifier } = _mod.getEntropyDetailsFromAccount(account);
@@ -96,7 +106,8 @@
   // Reads (eth_call, eth_estimateGas, balances, chain id …) pass straight
   // through. Note the limit: this protects against bugs and accidental sends;
   // a script that fully controls the page could still drive the sheet. The
-  // out-of-page answer is Privy's transaction MFA (see dev-docs/EMAIL_LOGIN.md).
+  // out-of-page answer is the authenticator app (transaction MFA, below): with
+  // it on, Privy's iframe will not sign without the current 6-digit code.
   const WRITE_METHODS = new Set([
     "eth_sendTransaction", "eth_signTransaction", "eth_sign", "personal_sign",
     "eth_signTypedData", "eth_signTypedData_v3", "eth_signTypedData_v4",
@@ -120,6 +131,13 @@
             close(null); // sending state → done
             return result;
           } catch (e) {
+            if (isMfaCancel(e)) {
+              // The user backed out of the authenticator prompt: same as Reject.
+              close(null);
+              const err = new Error("User rejected the request.");
+              err.code = 4001;
+              throw err;
+            }
             await showError(e, isTx);
             throw sanitizeError(e);
           }
@@ -365,6 +383,9 @@
     const raw = String((e && (e.reason || (e.error && e.error.message) || (e.data && e.data.message) || e.shortMessage || e.message)) || "Unknown error");
     if (e && e.code === 4001) return "Rejected.";
     if (/user rejected|user denied/i.test(raw)) return "Rejected.";
+    if (isMfaCancel(e)) return "Rejected.";
+    if (/max mfa verification attempts|mfa_verification_max_attempts/i.test(raw)) return "Too many wrong authenticator codes. Nothing was sent. Wait a moment and try again.";
+    if (/timed out waiting for mfa|mfa_timeout|timeout: mfa verification/i.test(raw)) return "Timed out waiting for the authenticator code. Nothing was sent.";
     if (/insufficient funds/i.test(raw)) return "Not enough ETH to cover the amount plus the network fee.";
     if (/nonce too low/i.test(raw)) return "Nonce too low: a transaction with that nonce already went through. Leave the nonce blank to use the next one.";
     if (/replacement transaction underpriced|already known|already exists/i.test(raw)) return "A transaction with this nonce is already pending. Raise the max fee to replace it, or wait for it to confirm.";
@@ -533,6 +554,226 @@
     return p;
   }
 
+  // ── Transaction MFA: authenticator app (TOTP) ───────────────────────────────
+  // Privy's wallet iframe enforces MFA once a method is enrolled: any signing
+  // request comes back as "MFA required", the SDK emits `mfaRequired` on
+  // privy.mfaPromises and waits for us to resolve `rootPromise` with the code
+  // (SDK limits: 3 tries, 5 minutes per prompt). Each try is reported through
+  // `submitPromise` — we install a fresh {resolve, reject} pair on it before
+  // every submit, so a wrong code shows "didn't match" in place instead of
+  // failing the transaction. The verification itself happens inside Privy's
+  // iframe: nothing on this page can sign without the code.
+  //
+  // Only the authenticator app (TOTP) is offered here — no phone number to
+  // collect, works offline, and Privy supports it in every region. The
+  // dashboard must have MFA enabled for the app (dev-docs/EMAIL_LOGIN.md).
+  let _mfaWired = false;
+  function wireMfa() {
+    if (_mfaWired || !_privy || !_privy.mfaPromises || typeof _privy.mfaPromises.on !== "function") return;
+    _mfaWired = true;
+    _privy.mfaPromises.on("mfaRequired", () => {
+      try { mfaPrompt(); } catch (e) { mfaCancel(); }
+    });
+  }
+
+  // Enrolled methods as plain strings ("totp", "sms", …) whatever the SDK's shape.
+  function mfaMethods() {
+    const list = (_user && _user.mfa_methods) || [];
+    return list.map((m) => (typeof m === "string" ? m : (m && m.type))).filter(Boolean);
+  }
+  function hasTotp() { return mfaMethods().includes("totp"); }
+  function userEmail() {
+    try {
+      const acct = (_user.linked_accounts || []).find((a) => a && a.type === "email");
+      return (acct && acct.address) || "";
+    } catch (_e) { return ""; }
+  }
+  async function refreshUser() {
+    try { const { user } = await _privy.user.get(); if (user) _user = user; } catch (_e) {}
+    return _user;
+  }
+
+  const MFA_CANCEL_MSG = "Authenticator step cancelled.";
+  function isMfaCancel(e) {
+    if (!e) return false;
+    if (e.code === "mfa_canceled") return true;
+    const m = String((e.error && e.error.message) || e.error || e.message || "");
+    return m.indexOf(MFA_CANCEL_MSG) !== -1;
+  }
+  // Back out of the pending signing request (the wallet call then rejects;
+  // the provider re-wraps the error, so guard() recognises it by message).
+  function mfaCancel() {
+    const err = new Error(MFA_CANCEL_MSG);
+    err.code = "mfa_canceled";
+    try {
+      const root = _privy && _privy.mfaPromises && _privy.mfaPromises.rootPromise.current;
+      if (root) root.reject(err);
+    } catch (_e) {}
+  }
+
+  // The prompt. Replaces whatever the sheet shows (normally the confirm sheet
+  // in its "Sending…" state); once the code is accepted the signing request
+  // continues and the caller's own flow closes the sheet or shows its error.
+  function mfaPrompt() {
+    const mp = _privy.mfaPromises;
+    const p = open("Approve with your authenticator");
+    let done = false;
+    p.then(() => { if (!done) { done = true; mfaCancel(); } }); // ×, Escape, backdrop, Cancel
+
+    if (!hasTotp()) {
+      // Enrolled through something this site does not collect (SMS / passkey).
+      setBody(
+        h("p", { class: "tsheet-err", role: "alert", text: "This wallet is protected by a verification method this site can't collect yet (SMS or passkey)." }),
+        h("p", { class: "tsheet-note", text: "Add an authenticator app under Wallet security, then try again." }),
+        h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
+      return;
+    }
+
+    const input = codeInput("Authenticator code");
+    const err = errLine();
+    const btn = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "submit" }, h("strong", { text: "Approve" }));
+    const cancel = h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Cancel" }));
+    const form = h("form", { class: "tsheet-form", onsubmit: async (e) => {
+      e.preventDefault();
+      const code = input.value.replace(/\D/g, "");
+      if (code.length !== 6) { err.textContent = "Enter the 6-digit code from your authenticator app."; return; }
+      const root = mp.rootPromise && mp.rootPromise.current;
+      if (!root) { err.textContent = "The wallet is no longer waiting for a code. Start the action again."; return; }
+      btn.disabled = true; cancel.disabled = true; btn.firstChild.textContent = "Checking…"; err.textContent = "";
+      const outcome = new Promise((res, rej) => { mp.submitPromise.current = { resolve: res, reject: rej }; });
+      root.resolve({ mfaMethod: "totp", mfaCode: code, relyingParty: location.hostname });
+      try {
+        await outcome;
+        done = true;
+        setBody(h("p", { class: "tsheet-note", text: "Approved. Finishing…" }));
+        settle(true);
+      } catch (ex) {
+        if (ex && (ex.type === "missing_or_invalid_mfa" || /verification failed/i.test(String(ex.message || "")))) {
+          err.textContent = "That code didn't match. Check your phone's clock and try again.";
+          btn.disabled = false; cancel.disabled = false; btn.firstChild.textContent = "Approve";
+          input.value = ""; input.focus();
+        } else {
+          // Timed out / too many tries: the signing request itself fails and
+          // the caller shows why.
+          done = true;
+          settle(null);
+        }
+      }
+    } }, input, err, btn, cancel);
+    setBody(
+      h("p", { class: "tsheet-note", text: "Open your authenticator app and enter the 6-digit code for TimbSwap. This check runs inside your wallet, not on this page." }),
+      form);
+  }
+
+  function codeInput(label) {
+    return h("input", { class: "tsheet-input tsheet-code", type: "text", inputmode: "numeric", autocomplete: "one-time-code",
+      pattern: "[0-9]*", maxlength: "6", placeholder: "6-digit code", "aria-label": label });
+  }
+
+  // Enrollment, rendered into the open sheet. Resolves true once a method was
+  // added, false if the user backed out (`onBack` re-renders the caller).
+  async function enrollTotp(onBack) {
+    setBody(h("p", { class: "tsheet-note", text: "Setting up…" }));
+    let init;
+    try { init = await _privy.mfa.initEnrollMfa({ method: "totp" }); }
+    catch (ex) {
+      setBody(
+        h("p", { class: "tsheet-err", role: "alert", text: friendly(ex, "Couldn't start the setup. " + (/(not enabled|disabled|forbidden|403)/i.test(String(ex && ex.message)) ? "Authenticator setup isn't enabled for this app yet." : "Try again in a moment.")) }),
+        h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: onBack }, h("strong", { text: "Back" }))));
+      return false;
+    }
+    const secret = String(init.secret || "");
+    const authUrl = String(init.authUrl || "");
+
+    return new Promise((resolve) => {
+      const qrBox = h("div", { class: "tsheet-qr hidden", "aria-hidden": "true" });
+      if (authUrl) {
+        import(QRLIB).then((q) => { qrBox.innerHTML = q.qrSvg(authUrl); qrBox.classList.remove("hidden"); }).catch(() => {});
+      }
+      const key = h("code", { class: "tsheet-addr", text: secret.replace(/(.{4})/g, "$1 ").trim() });
+      const copy = h("button", { class: "tsheet-link", type: "button", onclick: async () => {
+        try { await navigator.clipboard.writeText(secret); copy.textContent = "Copied"; } catch (_e) { copy.textContent = "Select and copy the key above"; }
+      } }, "Copy key");
+      const links = h("div", { class: "tsheet-links" }, copy);
+      if (authUrl) links.append(h("a", { class: "tsheet-link", href: authUrl, text: "Open in authenticator app" }));
+
+      const input = codeInput("Code from the authenticator app");
+      const err = errLine();
+      const btn = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "submit" }, h("strong", { text: "Turn on" }));
+      const back = h("button", { class: "tsheet-btn", type: "button", onclick: () => { resolve(false); onBack(); } }, h("strong", { text: "Not now" }));
+      const form = h("form", { class: "tsheet-form", onsubmit: async (e) => {
+        e.preventDefault();
+        const code = input.value.replace(/\D/g, "");
+        if (code.length !== 6) { err.textContent = "Enter the 6-digit code the app shows."; return; }
+        btn.disabled = true; back.disabled = true; btn.firstChild.textContent = "Checking…"; err.textContent = "";
+        try {
+          await _privy.mfa.submitEnrollMfa({ method: "totp", code });
+          await refreshUser();
+          if (!hasTotp()) { try { _user.mfa_methods = (_user.mfa_methods || []).concat([{ type: "totp" }]); } catch (_x) {} }
+          resolve(true);
+        } catch (ex) {
+          err.textContent = friendly(ex, "That code didn't match. Check your phone's clock and try again.");
+          btn.disabled = false; back.disabled = false; btn.firstChild.textContent = "Turn on";
+          input.select();
+        }
+      } }, input, err, btn, back);
+
+      setBody(
+        h("p", { class: "tsheet-note", text: "Scan this with Google Authenticator, Authy, 1Password or any authenticator app, or type in the key:" }),
+        qrBox, key, links,
+        h("p", { class: "tsheet-note", text: "Then enter the 6-digit code the app shows to turn it on. Keep the app: you will need a code for every transaction from this wallet." }),
+        form);
+    });
+  }
+
+  // Wallet security sheet: status + add / remove the authenticator.
+  async function security() {
+    const p = open("Wallet security");
+    setBody(h("p", { class: "tsheet-note", text: "Loading…" }));
+    try { await load(); if (!_user) await refreshUser(); } catch (_e) {}
+    if (!_user) {
+      setBody(
+        h("p", { class: "tsheet-err", role: "alert", text: "Sign in with email first." }),
+        h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
+      return p;
+    }
+    render();
+    return p;
+
+    function render(msg) {
+      const on = hasTotp();
+      const rows = h("div", { class: "tsheet-rows" });
+      const email = userEmail();
+      if (email) rows.append(row("Signed in as", email));
+      rows.append(row("Wallet", short(_address || ""), true));
+      rows.append(row("Authenticator app", on ? "On" : "Off"));
+      const err = errLine(); if (msg) err.textContent = msg;
+      const action = on
+        ? h("button", { class: "tsheet-btn", type: "button", onclick: removeTotp }, h("strong", { text: "Remove authenticator" }), h("span", { text: "Asks for one last code. Transactions will then only need the on-site confirmation." }))
+        : h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => enrollTotp(() => { _title.textContent = "Wallet security"; render(); }).then((ok) => { if (ok) render(); }) },
+            h("strong", { text: "Set up authenticator app" }), h("span", { text: "Recommended. Every transaction will also need a 6-digit code from your phone." }));
+      setBody(
+        rows,
+        h("p", { class: "tsheet-note", text: on
+          ? "Every transaction and signature from this wallet needs a code from your authenticator app. That check runs inside Privy's wallet, so nothing on this site can sign without your phone."
+          : "Right now transactions only need the confirmation sheet on this site. An authenticator app adds a check that runs outside the page — the strongest protection for this wallet." }),
+        err,
+        h("div", { class: "tsheet-actions" }, action, h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
+
+      async function removeTotp(e) {
+        e.currentTarget.disabled = true;
+        try {
+          await _privy.mfa.unenrollMfa("totp"); // triggers the code prompt
+          await refreshUser();
+          if (hasTotp()) { try { _user.mfa_methods = (_user.mfa_methods || []).filter((m) => (typeof m === "string" ? m : m && m.type) !== "totp"); } catch (_x) {} }
+          open("Wallet security"); render();
+        } catch (ex) {
+          open("Wallet security"); render(isMfaCancel(ex) ? "" : friendly(ex, "Couldn't remove it: " + txErrorText(ex)));
+        }
+      }
+    }
+  }
+
   // ── Auth primitives ─────────────────────────────────────────────────────────
   async function sendCode(email) {
     await load();
@@ -567,6 +808,7 @@
 
   async function logout() {
     _address = null;
+    _user = null;
     try { if (_privy) await _privy.auth.logout(); } catch (_err) { /* already out */ }
   }
 
@@ -672,6 +914,10 @@
   background: var(--ts-bg); border: 1px solid var(--ts-border); border-radius: var(--ts-radius);
   font-family: var(--ts-mono); font-size: 13px;
 }
+.tsheet-qr { display: flex; justify-content: center; padding: 8px; background: #fff; border-radius: var(--ts-radius); }
+.tsheet-qr.hidden { display: none !important; }
+.tsheet-qr svg { width: 180px; height: 180px; display: block; }
+a.tsheet-link { display: inline-block; }
 `;
   function injectStyles() {
     if (document.getElementById("tsheet-style")) return;
@@ -799,17 +1045,29 @@
     }
 
     function stepReady(w) {
+      _title.textContent = "Sign in with email";
       const addr = h("code", { class: "tsheet-addr", text: w.address });
       const copy = h("button", { class: "tsheet-link", type: "button", onclick: async () => {
         try { await navigator.clipboard.writeText(w.address); copy.textContent = "Copied"; } catch (_e) { copy.textContent = "Select and copy the address above"; }
       } }, "Copy address");
+      const on = hasTotp();
+      const actions = h("div", { class: "tsheet-actions" });
+      if (!on) {
+        actions.append(h("button", { class: "tsheet-btn", type: "button", onclick: () => {
+          _title.textContent = "Add an authenticator app";
+          enrollTotp(() => stepReady(w)).then((ok) => { if (ok) stepReady(w); });
+        } }, h("strong", { text: "Add an authenticator app" }), h("span", { text: "Recommended: every transaction then also needs a code from your phone, checked inside the wallet." })));
+      }
+      actions.append(h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(w) }, h("strong", { text: "Continue" })));
       setBody(
         h("p", { class: "tsheet-note", text: "Your wallet is ready. This is its address on " + chainName() + ":" }),
         addr,
         h("div", { class: "tsheet-links" }, copy),
         h("p", { class: "tsheet-note", text: "It starts empty. To enter a ticket it needs a little ETH for gas and the entry cost — send some to this address first. Come back here any time with the same email." }),
-        h("p", { class: "tsheet-note", text: "Every transaction or signature from this wallet asks you to confirm on this site first. Keep only what you are playing with in it." }),
-        h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(w) }, h("strong", { text: "Continue" })));
+        h("p", { class: "tsheet-note", text: on
+          ? "Authenticator app is on: every transaction asks you to confirm on this site and then for a code from your app."
+          : "Every transaction or signature from this wallet asks you to confirm on this site first. Keep only what you are playing with in it. You can add an authenticator app now or later under Wallet security." }),
+        actions);
     }
 
     stepEmail("");
@@ -831,5 +1089,5 @@
     return dflt;
   }
 
-  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, guard, registerCalls, registerContracts, get address() { return _address; } };
+  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, security, guard, registerCalls, registerContracts, get address() { return _address; }, get mfaEnabled() { return hasTotp(); } };
 })();

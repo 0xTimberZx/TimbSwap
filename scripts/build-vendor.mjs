@@ -12,12 +12,17 @@
 //                           assets/email-login.js only when a user picks
 //                           "Continue with email", so extension users never
 //                           download it. Entry: scripts/vendor/privy.entry.js.
+//   vendor/qrcode.js      — qrcode-generator, ESM, minified. Loaded by the
+//                           email wallet's authenticator (MFA) enrollment step
+//                           to draw the otpauth:// QR. Entry:
+//                           scripts/vendor/qrcode.entry.js.
 
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url)));
 const privyVersion = pkg.devDependencies["@privy-io/js-sdk-core"];
+const qrVersion = pkg.devDependencies["qrcode-generator"];
 
 await build({
   entryPoints: ["scripts/vendor/privy.entry.js"],
@@ -31,6 +36,21 @@ await build({
   legalComments: "none",
   banner: {
     js: `/* vendor/privy-core.js — @privy-io/js-sdk-core ${privyVersion}, bundled by scripts/build-vendor.mjs. Generated: do not edit. */`,
+  },
+  logLevel: "info",
+});
+
+await build({
+  entryPoints: ["scripts/vendor/qrcode.entry.js"],
+  outfile: "vendor/qrcode.js",
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: "es2020",
+  legalComments: "none",
+  banner: {
+    js: `/* vendor/qrcode.js — qrcode-generator ${qrVersion}, bundled by scripts/build-vendor.mjs. Generated: do not edit. */`,
   },
   logLevel: "info",
 });

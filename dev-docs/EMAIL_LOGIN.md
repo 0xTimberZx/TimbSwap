@@ -35,10 +35,11 @@ Files:
 | File | Role |
 |---|---|
 | `config.js` | `PRIVY_APP_ID`, `SITE_ROOT`, `_embeddedProvider`, `_pickConnectMethod`, `_loadEmailLogin`, session kind + remembered method, email branches in `connectWallet` / `autoReconnect` / `disconnectWallet` / `handleSwitchAccount` |
-| `assets/email-login.js` | the sheet (chooser, email, code, wallet-ready) + the Privy bridge (`window.TimbEmailWallet`). Injected on demand by `config.js`. |
+| `assets/email-login.js` | the sheet (chooser, email, code, wallet-ready, confirm, authenticator prompt, Wallet security) + the Privy bridge (`window.TimbEmailWallet`). Injected on demand by `config.js`. |
 | `vendor/privy-core.js` | `@privy-io/js-sdk-core` bundled (ESM, ~800 KB). `import()`-ed only when a user picks email. **Generated** by `scripts/build-vendor.mjs`; never edit. |
-| `style.css` | `.tsheet-*` styles |
-| `package.json` | dev-only: pins the SDK version + esbuild. The site still has no build step. |
+| `vendor/qrcode.js` | `qrcode-generator` bundled (ESM, ~20 KB). `import()`-ed only on the authenticator enrolment step, to draw the `otpauth://` QR. **Generated**; never edit. |
+| `tables/wallet.js` | the SwapTables pages' bridge to the above (chooser / email / restore, chip icons incl. Wallet security for email sessions). |
+| `package.json` | dev-only: pins the SDK + QR library versions and esbuild. The site still has no build step. |
 
 Loading cost: extension users load nothing new. Email users load the sheet
 script (~10 KB) on the first connect and the SDK bundle only after choosing
@@ -88,10 +89,33 @@ email.
     reason, gas too low) with Close, and the call rejects with the original
     error so the page's own handling still runs.
   **Limit:** this stops bugs and accidental sends; a script with full control
-  of the page could still drive the sheet. The out-of-page answer is Privy's
-  transaction MFA (dashboard → Authentication → MFA; the headless SDK then
-  needs an MFA prompt built on `privy.mfaPromises`) — phase two. Until then the
-  wallet-ready copy tells users to keep only what they are playing with in it.
+  of the page could still drive the sheet. The out-of-page answer is the
+  authenticator app below.
+- **Transaction MFA — authenticator app (TOTP).** Optional per user, offered
+  on the wallet-ready step after sign-in and any time under **Wallet
+  security** (wallet dropdown on the main pages; the shield icon on the
+  SwapTables chip). Enrolment: `privy.mfa.initEnrollMfa({method:"totp"})`
+  returns the secret + `otpauth://` URI, shown as a QR (`vendor/qrcode.js`),
+  the key with Copy, and an "Open in authenticator app" link; the first code
+  from the app goes to `submitEnrollMfa`. Once enrolled, **Privy's iframe
+  refuses every signing request until it gets the current 6-digit code**: the
+  SDK emits `mfaRequired` on `privy.mfaPromises`, `email-login.js` swaps the
+  sheet's "Sending…" state for the code prompt, and resolves
+  `mfaPromises.rootPromise.current` with `{ mfaMethod: "totp", mfaCode,
+  relyingParty }`. Each try is reported through `mfaPromises.submitPromise`
+  (a fresh `{resolve, reject}` pair is installed before every submit): a wrong
+  code shows "didn't match" in place; SDK limits are 3 codes per request and
+  5 minutes per prompt, after which the request fails with a plain reason
+  ("Too many wrong authenticator codes…" / "Timed out…"). Cancel / Escape /
+  × in the prompt rejects the request with the same 4001 error as Reject.
+  The check runs inside Privy's iframe — nothing on the page can sign
+  without the phone. Removing the authenticator (`unenrollMfa("totp")`) asks
+  for one last code. Only TOTP is offered: no phone number to hold, works
+  offline, no regional SMS limits; SMS / passkey enrolment is not built (a
+  wallet that somehow has only those gets a "can't collect yet" message).
+  The Privy dashboard must have MFA turned on for the app (setup step 7).
+  Note the wallet-ready copy still tells users to keep only what they are
+  playing with in the wallet.
 - **Cold start.** The wallet starts with 0 ETH, so it cannot mint a first
   ticket. The "wallet ready" step shows the address with a copy button and says
   so. Gas sponsorship (ERC-4337 / paymaster) is the phase-two answer; it is not
@@ -118,17 +142,28 @@ never needed by the frontend and must not be put anywhere in this repo.
 6. Copy the **App ID** (App settings → Basics) into `config.js` →
    `window.PRIVY_APP_ID`. Dev mirror: `cmu3mq0in04v90bjyc1y38iij`
    ("TimbSwap Dev", development mode).
+7. **MFA:** Authentication → MFA (the wallet / "Multi-factor authentication"
+   section) → enable it for the app and make sure the **Authenticator app
+   (TOTP)** method is allowed. Do not pick "require for all users" unless you
+   want sign-in itself to insist on it — the site offers enrolment on the
+   wallet-ready step and under Wallet security, and Privy enforces the code
+   on every signing request for users who enrolled. Without this switch,
+   `initEnrollMfa` fails and the sheet says "Authenticator setup isn't
+   enabled for this app yet".
 
 ## Rebuilding the vendored SDK
 
 ```
 npm ci
-npm run build:vendor      # writes vendor/privy-core.js
+npm run build:vendor      # writes vendor/privy-core.js and vendor/qrcode.js
 ```
 
-Bump the pinned `@privy-io/js-sdk-core` in `package.json` first when
-upgrading. `scripts/vendor/privy.entry.js` re-exports only the six names the
-bridge uses, so a rename upstream fails the build instead of a user's browser.
+Bump the pinned `@privy-io/js-sdk-core` (or `qrcode-generator`) in
+`package.json` first when upgrading. `scripts/vendor/privy.entry.js`
+re-exports only the six names the bridge uses, so a rename upstream fails the
+build instead of a user's browser; `scripts/vendor/qrcode.entry.js` exports
+one `qrSvg()`. Commit only the bundle you meant to change — a different
+esbuild build re-minifies the other one into a no-op diff.
 
 ## Test checklist (dev mirror, before the live site)
 
@@ -150,10 +185,18 @@ bridge uses, so a rename upstream fails the build instead of a user's browser.
 - [ ] Wrong-chain path: not reachable for email wallets (the provider is pinned
       to `CHAIN_ID`), but confirm `_ensureChain` returns cleanly.
 - [ ] DebugHub label reads `privy-email` on the connect checkpoint.
+- [ ] **Authenticator app:** dashboard MFA on. Sign in → wallet-ready offers
+      "Add an authenticator app" → QR scans in Google Authenticator / Authy →
+      first code turns it on. Then a ticket mint: Confirm → "Approve with your
+      authenticator" → wrong code says "didn't match" in place → right code
+      sends. Cancel in the prompt behaves like Reject (no error sheet). Wallet
+      dropdown shows **Wallet security** (email sessions only) with On/Off,
+      remove asks for a code (live site: the SwapTables chip shows the shield icon).
 
 ## Not in this drop
 
 - The three `tables/*` pages (SwapTables) use their own provider code with
   direct `window.ethereum` calls and ethers v6 — same treatment, separate PR.
-- Gas sponsorship / smart accounts; key export UI; MFA / recovery password UI.
+- Gas sponsorship / smart accounts; key export UI; recovery password UI;
+  SMS / passkey MFA (authenticator-app MFA is in — see above).
 - The live site (`TestSwap`): port after the mirror pass above.
