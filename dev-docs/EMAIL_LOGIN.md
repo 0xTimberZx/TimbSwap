@@ -133,7 +133,10 @@ email.
      which re-verifies the same account). The email carries the code only —
      the key is never emailed (an email cannot have a working copy button
      and would keep the key forever in inboxes and backups).
-  3. *Reveal*. TEE-stack wallet (`account.id` + `recovery_method
+  3. *Reveal*. With an authenticator enrolled, `privy.mfa.verifyMfa()` first
+     (the same prompt as a transaction; Privy's React SDK forces this before
+     its export screen and without it the export page answers "Invalid JWT
+     token provided"). TEE-stack wallet (`account.id` + `recovery_method
      "privy-v2"`): Privy's **client export** — the page makes a P-256 key
      pair (`vendor/hpke.js`), loads Privy's export page hidden
      (`/apps/<appId>/embedded-wallets/export?v=1-unified&wallet_id=…&mode=client-export#token=…`),
