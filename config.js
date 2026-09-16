@@ -28,6 +28,13 @@ const SITE_ROOT = (function () {
   try { return new URL("./", document.currentScript.src).href; } catch { return "/"; }
 })();
 
+// Cache-buster for the lazily-loaded assets (assets/email-login.js and the
+// vendored Privy bundle). config.js itself is always fetched fresh (?t=now),
+// so bumping this one string is what makes browsers and the CDN pick up a
+// new version of those files — GitHub Pages serves them with a 10-minute
+// max-age that Cloudflare honours. Bump on every change to either file.
+window.ASSET_VER = "20260916b";
+
 // Resolve a root-absolute site path ("/compete/") against SITE_ROOT, so JS
 // navigation works on sub-path hosting too. Anything else passes through.
 function siteUrl(path) {
@@ -500,7 +507,7 @@ function _loadEmailLogin() {
   if (_emailLoginLoad) return _emailLoginLoad;
   _emailLoginLoad = new Promise((resolve) => {
     const s = document.createElement("script");
-    s.src = SITE_ROOT + "assets/email-login.js";
+    s.src = SITE_ROOT + "assets/email-login.js?v=" + window.ASSET_VER;
     s.async = true;
     s.onload = () => resolve(!!window.TimbEmailWallet);
     s.onerror = () => { _emailLoginLoad = null; resolve(false); };

@@ -27,7 +27,7 @@
   "use strict";
 
   const ROOT   = (typeof SITE_ROOT !== "undefined" && SITE_ROOT) ? SITE_ROOT : "/";
-  const VENDOR = ROOT + "vendor/privy-core.js";
+  const VENDOR = ROOT + "vendor/privy-core.js?v=" + (window.ASSET_VER || "1");
   const CHAIN  = (typeof CHAIN_ID !== "undefined") ? CHAIN_ID : 421614;
 
   let _mod = null;      // the vendored SDK module
