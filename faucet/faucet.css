@@ -28,6 +28,7 @@
 .faucet-claim-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .faucet-status {
+  overflow-wrap: anywhere;
   margin-top: 14px;
   font-size: 0.92rem;
   line-height: 1.45;

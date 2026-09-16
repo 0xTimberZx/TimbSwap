@@ -55,6 +55,9 @@ body {
   font-family: var(--sans);
   font-size: 16px;
   line-height: 1.6;
+  /* A long unbreakable token (an address, a hash, a raw error) must wrap
+     inside its box, never push the page sideways. */
+  overflow-wrap: break-word;
   min-height: 100vh;
 }
 

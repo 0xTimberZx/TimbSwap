@@ -121,10 +121,13 @@
             return result;
           } catch (e) {
             await showError(e, isTx);
-            throw e;
+            throw sanitizeError(e);
           }
         }
-        return provider.request(args);
+        // Reads (eth_call, eth_estimateGas …): no sheet, but the same short
+        // message on failure — a reverting estimate is what the pages show.
+        try { return await provider.request(args); }
+        catch (e) { throw sanitizeError(e); }
       },
       on(ev, fn) { try { provider.on && provider.on(ev, fn); } catch (_e) {} return g; },
       removeListener(ev, fn) { try { provider.removeListener && provider.removeListener(ev, fn); } catch (_e) {} return g; },
@@ -354,18 +357,45 @@
     return info;
   }
 
-  // Plain-language reason for a failed send / estimate.
+  // Plain-language reason for a failed send / estimate. The embedded wallet's
+  // provider (viem underneath) throws multi-line messages that embed the full
+  // calldata ("Estimate Gas Arguments: … data: 0x…"), which is what overflowed
+  // the SwapTables rail — so this always reduces to one short line.
   function txErrorText(e) {
-    const msg = String((e && (e.reason || (e.error && e.error.message) || (e.data && e.data.message) || e.message)) || "Unknown error");
+    const raw = String((e && (e.reason || (e.error && e.error.message) || (e.data && e.data.message) || e.shortMessage || e.message)) || "Unknown error");
     if (e && e.code === 4001) return "Rejected.";
-    if (/insufficient funds/i.test(msg)) return "Not enough ETH to cover the amount plus the network fee.";
-    if (/nonce too low/i.test(msg)) return "Nonce too low: a transaction with that nonce already went through. Leave the nonce blank to use the next one.";
-    if (/replacement transaction underpriced|already known|already exists/i.test(msg)) return "A transaction with this nonce is already pending. Raise the max fee to replace it, or wait for it to confirm.";
-    if (/gas required exceeds|intrinsic gas too low|out of gas/i.test(msg)) return "Gas limit too low for this transaction. Raise it under Advanced.";
-    const m = /execution reverted:?\s*([^"}]*)/i.exec(msg);
-    if (m) return "The contract rejected this transaction" + (m[1] && m[1].trim() ? ": " + m[1].trim() : ".");
-    if (/user rejected|user denied/i.test(msg)) return "Rejected.";
-    return msg.length > 240 ? msg.slice(0, 240) + "…" : msg;
+    if (/user rejected|user denied/i.test(raw)) return "Rejected.";
+    if (/insufficient funds/i.test(raw)) return "Not enough ETH to cover the amount plus the network fee.";
+    if (/nonce too low/i.test(raw)) return "Nonce too low: a transaction with that nonce already went through. Leave the nonce blank to use the next one.";
+    if (/replacement transaction underpriced|already known|already exists/i.test(raw)) return "A transaction with this nonce is already pending. Raise the max fee to replace it, or wait for it to confirm.";
+    if (/gas required exceeds|intrinsic gas too low|out of gas/i.test(raw)) return "Gas limit too low for this transaction. Raise it under Advanced.";
+    const named = /reverted with the following reason:\s*\n?\s*([^\n]+)/i.exec(raw);
+    if (named) return "The contract rejected this transaction: " + tidyLine(named[1]);
+    if (/reverted for an unknown reason/i.test(raw)) return "The contract rejected this transaction — it may not allow that action right now.";
+    const m = /execution reverted:?\s*([^\n"}]*)/i.exec(raw);
+    if (m) return "The contract rejected this transaction" + (m[1] && m[1].trim() ? ": " + tidyLine(m[1]) : ".");
+    return tidyLine(raw);
+  }
+  // First non-empty line, long hex blobs collapsed, capped — never a wall of text.
+  function tidyLine(msg) {
+    const first = String(msg || "").split("\n").map((x) => x.trim()).filter(Boolean)[0] || "Unknown error";
+    const noHex = first.replace(/0x[0-9a-fA-F]{20,}/g, (h) => h.slice(0, 10) + "…");
+    return noHex.length > 200 ? noHex.slice(0, 200) + "…" : noHex;
+  }
+  // Rethrow with a short message so every page's own error display (alerts,
+  // status lines, the tables rail) shows one line instead of the provider's
+  // dump. The original text is kept on `.details`; code / data / reason stay
+  // intact for the pages' revert decoding.
+  function sanitizeError(e) {
+    try {
+      if (e && typeof e === "object") {
+        const short = txErrorText(e);
+        if (e.details === undefined) { try { e.details = e.message; } catch (_x) {} }
+        try { Object.defineProperty(e, "message", { value: short, writable: true, configurable: true }); } catch (_x) { try { e.message = short; } catch (_y) {} }
+        if (typeof e.shortMessage === "string") { try { e.shortMessage = short; } catch (_x) {} }
+      }
+    } catch (_e) {}
+    return e;
   }
 
   function row(k, v, mono) {
@@ -619,7 +649,7 @@
 .tsheet-input:focus { outline: none; border-color: var(--ts-green); }
 .tsheet-code { letter-spacing: 0.3em; text-align: center; font-size: 20px; }
 .tsheet-note { margin: 0; color: var(--ts-text-2); font-size: 13px; line-height: 1.45; }
-.tsheet-err { margin: 0; min-height: 1em; color: #f59e0b; font-size: 13px; }
+.tsheet-err { margin: 0; min-height: 1em; color: #f59e0b; font-size: 13px; overflow-wrap: anywhere; }
 .tsheet-links { display: flex; gap: 14px; }
 .tsheet-link {
   background: none; border: 0; padding: 0; color: var(--ts-green);
@@ -629,7 +659,7 @@
 .tsheet-rows { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--ts-bg); border: 1px solid var(--ts-border); border-radius: var(--ts-radius); }
 .tsheet-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .tsheet-k { color: var(--ts-text-2); flex: 0 0 auto; }
-.tsheet-v { text-align: right; word-break: break-word; }
+.tsheet-v { text-align: right; overflow-wrap: anywhere; min-width: 0; }
 .tsheet-mono { font-family: var(--ts-mono); font-size: 12px; }
 .tsheet-actions { display: flex; flex-direction: column; gap: 8px; }
 .tsheet-adv { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--ts-bg); border: 1px dashed var(--ts-border); border-radius: var(--ts-radius); }
