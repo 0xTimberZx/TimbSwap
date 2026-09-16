@@ -66,7 +66,24 @@
     .qs-board-head { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 10px; }
     .qs-board-head h2 { font-size: 20px; }
     .qs-board-head .qs-count { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
-    .table-wrap { overflow-x: auto; }
+    /* Leaderboard scroll cue. .table-wrap scrolls; the OUTER .qs-scroll owns the
+       right-edge fade + hint so they stay put instead of scrolling away with the
+       content. The hint is a SIBLING after .qs-scroll (not a child) so the fade
+       overlays only the table and never washes out the hint's arrow. JS toggles
+       .can-scroll / .at-end; both cues vanish at the end and never render on
+       desktop where nothing scrolls. */
+    .qs-scroll { position: relative; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .qs-scroll::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 56px; pointer-events: none;
+      background: linear-gradient(to left, var(--bg2) 20%, transparent); opacity: 0; transition: opacity .2s ease; }
+    .qs-scroll.can-scroll:not(.at-end)::after { opacity: 1; }
+    .qs-scroll-hint { display: none; margin: 8px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-3); text-align: right; }
+    .qs-scroll.can-scroll:not(.at-end) + .qs-scroll-hint { display: block; }
+    @media (max-width: 480px) {
+      .qs-table { min-width: 520px; }
+      .qs-table th, .qs-table td { padding: 10px 10px; }
+    }
     .qs-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 560px; }
     .qs-table th, .qs-table td { text-align: left; padding: 11px 14px; border-bottom: var(--bw) solid var(--border); }
     .qs-table th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
@@ -207,7 +224,8 @@
       <h2>Leaderboard</h2>
       <span class="qs-count">top 100</span>
     </div>
-    <div class="table-wrap">
+    <div class="qs-scroll" id="qs-scroll">
+    <div class="table-wrap" id="qs-table-wrap">
       <table class="qs-table">
         <thead>
           <tr><th>#</th><th>Wallet</th><th>TP</th><th>Rounds</th><th>Swaps</th><th>Streak</th></tr>
@@ -217,6 +235,8 @@
         </tbody>
       </table>
     </div>
+    </div>
+    <p class="qs-scroll-hint" aria-hidden="true">Swipe for Swaps · Streak &rarr;</p>
 
     <p class="qs-note">
       Timber Points are <strong>off-chain and non-transferable</strong> — a score, not a token, computed from your on-chain
@@ -289,6 +309,24 @@
           if (window.questsCheck) window.questsCheck(addr);
         }
       } catch {}
+    })();
+
+    // Leaderboard scroll cue: show the fade + hint only while there is more to
+    // the right. Re-evaluated on resize and whenever quests.js swaps the rows.
+    (function () {
+      var outer = document.getElementById("qs-scroll"), wrap = document.getElementById("qs-table-wrap");
+      if (!outer || !wrap) return;
+      function update() {
+        var can = wrap.scrollWidth > wrap.clientWidth + 1;
+        var end = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 1;
+        outer.classList.toggle("can-scroll", can);
+        outer.classList.toggle("at-end", !can || end);
+      }
+      wrap.addEventListener("scroll", update, { passive: true });
+      window.addEventListener("resize", update, { passive: true });
+      var board = document.getElementById("qs-board");
+      if (board && "MutationObserver" in window) new MutationObserver(update).observe(board, { childList: true });
+      update();
     })();
   </script>
   <script src="../quests.js?v=1"></script>
