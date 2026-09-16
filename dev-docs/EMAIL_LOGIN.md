@@ -34,9 +34,9 @@ Files:
 
 | File | Role |
 |---|---|
-| `config.js` | `PRIVY_APP_ID`, `SITE_ROOT`, `_embeddedProvider`, `_pickConnectMethod`, `_loadEmailLogin`, session kind + remembered method, email branches in `connectWallet` / `autoReconnect` / `disconnectWallet` / `handleSwitchAccount` |
+| `config.js` | `PRIVY_APP_ID`, `PRIVY_SPONSOR_GAS`, `SITE_ROOT`, `_embeddedProvider`, `_pickConnectMethod`, `_loadEmailLogin`, session kind + remembered method, email branches in `connectWallet` / `autoReconnect` / `disconnectWallet` / `handleSwitchAccount` |
 | `assets/email-login.js` | the sheet (chooser, email, code, wallet-ready, confirm, authenticator prompt, Wallet security) + the Privy bridge (`window.TimbEmailWallet`). Injected on demand by `config.js`. |
-| `vendor/privy-core.js` | `@privy-io/js-sdk-core` bundled (ESM, ~800 KB). `import()`-ed only when a user picks email. **Generated** by `scripts/build-vendor.mjs`; never edit. |
+| `vendor/privy-core.js` | `@privy-io/js-sdk-core` bundled (ESM, ~800 KB): the client, embedded-wallet helpers, chains and the wallet-API `rpc` (sponsored sends). `import()`-ed only when a user picks email. **Generated** by `scripts/build-vendor.mjs`; never edit. |
 | `vendor/qrcode.js` | `qrcode-generator` bundled (ESM, ~20 KB). `import()`-ed only on the authenticator enrolment step, to draw the `otpauth://` QR. **Generated**; never edit. |
 | `tables/wallet.js` | the SwapTables pages' bridge to the above (chooser / email / restore, chip icons incl. Wallet security for email sessions). |
 | `package.json` | dev-only: pins the SDK + QR library versions and esbuild. The site still has no build step. |
@@ -119,10 +119,32 @@ email.
   The Privy dashboard must have MFA turned on for the app (setup step 7).
   Note the wallet-ready copy still tells users to keep only what they are
   playing with in the wallet.
-- **Cold start.** The wallet starts with 0 ETH, so it cannot mint a first
-  ticket. The "wallet ready" step shows the address with a copy button and says
-  so. Gas sponsorship (ERC-4337 / paymaster) is the phase-two answer; it is not
-  in this drop.
+- **Gas sponsorship (`PRIVY_SPONSOR_GAS`).** With the flag on, an
+  `eth_sendTransaction` from the email wallet is not signed in the iframe and
+  broadcast by the page: `email-login.js` calls the wallet API
+  (`rpc()` from the SDK → `POST /v1/wallets/{id}/rpc` with `sponsor: true`,
+  `caip2: eip155:<CHAIN_ID>`, the transaction's `from / to / data / value /
+  chain_id`), authorised by the user's signer
+  (`embeddedWallet.signWithUserSigner`, which runs through the same MFA loop,
+  so the authenticator prompt still applies). Privy pays the network fee,
+  broadcasts, and returns the hash; the page then waits for the receipt on the
+  public RPC as before. Only for wallets on Privy's **TEE stack**
+  (`account.id` set and `recovery_method === "privy-v2"`); older wallets keep
+  paying their own gas. The confirm sheet shows "Network fee: Sponsored — no
+  ETH needed for gas", no max-fee / nonce rows and no Advanced panel (Privy
+  sets those); a balance warning only if the ETH *value* exceeds the balance.
+  If Privy rejects the sponsored send (feature off, chain not covered, budget
+  or policy), the failed sheet says "Gas sponsorship isn't available right
+  now: <reason>. Nothing was sent", the call rejects with
+  `code: "sponsorship_unavailable"`, and the wallet pays its own gas for the
+  rest of the session (Wallet security shows "Network fees: Paid by this
+  wallet — <reason>"). Signing requests (`personal_sign`, typed data) are
+  unchanged. Sponsorship covers gas only — any ETH value still comes from the
+  wallet.
+- **Cold start.** With sponsorship on, a fresh wallet can claim from the faucet
+  (the claim is sent by the faucet worker) and then approve + enter a ticket
+  with TIMBS without ever holding ETH; the wallet-ready copy says so. Entering
+  with ETH, or any send with value, still needs ETH sent to the address.
 
 ## Privy dashboard setup (per environment)
 
@@ -153,6 +175,16 @@ never needed by the frontend and must not be put anywhere in this repo.
    on every signing request for users who enrolled. Without this switch,
    `initEnrollMfa` fails and the sheet says "Authenticator setup isn't
    enabled for this app yet".
+8. **Fee sponsorship:** Wallet infrastructure → Fee sponsorship → enable it
+   for this deployment's chain (Arbitrum Sepolia for the mirror / testnet,
+   Arbitrum One for mainnet) and set a budget and per-user policy — every
+   sponsored send is billed to the app, and the game is free to play, so cap
+   it. Wallets must be on Privy's TEE stack for sponsorship (new wallets on a
+   TEE-mode app are; a wallet created before the app was switched shows
+   "older key stack" under Wallet security and pays its own gas). If the
+   dashboard rejects a sponsored send, the sheet shows Privy's reason
+   verbatim. `window.PRIVY_SPONSOR_GAS = false` in `config.js` switches the
+   feature off without touching anything else.
 
 ## Rebuilding the vendored SDK
 
@@ -163,7 +195,7 @@ npm run build:vendor      # writes vendor/privy-core.js and vendor/qrcode.js
 
 Bump the pinned `@privy-io/js-sdk-core` (or `qrcode-generator`) in
 `package.json` first when upgrading. `scripts/vendor/privy.entry.js`
-re-exports only the six names the bridge uses, so a rename upstream fails the
+re-exports only the seven names the bridge uses (incl. the wallet-API `rpc`), so a rename upstream fails the
 build instead of a user's browser; `scripts/vendor/qrcode.entry.js` exports
 one `qrSvg()`. Commit only the bundle you meant to change — a different
 esbuild build re-minifies the other one into a no-op diff.
@@ -195,11 +227,18 @@ esbuild build re-minifies the other one into a no-op diff.
       sends. Cancel in the prompt behaves like Reject (no error sheet). Wallet
       dropdown shows **Wallet security** (email sessions only) with On/Off,
       remove asks for a code (live site: the SwapTables chip shows the shield icon).
+- [ ] **Gas sponsorship:** dashboard Fee sponsorship on for the chain. Fresh
+      email wallet with 0 ETH: faucet claim → approve → ticket mint, each
+      confirm sheet showing "Network fee: Sponsored"; the hash the page waits
+      on resolves to a receipt (check Arbiscan: paid by Privy's relayer, from
+      = the wallet). With sponsorship off in the dashboard: the first send
+      shows "Gas sponsorship isn't available right now: …", nothing sent, and
+      the next send is the self-pay sheet.
 
 ## Not in this drop
 
 - The three `tables/*` pages (SwapTables) use their own provider code with
   direct `window.ethereum` calls and ethers v6 — same treatment, separate PR.
-- Gas sponsorship / smart accounts; key export UI; recovery password UI;
-  SMS / passkey MFA (authenticator-app MFA is in — see above).
+- Smart accounts / batching; key export UI; recovery password UI; SMS /
+  passkey MFA (authenticator-app MFA and gas sponsorship are in — see above).
 - The live site (`TestSwap`): port after the mirror pass above.

@@ -21,6 +21,15 @@ window.TURNSTILE_SITE_KEY = "";
 // allowed origins must include this site's origin.
 window.PRIVY_APP_ID = "cmu3mq0in04v90bjyc1y38iij"; // "TimbSwap Dev" app (dev mirror only; the live site gets its own)
 
+// Gas sponsorship for email wallets. When true, a transaction from the email
+// wallet is sent through Privy's wallet API with sponsor:true, so a fresh
+// wallet needs no ETH for gas (Privy pays the network fee and bills the app).
+// Needs "Fee sponsorship" enabled for this chain in the Privy dashboard and a
+// wallet on Privy's TEE stack; otherwise the confirm sheet says sponsorship
+// isn't available and the wallet pays its own gas as before. Set false to
+// switch it off without touching anything else. See dev-docs/EMAIL_LOGIN.md.
+window.PRIVY_SPONSOR_GAS = true;
+
 // Where this site is served from ("https://host/" or "https://host/sub/"),
 // derived from this script's own URL so lazily-loaded assets (the email login
 // sheet, the vendored Privy bundle) resolve on both root and sub-path hosting.
@@ -33,7 +42,7 @@ const SITE_ROOT = (function () {
 // so bumping this one string is what makes browsers and the CDN pick up a
 // new version of those files — GitHub Pages serves them with a 10-minute
 // max-age that Cloudflare honours. Bump on every change to either file.
-window.ASSET_VER = "20260916j";
+window.ASSET_VER = "20260916k";
 
 // Resolve a root-absolute site path ("/compete/") against SITE_ROOT, so JS
 // navigation works on sub-path hosting too. Anything else passes through.

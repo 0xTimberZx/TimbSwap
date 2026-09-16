@@ -43,6 +43,8 @@
   let _loading = null;  // memoised load()
   let _address = null;  // current embedded wallet address (after login/restore)
   let _user = null;     // Privy user (linked accounts, enrolled MFA methods)
+  let _account = null;  // the embedded wallet account (id, address, key stack)
+  let _sponsorOff = ""; // reason gas sponsorship was switched off this session (Privy rejected it)
 
   function available() { return !!window.PRIVY_APP_ID; }
 
@@ -94,7 +96,50 @@
       wallet: account, entropyId, entropyIdVerifier,
     });
     _address = account.address;
+    _account = account;
     return guard(provider);
+  }
+
+  // ── Gas sponsorship ─────────────────────────────────────────────────────────
+  // With PRIVY_SPONSOR_GAS on, a transaction is not signed in the iframe and
+  // broadcast by the page; it goes to Privy's wallet API (POST
+  // /v1/wallets/{id}/rpc, sponsor:true), authorised by the user's signer, and
+  // Privy pays the network fee and broadcasts. So a fresh email wallet needs no
+  // ETH for gas — only for any value it sends. Requirements: "Fee sponsorship"
+  // enabled for this chain in the Privy dashboard, and a wallet on Privy's
+  // TEE stack (account.recovery_method "privy-v2"; older wallets are not).
+  // The user-signer authorisation goes through the same MFA loop as iframe
+  // signing, so the authenticator prompt still applies. If Privy rejects a
+  // sponsored send (feature off, chain not covered, budget spent), the sheet
+  // says so, nothing is sent, and the wallet pays its own gas from then on.
+  function sponsorAvailable() {
+    return !!window.PRIVY_SPONSOR_GAS && !_sponsorOff && !!_mod && typeof _mod.rpc === "function"
+      && !!_account && !!_account.id && _account.recovery_method === "privy-v2";
+  }
+  function sponsorStatus() {
+    if (!window.PRIVY_SPONSOR_GAS) return { on: false, why: "Switched off for this site." };
+    if (_sponsorOff) return { on: false, why: _sponsorOff };
+    if (!_account || !_account.id || _account.recovery_method !== "privy-v2") return { on: false, why: "This wallet is on Privy's older key stack; sponsorship needs a TEE wallet." };
+    return { on: true, why: "" };
+  }
+  async function sendSponsored(tx) {
+    const sign = ({ message }) => _privy.embeddedWallet.signWithUserSigner({ message });
+    const t = { from: _address, to: tx.to, chain_id: hex(CHAIN) };
+    if (tx.data && tx.data !== "0x") t.data = tx.data;
+    if (tx.value && BigInt(tx.value) > 0n) t.value = hex(tx.value);
+    const res = await _mod.rpc(_privy, sign, {
+      wallet_id: _account.id, chain_type: "ethereum", method: "eth_sendTransaction",
+      caip2: "eip155:" + CHAIN, sponsor: true, params: { transaction: t },
+    });
+    const hash = res && res.data && res.data.hash;
+    if (!hash) throw new Error("Sponsored send returned no transaction hash.");
+    return hash;
+  }
+  // A rejection that is about sponsorship itself (not the transaction).
+  function isSponsorError(e) {
+    const m = String((e && ((e.error && e.error.message) || e.error || e.message)) || "").toLowerCase();
+    if (/insufficient funds|revert|nonce|user rejected|mfa/.test(m)) return false;
+    return /sponsor|not enabled|not supported|unsupported|not allowed|policy|budget|quota|limit|tee|payment required|forbidden|\b40[123]\b/.test(m);
   }
 
   // ── Confirmation guard ──────────────────────────────────────────────────────
@@ -127,7 +172,24 @@
             throw err;
           }
           try {
-            const result = await provider.request(args);
+            let result;
+            if (args.method === "eth_sendTransaction" && sponsorAvailable()) {
+              try {
+                result = await sendSponsored((args.params && args.params[0]) || {});
+              } catch (e) {
+                if (isSponsorError(e)) {
+                  // Privy would not sponsor it: say so and let the wallet pay
+                  // its own gas from the next attempt on. Nothing was sent.
+                  _sponsorOff = txErrorText(e).replace(/[.\s]*$/, ".");
+                  const err = new Error("Gas sponsorship isn't available right now: " + _sponsorOff + " Nothing was sent. Try again — the wallet will pay its own network fee.");
+                  err.code = "sponsorship_unavailable";
+                  throw err;
+                }
+                throw e;
+              }
+            } else {
+              result = await provider.request(args);
+            }
             close(null); // sending state → done
             return result;
           } catch (e) {
@@ -359,17 +421,20 @@
 
   // Gas / fee / nonce, read through the wallet's own provider (reads never
   // trigger the guard). Missing pieces degrade to a note.
-  async function feeInfo(raw, tx) {
+  async function feeInfo(raw, tx, sponsored) {
     const info = { gas: null, maxFee: null, nonce: null, fee: null, balance: null, gasError: null, legacy: !!tx.gasPrice };
     try {
       const g = tx.gas || tx.gasLimit || await raw.request({ method: "eth_estimateGas", params: [tx] });
       info.gas = BigInt(g);
     } catch (e) { info.gasError = txErrorText(e); }
-    try {
-      const f = tx.maxFeePerGas || tx.gasPrice || await raw.request({ method: "eth_gasPrice", params: [] });
-      info.maxFee = BigInt(f);
-    } catch (_e) {}
-    try { info.nonce = Number(BigInt(await raw.request({ method: "eth_getTransactionCount", params: [_address, "pending"] }))); } catch (_e) {}
+    if (!sponsored) {
+      // Privy picks gas price and nonce for a sponsored send; they are not shown or overridable.
+      try {
+        const f = tx.maxFeePerGas || tx.gasPrice || await raw.request({ method: "eth_gasPrice", params: [] });
+        info.maxFee = BigInt(f);
+      } catch (_e) {}
+      try { info.nonce = Number(BigInt(await raw.request({ method: "eth_getTransactionCount", params: [_address, "pending"] }))); } catch (_e) {}
+    }
     try { info.balance = BigInt(await raw.request({ method: "eth_getBalance", params: [_address, "latest"] })); } catch (_e) {}
     if (info.gas != null && info.maxFee != null) info.fee = info.gas * info.maxFee;
     return info;
@@ -382,6 +447,7 @@
   function txErrorText(e) {
     const raw = String((e && (e.reason || (e.error && e.error.message) || (e.data && e.data.message) || e.shortMessage || e.message)) || "Unknown error");
     if (e && e.code === 4001) return "Rejected.";
+    if (e && e.code === "sponsorship_unavailable") return String(e.message);
     if (/user rejected|user denied/i.test(raw)) return "Rejected.";
     if (isMfaCancel(e)) return "Rejected.";
     if (/max mfa verification attempts|mfa_verification_max_attempts/i.test(raw)) return "Too many wrong authenticator codes. Nothing was sent. Wait a moment and try again.";
@@ -440,6 +506,7 @@
     const actions = h("div", { class: "tsheet-actions" });
     let advInputs = null;
     let info = null;
+    let sponsored = false;
     const isTx = (m === "eth_sendTransaction" || m === "eth_signTransaction");
     const btnConfirm = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: onConfirm }, h("strong", { text: "Confirm" }));
     const btnReject  = h("button", { class: "tsheet-btn", type: "button", onclick: () => close(false) }, h("strong", { text: "Reject" }));
@@ -477,19 +544,25 @@
     if (isTx) {
       const tx = (args.params && args.params[0]) || {};
       const name = contractName(tx.to);
+      sponsored = (m === "eth_sendTransaction") && sponsorAvailable();
       rows.append(row("Action", actionLabel(tx)));
       rows.append(row("To", name ? name + " (" + short(tx.to) + ")" : (tx.to || "(contract creation)"), !name));
       rows.append(row("Amount", fmtEth(tx.value)));
       rows.append(row("From", short(_address), true));
       rows.append(row("Network", chainName()));
+      if (sponsored) rows.append(row("Network fee", "Sponsored — no ETH needed for gas"));
       const loading = row("Details", "loading…");
       more.classList.remove("hidden"); more.append(loading);
 
       (async () => {
         const parts = [];
         try { const parsed = decodeTx(tx); if (parsed) parts.push(...await detailRows(parsed, tx)); } catch (_e) {}
-        try { info = await feeInfo(raw, tx); } catch (_e) { info = null; }
-        if (info) {
+        try { info = await feeInfo(raw, tx, sponsored); } catch (_e) { info = null; }
+        if (info && sponsored) {
+          if (info.gasError) parts.push(["Gas estimate", "failed — this transaction would likely fail: " + info.gasError]);
+          const value = BigInt(tx.value || 0);
+          if (value > 0n && info.balance != null && info.balance < value) parts.push(["Warning", "Not enough ETH for the amount: " + fmtEth(info.balance, 6) + " available"]);
+        } else if (info) {
           if (info.gasError) parts.push(["Gas estimate", "failed — this transaction would likely fail: " + info.gasError]);
           else if (info.gas != null) parts.push(["Gas limit", info.gas.toString()]);
           if (info.maxFee != null) parts.push(["Max fee per gas", fmtWei(info.maxFee, 9, 4) + " gwei"]);
@@ -538,7 +611,7 @@
       h("p", { class: "tsheet-note", text: "Your email wallet only signs after you confirm. Check the action and amounts." }),
       rows, more, err,
     ];
-    if (isTx) nodes.push(h("div", { class: "tsheet-links" }, advLink), adv);
+    if (isTx && !sponsored) nodes.push(h("div", { class: "tsheet-links" }, advLink), adv);
     nodes.push(actions);
     setBody(...nodes);
     return p.then((v) => v === true);
@@ -747,6 +820,8 @@
       if (email) rows.append(row("Signed in as", email));
       rows.append(row("Wallet", short(_address || ""), true));
       rows.append(row("Authenticator app", on ? "On" : "Off"));
+      const gas = sponsorStatus();
+      rows.append(row("Network fees", gas.on ? "Sponsored by TimbSwap" : "Paid by this wallet"));
       const err = errLine(); if (msg) err.textContent = msg;
       const action = on
         ? h("button", { class: "tsheet-btn", type: "button", onclick: removeTotp }, h("strong", { text: "Remove authenticator" }), h("span", { text: "Asks for one last code. Transactions will then only need the on-site confirmation." }))
@@ -757,6 +832,9 @@
         h("p", { class: "tsheet-note", text: on
           ? "Transactions and signatures from this wallet need a code from your authenticator app — at most once every 15 minutes, since Privy remembers a code for that long. That check runs inside Privy's wallet, so nothing on this site can sign without your phone."
           : "Right now transactions only need the confirmation sheet on this site. An authenticator app adds a check that runs outside the page — the strongest protection for this wallet." }),
+        h("p", { class: "tsheet-note", text: gas.on
+          ? "Network fees are sponsored: this wallet needs no ETH for gas, only for any ETH it sends."
+          : "This wallet pays its own network fees" + (gas.why ? " — " + gas.why : ".") }),
         err,
         h("div", { class: "tsheet-actions" }, action, h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
 
@@ -809,6 +887,8 @@
   async function logout() {
     _address = null;
     _user = null;
+    _account = null;
+    _sponsorOff = "";
     try { if (_privy) await _privy.auth.logout(); } catch (_err) { /* already out */ }
   }
 
@@ -1063,7 +1143,9 @@ a.tsheet-link { display: inline-block; }
         h("p", { class: "tsheet-note", text: "Your wallet is ready. This is its address on " + chainName() + ":" }),
         addr,
         h("div", { class: "tsheet-links" }, copy),
-        h("p", { class: "tsheet-note", text: "It starts empty. To enter a ticket it needs a little ETH for gas and the entry cost — send some to this address first. Come back here any time with the same email." }),
+        h("p", { class: "tsheet-note", text: sponsorAvailable()
+          ? "Network fees are sponsored, so it needs no ETH for gas. To play with TIMBS, claim from the faucet first; entering with ETH still needs ETH sent to this address. Come back here any time with the same email."
+          : "It starts empty. To enter a ticket it needs a little ETH for gas and the entry cost — send some to this address first. Come back here any time with the same email." }),
         h("p", { class: "tsheet-note", text: on
           ? "Authenticator app is on: transactions ask you to confirm on this site and then for a code from your app (at most once every 15 minutes)."
           : "Every transaction or signature from this wallet asks you to confirm on this site first. Keep only what you are playing with in it. You can add an authenticator app now or later under Wallet security." }),
@@ -1089,5 +1171,5 @@ a.tsheet-link { display: inline-block; }
     return dflt;
   }
 
-  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, security, guard, registerCalls, registerContracts, get address() { return _address; }, get mfaEnabled() { return hasTotp(); } };
+  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, security, guard, registerCalls, registerContracts, get address() { return _address; }, get mfaEnabled() { return hasTotp(); }, get gasSponsored() { return sponsorAvailable(); } };
 })();

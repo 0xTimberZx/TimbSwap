@@ -8,8 +8,11 @@ import Privy, {
   getEntropyDetailsFromAccount,
   arbitrumSepolia,
   arbitrum,
+  rpc,
 } from "@privy-io/js-sdk-core";
 
+// `rpc` is the wallet-API call (POST /v1/wallets/{id}/rpc, signed by the
+// user's signer) that email-login.js uses for gas-sponsored sends.
 export {
   Privy,
   LocalStorage,
@@ -17,4 +20,5 @@ export {
   getEntropyDetailsFromAccount,
   arbitrumSepolia,
   arbitrum,
+  rpc,
 };
