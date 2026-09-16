@@ -880,7 +880,7 @@
           slot, h("p", { class: "tsheet-note", text: "Then in your wallet app choose Add account → Import → paste the key. It is the same wallet in both." }),
           h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: () => { wipe(); onBack(); } }, h("strong", { text: "Done" }))));
         try {
-          const token = await _privy.getAccessToken();
+          const token = await privyToken();
           if (!token) throw new Error("Your session has expired. Sign in again.");
           frame = h("iframe", { class: "tsheet-frame-iframe", title: "Privy: copy private key", allow: "clipboard-write self *", height: "44", src: exportUrl(token, slot.getBoundingClientRect().width || 320, "display") });
           frame.addEventListener("load", () => setTimeout(() => slot.classList.add("ready"), 1200));
@@ -890,7 +890,7 @@
       }
       const status = h("p", { class: "tsheet-note", text: "Fetching your key from Privy and decrypting it in this browser…" });
       setBody(addrLine(), reminder, status, h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: () => { wipe(); onBack(); } }, h("strong", { text: "Cancel" }))));
-      try { key = await clientExport(); }
+      try { key = await clientExportWithRetry(); }
       catch (ex) {
         status.className = "tsheet-err"; status.setAttribute("role", "alert");
         status.textContent = friendly(ex, "Couldn't fetch the key: " + tidyLine((ex && ex.message) || "unknown error"));
@@ -918,7 +918,7 @@
   async function clientExport() {
     const hp = await import(HPKELIB);
     const { privateKey, publicKeyDer } = await hp.generateRecipient();
-    const token = await _privy.getAccessToken();
+    const token = await privyToken();
     if (!token) throw new Error("Your session has expired. Sign in again.");
     const origin = new URL(_privy.embeddedWallet.getURL()).origin;
     const url = exportUrl(token, 0, "client-export");
@@ -940,6 +940,31 @@
     const bytes = await hp.decryptExport({ ciphertext: res.ciphertext, encapsulatedKey: res.encapsulatedKey, privateKey });
     return keyText(bytes);
   }
+  // A rejected token (expired between steps, or a stale copy) gets one retry
+  // with freshly refreshed session tokens before the error reaches the user.
+  async function clientExportWithRetry() {
+    try { return await clientExport(); }
+    catch (e) {
+      if (!/jwt|token|unauthori[sz]ed|401/i.test(String((e && e.message) || ""))) throw e;
+      await privyToken({ fresh: true });
+      return await clientExport();
+    }
+  }
+  // The token Privy's own pages expect. Privy issues two session JWTs: the
+  // customer access token (what `getAccessToken()` returns, meant for an app's
+  // own backend) and the Privy access token used with Privy's services — the
+  // wallet iframe and the export page. Privy's React SDK hands the export page
+  // the Privy token first, so do the same; the customer token is the fallback
+  // for apps that have no Privy token. Sending the customer token where the
+  // Privy token is expected is what "Invalid JWT" means.
+  async function privyToken({ fresh } = {}) {
+    if (fresh) { try { await _privy.user.get(); } catch (_e) {} } // refreshes the session tokens
+    let t = null;
+    try { if (typeof _privy.getAccessTokenInternal === "function") t = await _privy.getAccessTokenInternal(); } catch (_e) {}
+    if (!t) { try { t = await _privy.getAccessToken(); } catch (_e) {} }
+    return t || null;
+  }
+
   // Privy hands the key back as text ("0x…" hex); tolerate raw 32 bytes too.
   function keyText(bytes) {
     let s = ""; try { s = new TextDecoder().decode(bytes).trim(); } catch (_e) {}
