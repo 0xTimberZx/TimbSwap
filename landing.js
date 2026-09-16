@@ -221,7 +221,7 @@ function goGated(e, dest) {
 // wallet UI / error, so the click isn't silently swallowed.
 async function connectThenGo(dest) {
   const ok = await handleConnect();
-  if (ok) window.location.href = dest;
+  if (ok) window.location.href = siteUrl(dest); // sub-path hosting safe (dev mirror)
 }
 
 async function handleConnect() {

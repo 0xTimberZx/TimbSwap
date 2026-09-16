@@ -28,6 +28,31 @@ const SITE_ROOT = (function () {
   try { return new URL("./", document.currentScript.src).href; } catch { return "/"; }
 })();
 
+// Resolve a root-absolute site path ("/compete/") against SITE_ROOT, so JS
+// navigation works on sub-path hosting too. Anything else passes through.
+function siteUrl(path) {
+  return (typeof path === "string" && path.startsWith("/") && !path.startsWith("//"))
+    ? SITE_ROOT + path.slice(1) : path;
+}
+
+// The pages link with root-absolute hrefs ("/swap/"), which is right on the
+// custom domain but leaves the site on sub-path hosting (the dev mirror lives
+// at github.io/TimbSwap/ → "/swap/" 404s at the github.io root). Rewrite those
+// hrefs once the DOM is in; a no-op when the site is served from "/".
+(function () {
+  let root = "/";
+  try { root = new URL(SITE_ROOT).pathname; } catch {}
+  if (root === "/") return;
+  const fix = () => {
+    document.querySelectorAll('a[href^="/"]:not([href^="//"])').forEach((a) => {
+      const h = a.getAttribute("href");
+      if (!h.startsWith(root)) a.setAttribute("href", SITE_ROOT + h.slice(1));
+    });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fix);
+  else fix();
+})();
+
 // Faucet UI mirror of the mainnet-TIMB airdrop leg. Set true ONLY once the
 // airdrop-dispatch function is live and AIRDROP_ENABLED is set on the faucet-claim
 // edge function — this just shows/hides the "+ real TIMB" explainer on the faucet
