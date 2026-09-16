@@ -37,6 +37,7 @@ Files:
 | `config.js` | `PRIVY_APP_ID`, `SITE_ROOT`, `_embeddedProvider`, `_pickConnectMethod`, `_loadEmailLogin`, session kind + remembered method, email branches in `connectWallet` / `autoReconnect` / `disconnectWallet` / `handleSwitchAccount` |
 | `assets/email-login.js` | the sheet (chooser, email, code, wallet-ready, confirm, authenticator prompt, Wallet security) + the Privy bridge (`window.TimbEmailWallet`). Injected on demand by `config.js`. |
 | `vendor/privy-core.js` | `@privy-io/js-sdk-core` bundled (ESM, ~800 KB). `import()`-ed only when a user picks email. **Generated** by `scripts/build-vendor.mjs`; never edit. |
+| `vendor/webauthn.js` | `@simplewebauthn/browser` bundled (ESM, ~9 KB). `import()`-ed only on the passkey steps (register / authenticate). **Generated**; never edit. |
 | `vendor/hpke.js` | `@hpke/core` + `@hpke/chacha20poly1305` bundled (ESM, ~43 KB). `import()`-ed only on the key-export reveal step. **Generated**; never edit. |
 | `vendor/qrcode.js` | `qrcode-generator` bundled (ESM, ~20 KB). `import()`-ed only on the authenticator enrolment step, to draw the `otpauth://` QR. **Generated**; never edit. |
 | `tables/wallet.js` | the SwapTables pages' bridge to the above (chooser / email / restore, chip icons incl. Wallet security for email sessions). |
@@ -92,7 +93,7 @@ email.
   **Limit:** this stops bugs and accidental sends; a script with full control
   of the page could still drive the sheet. The out-of-page answer is the
   authenticator app below.
-- **Transaction MFA — authenticator app (TOTP).** Optional per user, offered
+- **Transaction MFA — authenticator app (TOTP) or passkey.** Optional per user, offered
   on the wallet-ready step after sign-in and any time under **Wallet
   security** (wallet dropdown on the main pages; the shield icon on the
   SwapTables chip). Enrolment: `privy.mfa.initEnrollMfa({method:"totp"})`
@@ -113,7 +114,24 @@ email.
   without the phone. Privy caches a verification for 15 minutes (dashboard
   "Custom cache duration"), so within that window further transactions go
   from Confirm straight to the wallet; the sheet copy says "at most once
-  every 15 minutes" — update it if you change the cache. Removing the authenticator (`unenrollMfa("totp")`) asks
+  every 15 minutes" — update it if you change the cache.
+  **Passkey** (Face ID / fingerprint / device PIN, WebAuthn): same prompt,
+  answered with an assertion instead of a code. Enrolment (Wallet security →
+  "Set up a passkey", or on the wallet-ready step): Privy stores passkeys as
+  linked accounts, so `auth.passkey.generateRegistrationOptions()` →
+  `startRegistration` (`vendor/webauthn.js`, @simplewebauthn/browser) →
+  `auth.passkey.linkWithPasskey(response, relying_party)` links one, then
+  `mfa.submitEnrollMfa({ method: "passkey", credentialIds })` enrols its
+  credential id. Verification: `mfa.passkey.generateAuthenticationOptions()`
+  → `startAuthentication` → the assertion, snake-cased, goes to
+  `rootPromise.resolve({ mfaMethod: "passkey", mfaCode, relyingParty:
+  window.origin })`. With both methods enrolled the prompt shows the code
+  field plus "Use passkey instead". Removal: `submitEnrollMfa({ method:
+  "passkey", credentialIds: [] })` (asks for one last verification). Options
+  and responses cross the wire in snake_case; the site converts to/from the
+  camelCase JSON WebAuthn wants, exactly as Privy's React SDK does. The key
+  export's pre-check accepts either method. Device cancel shows "Passkey step
+  cancelled" and leaves the prompt open. Removing the authenticator (`unenrollMfa("totp")`) asks
   for one last code. Only TOTP is offered: no phone number to hold, works
   offline, no regional SMS limits; SMS / passkey enrolment is not built (a
   wallet that somehow has only those gets a "can't collect yet" message).
@@ -184,7 +202,11 @@ never needed by the frontend and must not be put anywhere in this repo.
    ("TimbSwap Dev", development mode).
 7. **MFA:** Authentication → MFA (the wallet / "Multi-factor authentication"
    section) → enable it for the app and make sure the **Authenticator app
-   (TOTP)** method is allowed. Do not pick "require for all users" unless you
+   (TOTP)** method is allowed, and tick **Passkey** as well. Passkey
+   enrolment links a passkey to the user's account first; if Privy rejects
+   the link with a "passkeys not enabled" style error, also enable Passkeys
+   under Login methods (the site never offers passkey *login*, only MFA).
+   Do not pick "require for all users" unless you
    want sign-in itself to insist on it — the site offers enrolment on the
    wallet-ready step and under Wallet security, and Privy enforces the code
    on every signing request for users who enrolled. Without this switch,
@@ -195,7 +217,7 @@ never needed by the frontend and must not be put anywhere in this repo.
 
 ```
 npm ci
-npm run build:vendor      # writes vendor/privy-core.js, vendor/qrcode.js, vendor/hpke.js
+npm run build:vendor      # writes vendor/privy-core.js, vendor/qrcode.js, vendor/hpke.js, vendor/webauthn.js
 ```
 
 Bump the pinned `@privy-io/js-sdk-core` (or `qrcode-generator`) in
@@ -233,6 +255,12 @@ esbuild build re-minifies the other one into a no-op diff.
       dropdown shows **Wallet security** (email sessions only) with On/Off,
       remove asks for a code (live site: the SwapTables chip shows the shield icon).
 
+- [ ] **Passkey:** Wallet security → Set up a passkey → device prompt →
+      "Passkey On"; a ticket mint asks "Use passkey" (or, with the
+      authenticator also on, shows the code field plus "Use passkey
+      instead"); device cancel → "Passkey step cancelled"; Remove passkey asks
+      for one last verification. Works on the phone (Face ID / fingerprint)
+      and on desktop Chrome / Safari with a platform authenticator.
 - [ ] **Key export:** Wallet security → Export private key → tick the
       acknowledgement → code arrives by email → masked key with Show and Copy
       (TEE wallet) or Privy's copy button (older wallet); MetaMask → Import
@@ -248,7 +276,7 @@ esbuild build re-minifies the other one into a no-op diff.
   (`unsupported_recovery_method`), which is where this app's wallets are;
   their protections are the authenticator and key export (in — see above).
 - SMS MFA — **struck by decision:** no phone numbers; the less identity data
-  the better. Passkey MFA stays optional and unbuilt.
+  the better. (Passkey MFA is in — see above.)
 - Smart accounts / batching — **not planned.** A smart account is a different
   address (a contract, not the EOA), so every player would get a new identity
   on the game contracts; folding approve + enter into one confirmation is not

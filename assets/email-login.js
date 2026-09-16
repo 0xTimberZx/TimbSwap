@@ -584,6 +584,79 @@
     return list.map((m) => (typeof m === "string" ? m : (m && m.type))).filter(Boolean);
   }
   function hasTotp() { return mfaMethods().includes("totp"); }
+  function hasPasskey() { return mfaMethods().includes("passkey"); }
+  function hasMfa() { return hasTotp() || hasPasskey(); }
+  function passkeyCredentialIds() {
+    try { return (_user.linked_accounts || []).filter((a) => a && a.type === "passkey").map((a) => a.credential_id).filter(Boolean); } catch (_e) { return []; }
+  }
+
+  // ── Passkey MFA (WebAuthn) ──────────────────────────────────────────────────
+  // Face ID / fingerprint / device PIN instead of a code. Privy stores passkeys
+  // as linked accounts; enrolling one as MFA = link it (WebAuthn registration
+  // against Privy's options) then submitEnrollMfa({method:"passkey",
+  // credentialIds}). Verifying = Privy's authentication options → WebAuthn
+  // assertion → resolve the same rootPromise with mfaMethod "passkey". Options
+  // and responses cross the wire in snake_case; vendor/webauthn.js
+  // (@simplewebauthn/browser) wants camelCase JSON. relyingParty is the page
+  // origin, as in Privy's own SDK.
+  const WEBAUTHN = ROOT + "vendor/webauthn.js?v=" + (window.ASSET_VER || "1");
+  function regOptionsToJSON(o) {
+    const sel = o.authenticator_selection || {};
+    return { rp: o.rp, user: { id: o.user.id, name: o.user.name, displayName: o.user.display_name || o.user.name }, challenge: o.challenge,
+      pubKeyCredParams: (o.pub_key_cred_params || []).map((c) => ({ type: c.type, alg: c.alg })), timeout: o.timeout,
+      excludeCredentials: (o.exclude_credentials || []).map((c) => ({ id: c.id, type: c.type, transports: c.transports })),
+      authenticatorSelection: { authenticatorAttachment: sel.authenticator_attachment, requireResidentKey: sel.require_resident_key, residentKey: sel.resident_key, userVerification: sel.user_verification },
+      attestation: o.attestation,
+      extensions: { appid: o.extensions && o.extensions.app_id, credProps: o.extensions && o.extensions.cred_props, hmacCreateSecret: o.extensions && o.extensions.hmac_create_secret } };
+  }
+  function authOptionsToJSON(o) {
+    return { rpId: o.rp_id, challenge: o.challenge, allowCredentials: (o.allow_credentials || []).map((c) => ({ id: c.id, type: c.type, transports: c.transports })),
+      timeout: o.timeout, userVerification: o.user_verification,
+      extensions: { appid: o.extensions && o.extensions.app_id, credProps: o.extensions && o.extensions.cred_props, hmacCreateSecret: o.extensions && o.extensions.hmac_create_secret } };
+  }
+  function authResponseToSnake(r) {
+    const x = r.clientExtensionResults || {};
+    return { id: r.id, raw_id: r.rawId, type: r.type, authenticator_attachment: r.authenticatorAttachment,
+      response: { client_data_json: r.response.clientDataJSON, authenticator_data: r.response.authenticatorData, signature: r.response.signature, user_handle: r.response.userHandle },
+      client_extension_results: { app_id: x.appid, cred_props: x.credProps, hmac_create_secret: x.hmacCreateSecret } };
+  }
+  function passkeyErrorText(ex, dflt) {
+    const n = String((ex && (ex.name || ex.code)) || ""), m = String((ex && ex.message) || "");
+    if (/NotAllowedError|AbortError/.test(n) || /cancel|abort|not allowed|timed out/i.test(m)) return "Passkey step cancelled.";
+    if (/NotSupportedError|SecurityError/.test(n) || /not supported|insecure/i.test(m)) return "Passkeys aren't available in this browser here.";
+    if (/InvalidStateError/.test(n) || /already registered/i.test(m)) return "This device already has a passkey for this wallet.";
+    return friendly(ex, dflt);
+  }
+  // Ask the device for a passkey assertion against Privy's challenge.
+  async function passkeyAssertion() {
+    const wa = await import(WEBAUTHN);
+    if (!wa.browserSupportsWebAuthn()) throw new Error("Passkeys aren't available in this browser here.");
+    const init = await _privy.mfa.passkey.generateAuthenticationOptions({});
+    const resp = await wa.startAuthentication({ optionsJSON: authOptionsToJSON(init.options) });
+    return authResponseToSnake(resp);
+  }
+  // Enrol: link a passkey if the account has none, then enrol its credential id.
+  async function enrollPasskeyFlow() {
+    const wa = await import(WEBAUTHN);
+    if (!wa.browserSupportsWebAuthn()) throw new Error("Passkeys aren't available in this browser here.");
+    let ids = passkeyCredentialIds();
+    if (!ids.length) {
+      const init = await _privy.auth.passkey.generateRegistrationOptions();
+      const resp = await wa.startRegistration({ optionsJSON: regOptionsToJSON(init.options) });
+      const { user } = await _privy.auth.passkey.linkWithPasskey(resp, init.relying_party);
+      if (user) _user = user;
+      ids = passkeyCredentialIds();
+    }
+    if (!ids.length) throw new Error("No passkey was created.");
+    await _privy.mfa.submitEnrollMfa({ method: "passkey", credentialIds: ids });
+    await refreshUser();
+    if (!hasPasskey()) { try { _user.mfa_methods = (_user.mfa_methods || []).concat([{ type: "passkey" }]); } catch (_x) {} }
+  }
+  async function unenrollPasskeyFlow() {
+    await _privy.mfa.submitEnrollMfa({ method: "passkey", credentialIds: [], removeForLogin: false }); // triggers the MFA prompt
+    await refreshUser();
+    if (hasPasskey()) { try { _user.mfa_methods = (_user.mfa_methods || []).filter((m) => (typeof m === "string" ? m : m && m.type) !== "passkey"); } catch (_x) {} }
+  }
   function userEmail() {
     try {
       const acct = (_user.linked_accounts || []).find((a) => a && a.type === "email");
@@ -622,49 +695,71 @@
     let done = false;
     p.then(() => { if (!done) { done = true; mfaCancel(); } }); // ×, Escape, backdrop, Cancel
 
-    if (!hasTotp()) {
-      // Enrolled through something this site does not collect (SMS / passkey).
+    const totp = hasTotp(), pk = hasPasskey();
+    if (!totp && !pk) {
+      // Enrolled through something this site does not collect (SMS).
       setBody(
-        h("p", { class: "tsheet-err", role: "alert", text: "This wallet is protected by a verification method this site can't collect yet (SMS or passkey)." }),
-        h("p", { class: "tsheet-note", text: "Add an authenticator app under Wallet security, then try again." }),
+        h("p", { class: "tsheet-err", role: "alert", text: "This wallet is protected by a verification method this site can't collect yet (SMS)." }),
+        h("p", { class: "tsheet-note", text: "Add an authenticator app or a passkey under Wallet security, then try again." }),
         h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
       return;
     }
 
-    const input = codeInput("Authenticator code");
     const err = errLine();
-    const btn = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "submit" }, h("strong", { text: "Approve" }));
     const cancel = h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Cancel" }));
-    const form = h("form", { class: "tsheet-form", onsubmit: async (e) => {
-      e.preventDefault();
-      const code = input.value.replace(/\D/g, "");
-      if (code.length !== 6) { err.textContent = "Enter the 6-digit code from your authenticator app."; return; }
+    const busy = (on) => { for (const b of [btn, pkBtn, cancel]) if (b) b.disabled = on; };
+    // One attempt: hand the answer to the SDK's root promise, wait for the
+    // per-try verdict. Returns true when accepted; on a bad answer the caller
+    // may try again; on timeout / max tries the request fails on its own.
+    async function attempt(args, badText) {
       const root = mp.rootPromise && mp.rootPromise.current;
-      if (!root) { err.textContent = "The wallet is no longer waiting for a code. Start the action again."; return; }
-      btn.disabled = true; cancel.disabled = true; btn.firstChild.textContent = "Checking…"; err.textContent = "";
+      if (!root) { err.textContent = "The wallet is no longer waiting for a code. Start the action again."; return false; }
+      busy(true); err.textContent = "";
       const outcome = new Promise((res, rej) => { mp.submitPromise.current = { resolve: res, reject: rej }; });
-      root.resolve({ mfaMethod: "totp", mfaCode: code, relyingParty: location.hostname });
+      root.resolve(Object.assign({ relyingParty: window.origin }, args));
       try {
         await outcome;
         done = true;
         setBody(h("p", { class: "tsheet-note", text: "Approved. Finishing…" }));
         settle(true);
+        return true;
       } catch (ex) {
         if (ex && (ex.type === "missing_or_invalid_mfa" || /verification failed/i.test(String(ex.message || "")))) {
-          err.textContent = "That code didn't match. Check your phone's clock and try again.";
-          btn.disabled = false; cancel.disabled = false; btn.firstChild.textContent = "Approve";
-          input.value = ""; input.focus();
-        } else {
-          // Timed out / too many tries: the signing request itself fails and
-          // the caller shows why.
-          done = true;
-          settle(null);
+          err.textContent = badText; busy(false); return false;
         }
+        done = true; settle(null); return false; // timed out / too many tries: the caller shows why
       }
-    } }, input, err, btn, cancel);
-    setBody(
-      h("p", { class: "tsheet-note", text: "Open your authenticator app and enter the 6-digit code for TimbSwap. This check runs inside your wallet, not on this page." }),
-      form);
+    }
+
+    let btn = null, pkBtn = null, form = null, input = null;
+    if (totp) {
+      input = codeInput("Authenticator code");
+      btn = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "submit" }, h("strong", { text: "Approve" }));
+      form = h("form", { class: "tsheet-form", onsubmit: async (e) => {
+        e.preventDefault();
+        const code = input.value.replace(/\D/g, "");
+        if (code.length !== 6) { err.textContent = "Enter the 6-digit code from your authenticator app."; return; }
+        btn.firstChild.textContent = "Checking…";
+        const ok = await attempt({ mfaMethod: "totp", mfaCode: code }, "That code didn't match. Check your phone's clock and try again.");
+        if (!ok) { btn.firstChild.textContent = "Approve"; input.value = ""; input.focus(); }
+      } }, input);
+    }
+    if (pk) {
+      pkBtn = h("button", { class: "tsheet-btn" + (totp ? "" : " tsheet-btn-primary"), type: "button", onclick: async () => {
+        pkBtn.firstChild.textContent = "Waiting for your device…"; busy(true); err.textContent = "";
+        let assertion;
+        try { assertion = await passkeyAssertion(); }
+        catch (ex) { err.textContent = passkeyErrorText(ex, "Couldn't use the passkey. Try again."); busy(false); pkBtn.firstChild.textContent = totp ? "Use passkey instead" : "Use passkey"; return; }
+        const ok = await attempt({ mfaMethod: "passkey", mfaCode: assertion }, "The passkey check failed. Try again.");
+        if (!ok) pkBtn.firstChild.textContent = totp ? "Use passkey instead" : "Use passkey";
+      } }, h("strong", { text: totp ? "Use passkey instead" : "Use passkey" }), h("span", { text: "Face ID, fingerprint or device PIN." }));
+    }
+    const nodes = [h("p", { class: "tsheet-note", text: totp
+      ? "Open your authenticator app and enter the 6-digit code for TimbSwap" + (pk ? ", or use your passkey" : "") + ". This check runs inside your wallet, not on this page."
+      : "Approve with your passkey. This check runs inside your wallet, not on this page." })];
+    if (form) { form.append(err, btn); if (pkBtn) form.append(pkBtn); form.append(cancel); nodes.push(form); }
+    else nodes.push(err, h("div", { class: "tsheet-actions" }, pkBtn, cancel));
+    setBody(...nodes);
   }
 
   function codeInput(label) {
@@ -749,22 +844,40 @@
       if (email) rows.append(row("Signed in as", email));
       rows.append(row("Wallet", short(_address || ""), true));
       rows.append(row("Authenticator app", on ? "On" : "Off"));
+      const pkOn = hasPasskey();
+      rows.append(row("Passkey", pkOn ? "On" : "Off"));
       const err = errLine(); if (msg) err.textContent = msg;
       const action = on
         ? h("button", { class: "tsheet-btn", type: "button", onclick: removeTotp }, h("strong", { text: "Remove authenticator" }), h("span", { text: "Asks for one last code. Transactions will then only need the on-site confirmation." }))
-        : h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => enrollTotp(() => { _title.textContent = "Wallet security"; render(); }).then((ok) => { if (ok) render(); }) },
+        : h("button", { class: "tsheet-btn" + (hasPasskey() ? "" : " tsheet-btn-primary"), type: "button", onclick: () => enrollTotp(() => { _title.textContent = "Wallet security"; render(); }).then((ok) => { if (ok) render(); }) },
             h("strong", { text: "Set up authenticator app" }), h("span", { text: "Recommended. Transactions also need a 6-digit code from your phone, at most once every 15 minutes." }));
+      const pkAction = pkOn
+        ? h("button", { class: "tsheet-btn", type: "button", onclick: removePasskey }, h("strong", { text: "Remove passkey" }), h("span", { text: "Asks for one last verification." }))
+        : h("button", { class: "tsheet-btn" + (on ? "" : " tsheet-btn-primary"), type: "button", onclick: addPasskey },
+            h("strong", { text: "Set up a passkey" }), h("span", { text: "Face ID, fingerprint or device PIN instead of a code. Nothing to install." }));
+      const anyOn = on || pkOn;
       setBody(
         rows,
-        h("p", { class: "tsheet-note", text: on
-          ? "Transactions and signatures from this wallet need a code from your authenticator app — at most once every 15 minutes, since Privy remembers a code for that long. That check runs inside Privy's wallet, so nothing on this site can sign without your phone."
-          : "Right now transactions only need the confirmation sheet on this site. An authenticator app adds a check that runs outside the page — the strongest protection for this wallet." }),
+        h("p", { class: "tsheet-note", text: anyOn
+          ? "Transactions and signatures from this wallet need " + (on && pkOn ? "a code from your authenticator app or your passkey" : on ? "a code from your authenticator app" : "your passkey") + " — at most once every 15 minutes, since Privy remembers a verification for that long. That check runs inside Privy's wallet, so nothing on this site can sign without you."
+          : "Right now transactions only need the confirmation sheet on this site. An authenticator app or a passkey adds a check that runs outside the page — the strongest protection for this wallet." }),
         err,
-        h("div", { class: "tsheet-actions" }, action,
+        h("div", { class: "tsheet-actions" }, action, pkAction,
           h("button", { class: "tsheet-btn", type: "button", onclick: () => exportKey(() => { open("Wallet security"); render(); }) },
             h("strong", { text: "Export private key" }), h("span", { text: "Move this wallet into MetaMask or another app. Shown by Privy, never by this site." })),
           h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
 
+      async function addPasskey(e) {
+        e.currentTarget.disabled = true;
+        setBody(h("p", { class: "tsheet-note", text: "Follow your device's prompt to create a passkey for this wallet…" }));
+        try { await enrollPasskeyFlow(); open("Wallet security"); render(); }
+        catch (ex) { open("Wallet security"); render(passkeyErrorText(ex, "Couldn't set up the passkey: " + tidyLine((ex && ex.message) || "unknown error"))); }
+      }
+      async function removePasskey(e) {
+        e.currentTarget.disabled = true;
+        try { await unenrollPasskeyFlow(); open("Wallet security"); render(); }
+        catch (ex) { open("Wallet security"); render(isMfaCancel(ex) ? "" : passkeyErrorText(ex, "Couldn't remove it: " + tidyLine((ex && ex.message) || "unknown error"))); }
+      }
       async function removeTotp(e) {
         e.currentTarget.disabled = true;
         try {
@@ -875,8 +988,8 @@
     // authenticator prompt as a transaction.
     async function stepReveal() {
       _title.textContent = "Your private key";
-      if (hasTotp()) {
-        setBody(h("p", { class: "tsheet-note", text: "One more check: approve with your authenticator app." }));
+      if (hasMfa()) {
+        setBody(h("p", { class: "tsheet-note", text: "One more check: approve with your " + (hasTotp() ? "authenticator app" : "passkey") + "." }));
         try { await _privy.mfa.verifyMfa(); }
         catch (ex) {
           if (isMfaCancel(ex)) { wipe(); onBack(); return; }
@@ -1321,9 +1434,16 @@ a.tsheet-link { display: inline-block; }
       const copy = h("button", { class: "tsheet-link", type: "button", onclick: async () => {
         try { await navigator.clipboard.writeText(w.address); copy.textContent = "Copied"; } catch (_e) { copy.textContent = "Select and copy the address above"; }
       } }, "Copy address");
-      const on = hasTotp();
+      const on = hasMfa();
       const actions = h("div", { class: "tsheet-actions" });
       if (!on) {
+        actions.append(h("button", { class: "tsheet-btn", type: "button", onclick: async (e) => {
+          e.currentTarget.disabled = true;
+          _title.textContent = "Set up a passkey";
+          setBody(h("p", { class: "tsheet-note", text: "Follow your device's prompt to create a passkey for this wallet…" }));
+          try { await enrollPasskeyFlow(); } catch (ex) { stepReady(w); return; }
+          stepReady(w);
+        } }, h("strong", { text: "Set up a passkey" }), h("span", { text: "Face ID, fingerprint or device PIN before each transaction (at most once every 15 minutes). Nothing to install." })));
         actions.append(h("button", { class: "tsheet-btn", type: "button", onclick: () => {
           _title.textContent = "Add an authenticator app";
           enrollTotp(() => stepReady(w)).then((ok) => { if (ok) stepReady(w); });
@@ -1336,7 +1456,7 @@ a.tsheet-link { display: inline-block; }
         h("div", { class: "tsheet-links" }, copy),
         h("p", { class: "tsheet-note", text: "It starts empty. To enter a ticket it needs a little ETH for gas and the entry cost — send some to this address first. Come back here any time with the same email." }),
         h("p", { class: "tsheet-note", text: on
-          ? "Authenticator app is on: transactions ask you to confirm on this site and then for a code from your app (at most once every 15 minutes)."
+          ? (hasTotp() ? "Authenticator app is on" : "Passkey is on") + ": transactions ask you to confirm on this site and then for " + (hasTotp() ? "a code from your app" : "your passkey") + " (at most once every 15 minutes)."
           : "Every transaction or signature from this wallet asks you to confirm on this site first. Keep only what you are playing with in it. You can add an authenticator app now or later under Wallet security." }),
         actions);
     }
@@ -1360,5 +1480,5 @@ a.tsheet-link { display: inline-block; }
     return dflt;
   }
 
-  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, security, guard, registerCalls, registerContracts, get address() { return _address; }, get mfaEnabled() { return hasTotp(); } };
+  window.TimbEmailWallet = { available, chooseMethod, login, restore, logout, security, guard, registerCalls, registerContracts, get address() { return _address; }, get mfaEnabled() { return hasMfa(); }, get passkeyEnabled() { return hasPasskey(); } };
 })();
