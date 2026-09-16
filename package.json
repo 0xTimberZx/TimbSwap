@@ -7,6 +7,8 @@
     "build:vendor": "node scripts/build-vendor.mjs"
   },
   "devDependencies": {
+    "@hpke/chacha20poly1305": "1.8.0",
+    "@hpke/core": "1.9.0",
     "@privy-io/js-sdk-core": "0.76.0",
     "esbuild": "^0.25.0",
     "qrcode-generator": "2.0.4"

@@ -37,6 +37,7 @@ Files:
 | `config.js` | `PRIVY_APP_ID`, `SITE_ROOT`, `_embeddedProvider`, `_pickConnectMethod`, `_loadEmailLogin`, session kind + remembered method, email branches in `connectWallet` / `autoReconnect` / `disconnectWallet` / `handleSwitchAccount` |
 | `assets/email-login.js` | the sheet (chooser, email, code, wallet-ready, confirm, authenticator prompt, Wallet security) + the Privy bridge (`window.TimbEmailWallet`). Injected on demand by `config.js`. |
 | `vendor/privy-core.js` | `@privy-io/js-sdk-core` bundled (ESM, ~800 KB). `import()`-ed only when a user picks email. **Generated** by `scripts/build-vendor.mjs`; never edit. |
+| `vendor/hpke.js` | `@hpke/core` + `@hpke/chacha20poly1305` bundled (ESM, ~43 KB). `import()`-ed only on the key-export reveal step. **Generated**; never edit. |
 | `vendor/qrcode.js` | `qrcode-generator` bundled (ESM, ~20 KB). `import()`-ed only on the authenticator enrolment step, to draw the `otpauth://` QR. **Generated**; never edit. |
 | `tables/wallet.js` | the SwapTables pages' bridge to the above (chooser / email / restore, chip icons incl. Wallet security for email sessions). |
 | `package.json` | dev-only: pins the SDK + QR library versions and esbuild. The site still has no build step. |
@@ -119,21 +120,32 @@ email.
   The Privy dashboard must have MFA turned on for the app (setup step 7).
   Note the wallet-ready copy still tells users to keep only what they are
   playing with in the wallet.
-- **Private key export.** Wallet security → **Export private key** → a
-  warning (anyone with the key controls the wallet; never paste it into a
-  site or chat) → "Show the copy button" mounts Privy's own export page in a
-  44 px iframe (`<origin>/apps/<appId>/embedded-wallets/export`, the page
-  react-auth's modal embeds): one button that copies the key to the clipboard
-  from inside Privy's origin. `email-login.js` only builds the URL — `v=1` +
-  `entropy_id` / `entropy_id_verifier` / `hd_wallet_index` from
-  `getEntropyDetailsFromAccount` (or `v=1-unified` + `wallet_id` for a TEE
-  wallet), `chain_type`, `width`, the sheet's palette colours — and puts the
-  session access token in the URL *fragment* (`#token=…`, never sent to a
-  server). The key never enters the page; the frame has
-  `allow="clipboard-write"` and fades in ~1.2 s after load like Privy's own
-  modal. If the wallet has MFA, Privy's page asks for the code itself. Note
-  the export page requires the origin to be on the app's allowed-origins
-  list (it already is for sign-in).
+- **Private key export.** Wallet security → **Export private key**, three
+  steps, nothing leaves the browser:
+  1. *Warnings + disclaimer* (control is absolute and irrevocable; never
+     paste into a site / chat / email; nothing is recoverable; the key is
+     decrypted in this browser only and never sent to TimbSwap's servers or
+     the email; clear the clipboard; TimbSwap is not a custodian and accepts
+     no liability). "Send a code" stays disabled until the checkbox is
+     ticked.
+  2. *Code by email*: Privy's one-time code to the wallet's email
+     (`auth.email.sendCode` → `loginWithCode(email, code, "no-signup")`,
+     which re-verifies the same account). The email carries the code only —
+     the key is never emailed (an email cannot have a working copy button
+     and would keep the key forever in inboxes and backups).
+  3. *Reveal*. TEE-stack wallet (`account.id` + `recovery_method
+     "privy-v2"`): Privy's **client export** — the page makes a P-256 key
+     pair (`vendor/hpke.js`), loads Privy's export page hidden
+     (`/apps/<appId>/embedded-wallets/export?v=1-unified&wallet_id=…&mode=client-export#token=…`),
+     posts `CLIENT_EXPORT_REQUEST { recipientPublicKey }` (base64 SPKI) and
+     gets `CLIENT_EXPORT_RESPONSE { ciphertext, encapsulatedKey }` back,
+     HPKE (DHKEM-P256 / HKDF-SHA256 / ChaCha20-Poly1305, AES-256-GCM tried
+     second) decrypted in the page. Shown **masked** (`0x1234••••abcd`),
+     Show / Hide, **Copy key** (with a "clear your clipboard" reminder),
+     Done wipes it. Older wallet (no client export): Privy's own hosted copy
+     button in a 44 px frame (`v=1` + entropy ids + palette; the key is
+     copied from inside Privy's origin). Privy's page asks for MFA itself
+     when enrolled.
 - **Cold start.** The wallet starts with 0 ETH, so it cannot mint a first
   ticket. The "wallet ready" step shows the address with a copy button and says
   so. Gas sponsorship (ERC-4337 / paymaster) is the phase-two answer; it is not
@@ -173,7 +185,7 @@ never needed by the frontend and must not be put anywhere in this repo.
 
 ```
 npm ci
-npm run build:vendor      # writes vendor/privy-core.js and vendor/qrcode.js
+npm run build:vendor      # writes vendor/privy-core.js, vendor/qrcode.js, vendor/hpke.js
 ```
 
 Bump the pinned `@privy-io/js-sdk-core` (or `qrcode-generator`) in
@@ -211,10 +223,10 @@ esbuild build re-minifies the other one into a no-op diff.
       dropdown shows **Wallet security** (email sessions only) with On/Off,
       remove asks for a code (live site: the SwapTables chip shows the shield icon).
 
-- [ ] **Key export:** Wallet security → Export private key → warning → Show
-      the copy button → Privy's button appears (fades in), copies the key;
-      MetaMask → Import account → the same address. With MFA on, Privy's frame
-      asks for the code first.
+- [ ] **Key export:** Wallet security → Export private key → tick the
+      acknowledgement → code arrives by email → masked key with Show and Copy
+      (TEE wallet) or Privy's copy button (older wallet); MetaMask → Import
+      account → the same address. Done wipes the key from the page.
 ## Not in this drop
 
 - The three `tables/*` pages (SwapTables) use their own provider code with
