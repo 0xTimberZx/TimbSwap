@@ -317,7 +317,7 @@
     }
     function handleDisconnect() {
       DebugHub.endSession();
-      provider = null; signer = null; userAddress = null;
+      disconnectWallet(); // clears the saved session too — a manual null left sessionStorage intact, so Disconnect was undone on the next page
       document.getElementById("connect-btn").classList.remove("hidden");
       document.getElementById("wallet-info").classList.add("hidden");
       document.getElementById("network-badge").classList.add("hidden");
