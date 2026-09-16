@@ -35,7 +35,11 @@ supabase functions deploy waitlist --no-verify-jwt
 #   WAITLIST_IP_SALT        <random string>          (required — salts the IP hash)
 #   WAITLIST_PROXY_SECRET   <random string>          (optional — must match the Worker's)
 #   WAITLIST_TG_CHAT_ID     <your private chat id>   (optional — founder ping per new signup)
+#   RESEND_API_KEY          <resend key>             (optional — sends the confirmation email per NEW signup)
+#   WAITLIST_FROM           "TimbSwap <hello@timbswap.xyz>"  (optional — verified Resend domain, SPF/DKIM)
+#   WAITLIST_UNSUB_MAILTO   hello@timbswap.xyz       (optional — unsubscribe inbox)
 # SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected; TELEGRAM_BOT_TOKEN is reused.
+# Without RESEND_API_KEY the function behaves exactly as before (no email; signup still saved).
 ```
 
 ### 3. Worker
