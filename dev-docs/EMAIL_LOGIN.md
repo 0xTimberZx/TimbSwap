@@ -241,7 +241,19 @@ esbuild build re-minifies the other one into a no-op diff.
 
 - The three `tables/*` pages (SwapTables) use their own provider code with
   direct `window.ethereum` calls and ethers v6 — same treatment, separate PR.
-- Smart accounts; recovery password UI; SMS / passkey MFA (authenticator-app
-  MFA and key export are in — see above). Gas sponsorship: built and closed
-  unmerged by decision (TestSwap #432 / #58) — participants hold their own gas.
+- Recovery password UI — **struck.** It is for Privy's older split-key
+  wallets: a user passcode that encrypts the recovery share so Privy alone
+  cannot rebuild the wallet (new device → password; lost password + lost
+  device → wallet gone). The SDK refuses it for TEE-stack wallets
+  (`unsupported_recovery_method`), which is where this app's wallets are;
+  their protections are the authenticator and key export (in — see above).
+- SMS MFA — **struck by decision:** no phone numbers; the less identity data
+  the better. Passkey MFA stays optional and unbuilt.
+- Smart accounts / batching — **not planned.** A smart account is a different
+  address (a contract, not the EOA), so every player would get a new identity
+  on the game contracts; folding approve + enter into one confirmation is not
+  worth that. Sponsorship and session keys were the other reasons to want one,
+  and both are off by decision.
+- Gas sponsorship: built and closed unmerged by decision (TestSwap #432 / #58) —
+  participants hold their own gas.
 - The live site (`TestSwap`): port after the mirror pass above.
