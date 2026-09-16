@@ -59,11 +59,27 @@ email.
 - **Signing — confirmation sheet.** The headless SDK has no popup of its own,
   so the provider handed to `config.js` is wrapped by `guard()` in
   `email-login.js`: every write request (`eth_sendTransaction`, `personal_sign`,
-  typed data, chain add) opens a sheet first — action (decoded for the calls
-  the site makes: "Enter a ticket", "Swap ETH for tokens", …), contract name
-  from `ADDRESSES`, amount in ETH, from, network — and only reaches Privy after
+  typed data, chain add) opens a sheet first and only reaches Privy after
   Confirm. Reject / Escape throws the standard EIP-1193 4001 error every call
-  site already handles. Reads pass straight through.
+  site already handles. Reads pass straight through. The sheet shows:
+  - the action, decoded with a human-readable ABI of the calls the site makes
+    (`KNOWN_ABI`): ticket characters + escrow + extra rounds, swap "you pay /
+    you receive ≥ min" with token symbols (known tokens from `ADDRESSES`,
+    others read via `symbol()`/`decimals()`), recipient, deadline, meter
+    nudge, approve spender + allowance ("Unlimited"), stake / farm / lock /
+    vote params; unknown selectors fall back to "Contract call 0x…";
+  - the fee: gas limit (`eth_estimateGas` unless the page set one), max fee per
+    gas, network fee (max), total (max), current nonce, and a warning when
+    amount + fee exceeds the wallet's balance; a failed estimate is shown as
+    "this transaction would likely fail: <reason>";
+  - **Advanced: gas & nonce** — gas limit, max fee (gwei) and nonce overrides,
+    validated and applied to the request only on Confirm (reusing a pending
+    nonce with a higher fee replaces that transaction);
+  - after Confirm the sheet stays open in a "Sending…" state; on success it
+    closes, on a wallet / node error it shows a plain-language reason
+    (insufficient funds, nonce too low, replacement underpriced, revert
+    reason, gas too low) with Close, and the call rejects with the original
+    error so the page's own handling still runs.
   **Limit:** this stops bugs and accidental sends; a script with full control
   of the page could still drive the sheet. The out-of-page answer is Privy's
   transaction MFA (dashboard → Authentication → MFA; the headless SDK then
