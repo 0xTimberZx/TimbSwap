@@ -560,8 +560,19 @@
   // The sheet's styles ship inside this file (not style.css): the live site's
   // pages load style.css with a fixed ?v= query behind a CDN, so a stylesheet
   // change can be cached away while this script (new file, loaded on demand)
-  // is always fresh. Injected once, before the sheet is built.
+  // is always fresh. Injected once, before the sheet is built. The palette is
+  // self-contained too: the site's tokens when style.css is present, dark
+  // defaults otherwise (the SwapTables pages have their own styling and no
+  // :root tokens — the sheet used to render there with no background).
   const SHEET_CSS = `
+.tsheet-backdrop {
+  --ts-bg: var(--bg, #0b0f14); --ts-bg2: var(--bg2, #111820); --ts-bg3: var(--bg3, #1a2330);
+  --ts-border: var(--border, #1e2d3d); --ts-green: var(--green, #14f195);
+  --ts-text: var(--text, #e2e8f0); --ts-text-2: var(--text-2, #8ca3bf); --ts-text-3: var(--text-3, #4a6278);
+  --ts-sans: var(--sans, 'Space Grotesk', system-ui, sans-serif); --ts-mono: var(--mono, 'Space Mono', ui-monospace, monospace);
+  --ts-radius: var(--radius, 8px);
+  color: var(--ts-text); font-family: var(--ts-sans); font-size: 14px; line-height: 1.4; text-align: left;
+}
 .tsheet-backdrop.hidden { display: none !important; }
 .tsheet-backdrop {
   position: fixed; inset: 0; z-index: 300;
@@ -573,63 +584,63 @@
 .tsheet {
   position: relative; width: 100%; max-width: 420px;
   max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; -webkit-overflow-scrolling: touch;
-  background: var(--bg2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 12px;
-  padding: 20px 20px 18px; font-family: var(--sans);
+  background: var(--ts-bg2); color: var(--ts-text);
+  border: 1px solid var(--ts-border); border-radius: 12px;
+  padding: 20px 20px 18px; font-family: var(--ts-sans);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 .tsheet-title { margin: 0 28px 12px 0; font-size: 18px; font-weight: 600; }
 .tsheet-close {
   position: absolute; top: 10px; right: 10px;
   width: 32px; height: 32px; border: 0; border-radius: 8px;
-  background: transparent; color: var(--text-2); font-size: 22px; line-height: 1; cursor: pointer;
+  background: transparent; color: var(--ts-text-2); font-size: 22px; line-height: 1; cursor: pointer;
 }
-.tsheet-close:hover { background: var(--bg3); color: var(--text); }
+.tsheet-close:hover { background: var(--ts-bg3); color: var(--ts-text); }
 .tsheet-body { display: flex; flex-direction: column; gap: 10px; }
 .tsheet-form { display: flex; flex-direction: column; gap: 10px; }
 .tsheet-btn {
   display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left;
   width: 100%; padding: 12px 14px;
-  background: var(--bg3); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  font-family: var(--sans); font-size: 14px; cursor: pointer;
+  background: var(--ts-bg3); color: var(--ts-text);
+  border: 1px solid var(--ts-border); border-radius: var(--ts-radius);
+  font-family: var(--ts-sans); font-size: 14px; cursor: pointer;
 }
-.tsheet-btn span { color: var(--text-2); font-size: 12.5px; }
-.tsheet-btn:hover { border-color: var(--green); }
+.tsheet-btn span { color: var(--ts-text-2); font-size: 12.5px; }
+.tsheet-btn:hover { border-color: var(--ts-green); }
 .tsheet-btn:disabled { opacity: 0.6; cursor: progress; }
-.tsheet-btn-primary { background: var(--green); color: #000; border-color: var(--green); }
+.tsheet-btn-primary { background: var(--ts-green); color: #000; border-color: var(--ts-green); }
 .tsheet-btn-primary span { color: rgba(0, 0, 0, 0.7); }
 .tsheet-input {
   width: 100%; padding: 12px 14px; box-sizing: border-box;
-  background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  font-family: var(--mono); font-size: 15px;
+  background: var(--ts-bg); color: var(--ts-text);
+  border: 1px solid var(--ts-border); border-radius: var(--ts-radius);
+  font-family: var(--ts-mono); font-size: 15px;
 }
-.tsheet-input:focus { outline: none; border-color: var(--green); }
+.tsheet-input:focus { outline: none; border-color: var(--ts-green); }
 .tsheet-code { letter-spacing: 0.3em; text-align: center; font-size: 20px; }
-.tsheet-note { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
+.tsheet-note { margin: 0; color: var(--ts-text-2); font-size: 13px; line-height: 1.45; }
 .tsheet-err { margin: 0; min-height: 1em; color: #f59e0b; font-size: 13px; }
 .tsheet-links { display: flex; gap: 14px; }
 .tsheet-link {
-  background: none; border: 0; padding: 0; color: var(--green);
-  font-family: var(--sans); font-size: 13px; cursor: pointer; text-decoration: underline;
+  background: none; border: 0; padding: 0; color: var(--ts-green);
+  font-family: var(--ts-sans); font-size: 13px; cursor: pointer; text-decoration: underline;
 }
-.tsheet-link:disabled { color: var(--text-3); cursor: default; text-decoration: none; }
-.tsheet-rows { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
+.tsheet-link:disabled { color: var(--ts-text-3); cursor: default; text-decoration: none; }
+.tsheet-rows { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--ts-bg); border: 1px solid var(--ts-border); border-radius: var(--ts-radius); }
 .tsheet-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
-.tsheet-k { color: var(--text-2); flex: 0 0 auto; }
+.tsheet-k { color: var(--ts-text-2); flex: 0 0 auto; }
 .tsheet-v { text-align: right; word-break: break-word; }
-.tsheet-mono { font-family: var(--mono); font-size: 12px; }
+.tsheet-mono { font-family: var(--ts-mono); font-size: 12px; }
 .tsheet-actions { display: flex; flex-direction: column; gap: 8px; }
-.tsheet-adv { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--bg); border: 1px dashed var(--border); border-radius: var(--radius); }
+.tsheet-adv { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--ts-bg); border: 1px dashed var(--ts-border); border-radius: var(--ts-radius); }
 .tsheet-adv.hidden { display: none !important; }
-.tsheet-adv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--text-2); }
+.tsheet-adv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--ts-text-2); }
 .tsheet-adv-in { width: 55%; padding: 8px 10px; font-size: 13px; }
-.tsheet-link:disabled { color: var(--text-3); cursor: default; text-decoration: none; }
+.tsheet-link:disabled { color: var(--ts-text-3); cursor: default; text-decoration: none; }
 .tsheet-addr {
   display: block; padding: 10px 12px; word-break: break-all;
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
-  font-family: var(--mono); font-size: 13px;
+  background: var(--ts-bg); border: 1px solid var(--ts-border); border-radius: var(--ts-radius);
+  font-family: var(--ts-mono); font-size: 13px;
 }
 `;
   function injectStyles() {
