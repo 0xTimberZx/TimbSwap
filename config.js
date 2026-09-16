@@ -1285,6 +1285,46 @@ async function handleSwitchAccount() {
   }
 }
 
+// ─── Wallet chip: second tap copies the address ───────────────────────────────
+// Every page defines its own toggleWalletMenu (open/close on tap). This
+// capture-phase listener runs before that inline handler: when the dropdown is
+// already open, a tap on the chip copies the connected address instead of
+// closing the menu, with a brief "Copied" flash on the chip. Tapping anywhere
+// else still closes the menu (the page's own outside-click handler).
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest ? e.target.closest(".wallet-menu-btn") : null;
+  if (!btn) return;
+  const wi = document.getElementById("wallet-info");
+  if (!wi || !wi.classList.contains("open") || !userAddress) return;
+  e.stopPropagation();
+  e.preventDefault();
+  _copyWalletAddress();
+}, true);
+
+let _copyFlash = null;
+async function _copyWalletAddress() {
+  const addr = userAddress;
+  if (!addr) return;
+  let ok = false;
+  try { await navigator.clipboard.writeText(addr); ok = true; } catch {}
+  if (!ok) {
+    // Older / restricted contexts: fall back to the selection API.
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = addr; ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+      document.body.appendChild(ta); ta.select();
+      ok = document.execCommand("copy");
+      ta.remove();
+    } catch {}
+  }
+  const el = document.getElementById("wallet-addr");
+  if (!el) return;
+  clearTimeout(_copyFlash);
+  el.textContent = ok ? "Copied ✓" : "Copy failed";
+  _copyFlash = setTimeout(() => { if (userAddress) el.textContent = fmtAddr(userAddress); }, 1200);
+}
+
 // ─── Theme (dark default, light optional) ─────────────────────────────────────
 // The palette lives in CSS variables; data-theme="light" on <html> swaps it.
 // An inline snippet in each page's <head> applies the saved theme before
