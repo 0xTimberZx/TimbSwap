@@ -56,6 +56,14 @@ email.
   `timbswap_wallet_kind = "email"` next to the saved address so `autoReconnect`
   rehydrates the Privy provider first. A manual Disconnect logs out of Privy and
   forgets the remembered method (that is how you switch methods).
+- **Idle timeout — 360 minutes, every wallet kind.** `config.js` stamps the
+  last interaction (pointer / key / touch / scroll, at most every 15 s) in
+  `sessionStorage`; a connected session whose stamp is older than 6 h is torn
+  down (email wallets log out of Privy) and the page hard-refreshes to the
+  gated view (a cache-busting `?_r=` reload, so it also picks up the latest
+  site files). Checked on every page load, once a minute, and when the tab comes
+  back into view. Idle expiry keeps the remembered connect method; a manual
+  Disconnect clears it.
 - **Signing — confirmation sheet.** The headless SDK has no popup of its own,
   so the provider handed to `config.js` is wrapped by `guard()` in
   `email-login.js`: every write request (`eth_sendTransaction`, `personal_sign`,

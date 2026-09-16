@@ -427,6 +427,7 @@ const CONNECT_METHOD_KEY = "timbswap_connect_method";
 function _saveSession(address, kind) {
   try { sessionStorage.setItem(SESSION_KEY, address); } catch {}
   try { if (kind) sessionStorage.setItem(SESSION_KIND_KEY, kind); } catch {}
+  _touchActivity(); // a fresh connect starts the idle clock
 }
 
 function _getSessionKind() {
@@ -483,19 +484,74 @@ function clearWalletChrome() {
 // auto-reconnected the wallet the user just disconnected. Clear the session and
 // reset the chain/provider flags too, so a manual disconnect actually sticks.
 function disconnectWallet() {
+  _endSession(false);
+}
+
+// Shared teardown. keepMethod=true (idle expiry) leaves the remembered connect
+// method alone — the user did not choose to switch, they just walked away.
+function _endSession(keepMethod) {
+  // Decide by session KIND, not by whether the Privy provider happens to be
+  // loaded: on a fresh page load (idle expiry in autoReconnect) it isn't yet,
+  // and the Privy session must still be ended.
+  const wasEmail = !!_embeddedProvider || _getSessionKind() === "email";
   provider = null;
   signer = null;
   userAddress = null;
   _walletChainOk = false;
   _activeInjectedProvider = null;
-  if (_embeddedProvider) {
-    _embeddedProvider = null;
+  _embeddedProvider = null;
+  if (wasEmail) {
     // End the Privy session too, so the next connect genuinely asks again.
-    try { window.TimbEmailWallet && window.TimbEmailWallet.logout(); } catch {}
+    _loadEmailLogin().then((ok) => { if (ok) window.TimbEmailWallet.logout(); }).catch(() => {});
   }
-  _clearConnectMethod(); // a manual disconnect is how you switch methods
+  if (!keepMethod) _clearConnectMethod(); // a manual disconnect is how you switch methods
   _clearSession();
+  try { sessionStorage.removeItem(LAST_ACTIVE_KEY); } catch {}
 }
+
+// ─── Idle timeout ─────────────────────────────────────────────────────────────
+// Any connected session (extension or email) ends after IDLE_TIMEOUT_MS with no
+// user interaction in this tab. "Interaction" = pointer / key / touch / scroll,
+// stamped at most every 15 s into sessionStorage (same scope as the session:
+// per tab, gone when the tab closes). Checked on every page load, once a
+// minute while the page is open, and when the tab comes back into view. On
+// expiry: full teardown (for email wallets that logs out of Privy too) and a
+// reload, so every page's own connected-state UI resets to gated.
+const IDLE_TIMEOUT_MS = 360 * 60 * 1000;
+const LAST_ACTIVE_KEY = "timbswap_last_active";
+let _lastTouch = 0;
+
+function _touchActivity() {
+  _lastTouch = Date.now();
+  try { sessionStorage.setItem(LAST_ACTIVE_KEY, String(_lastTouch)); } catch {}
+}
+function _idleFor() {
+  try {
+    const t = Number(sessionStorage.getItem(LAST_ACTIVE_KEY));
+    return t > 0 ? Date.now() - t : 0;
+  } catch { return 0; }
+}
+function _idleExpired() { return _idleFor() > IDLE_TIMEOUT_MS; }
+function _expireSession() {
+  try { DebugHub.logCheckpoint("Session expired (idle " + Math.round(IDLE_TIMEOUT_MS / 60000) + " min)", "pass"); } catch {}
+  _endSession(true);
+  clearWalletChrome();
+  // Hard refresh: a new URL (cache-busting query) makes the browser and the CDN
+  // fetch the page fresh, so an expired session also lands on the latest site.
+  const u = new URL(window.location.href);
+  u.searchParams.set("_r", String(Date.now()));
+  window.location.replace(u.toString());
+}
+(function () {
+  const onActivity = () => { if (Date.now() - _lastTouch > 15000) _touchActivity(); };
+  for (const ev of ["pointerdown", "keydown", "touchstart", "wheel", "scroll"]) {
+    window.addEventListener(ev, onActivity, { passive: true, capture: true });
+  }
+  setInterval(() => { if (userAddress && _idleExpired()) _expireSession(); }, 60000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && userAddress && _idleExpired()) _expireSession();
+  });
+})();
 
 // ─── "Continue with email" plumbing ───────────────────────────────────────────
 // The sheet + Privy bridge live in assets/email-login.js and are injected on
@@ -792,6 +848,17 @@ function _withTimeout(promise, ms, label) {
 async function autoReconnect() {
   const saved = _getSavedAddress();
   if (!saved) return null;
+
+  // Idle expiry on load: a saved session whose last interaction is older than
+  // the timeout is ended instead of restored (email wallets log out of Privy).
+  if (_idleExpired()) {
+    try { DebugHub.logCheckpoint("Session expired (idle " + Math.round(IDLE_TIMEOUT_MS / 60000) + " min)", "pass"); } catch {}
+    _endSession(true);
+    clearWalletChrome();
+    return null;
+  }
+  // Sessions saved before the idle clock existed have no stamp: start it now.
+  if (_idleFor() === 0) _touchActivity();
 
   if (_getSessionKind() === "email") {
     // Email session: rehydrate the Privy provider silently (its own session
