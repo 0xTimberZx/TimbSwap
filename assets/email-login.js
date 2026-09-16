@@ -976,8 +976,15 @@
   // Privy token is expected is what "Invalid JWT" means.
   async function privyToken({ fresh } = {}) {
     if (fresh) { try { await _privy.user.get(); } catch (_e) {} } // refreshes the session tokens
+    // The public client does not expose the internal accessor; it lives on
+    // the internal object the MFA and embedded-wallet APIs hold (pinned SDK
+    // 0.76.0 — scripts/build-vendor.mjs). Try each, then the public token.
+    const internals = [_privy, _privy.mfa && _privy.mfa.privyInternal, _privy.embeddedWallet && _privy.embeddedWallet._privyInternal];
     let t = null;
-    try { if (typeof _privy.getAccessTokenInternal === "function") t = await _privy.getAccessTokenInternal(); } catch (_e) {}
+    for (const o of internals) {
+      if (t) break;
+      try { if (o && typeof o.getAccessTokenInternal === "function") t = await o.getAccessTokenInternal(); } catch (_e) {}
+    }
     if (!t) { try { t = await _privy.getAccessToken(); } catch (_e) {} }
     return t || null;
   }
