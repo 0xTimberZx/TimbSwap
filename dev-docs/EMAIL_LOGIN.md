@@ -50,8 +50,8 @@ email.
 - **An embedded EOA.** A plain `0x…` address. The key is split between Privy's
   iframe (`auth.privy.io`, mounted hidden on the page) and this browser; Privy
   cannot sign alone and neither can the page. Recovery is Privy-managed by
-  default (same email on another device restores the wallet). Exporting the key
-  to MetaMask is a Privy feature we have not surfaced yet.
+  default (same email on another device restores the wallet). The key can be
+  exported to MetaMask from Wallet security (below).
 - **Session.** Privy keeps its own session in `localStorage`; ours records
   `timbswap_wallet_kind = "email"` next to the saved address so `autoReconnect`
   rehydrates the Privy provider first. A manual Disconnect logs out of Privy. Every
@@ -119,6 +119,21 @@ email.
   The Privy dashboard must have MFA turned on for the app (setup step 7).
   Note the wallet-ready copy still tells users to keep only what they are
   playing with in the wallet.
+- **Private key export.** Wallet security → **Export private key** → a
+  warning (anyone with the key controls the wallet; never paste it into a
+  site or chat) → "Show the copy button" mounts Privy's own export page in a
+  44 px iframe (`<origin>/apps/<appId>/embedded-wallets/export`, the page
+  react-auth's modal embeds): one button that copies the key to the clipboard
+  from inside Privy's origin. `email-login.js` only builds the URL — `v=1` +
+  `entropy_id` / `entropy_id_verifier` / `hd_wallet_index` from
+  `getEntropyDetailsFromAccount` (or `v=1-unified` + `wallet_id` for a TEE
+  wallet), `chain_type`, `width`, the sheet's palette colours — and puts the
+  session access token in the URL *fragment* (`#token=…`, never sent to a
+  server). The key never enters the page; the frame has
+  `allow="clipboard-write"` and fades in ~1.2 s after load like Privy's own
+  modal. If the wallet has MFA, Privy's page asks for the code itself. Note
+  the export page requires the origin to be on the app's allowed-origins
+  list (it already is for sign-in).
 - **Cold start.** The wallet starts with 0 ETH, so it cannot mint a first
   ticket. The "wallet ready" step shows the address with a copy button and says
   so. Gas sponsorship (ERC-4337 / paymaster) is the phase-two answer; it is not
@@ -196,10 +211,15 @@ esbuild build re-minifies the other one into a no-op diff.
       dropdown shows **Wallet security** (email sessions only) with On/Off,
       remove asks for a code (live site: the SwapTables chip shows the shield icon).
 
+- [ ] **Key export:** Wallet security → Export private key → warning → Show
+      the copy button → Privy's button appears (fades in), copies the key;
+      MetaMask → Import account → the same address. With MFA on, Privy's frame
+      asks for the code first.
 ## Not in this drop
 
 - The three `tables/*` pages (SwapTables) use their own provider code with
   direct `window.ethereum` calls and ethers v6 — same treatment, separate PR.
-- Gas sponsorship / smart accounts; key export UI; recovery password UI;
-  SMS / passkey MFA (authenticator-app MFA is in — see above).
+- Smart accounts; recovery password UI; SMS / passkey MFA (authenticator-app
+  MFA and key export are in — see above). Gas sponsorship: built and closed
+  unmerged by decision (TestSwap #432 / #58) — participants hold their own gas.
 - The live site (`TestSwap`): port after the mirror pass above.

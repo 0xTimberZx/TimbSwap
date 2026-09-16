@@ -43,6 +43,7 @@
   let _loading = null;  // memoised load()
   let _address = null;  // current embedded wallet address (after login/restore)
   let _user = null;     // Privy user (linked accounts, enrolled MFA methods)
+  let _account = null;  // the embedded wallet account (address, entropy ids, key stack)
 
   function available() { return !!window.PRIVY_APP_ID; }
 
@@ -94,6 +95,7 @@
       wallet: account, entropyId, entropyIdVerifier,
     });
     _address = account.address;
+    _account = account;
     return guard(provider);
   }
 
@@ -758,7 +760,10 @@
           ? "Transactions and signatures from this wallet need a code from your authenticator app — at most once every 15 minutes, since Privy remembers a code for that long. That check runs inside Privy's wallet, so nothing on this site can sign without your phone."
           : "Right now transactions only need the confirmation sheet on this site. An authenticator app adds a check that runs outside the page — the strongest protection for this wallet." }),
         err,
-        h("div", { class: "tsheet-actions" }, action, h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
+        h("div", { class: "tsheet-actions" }, action,
+          h("button", { class: "tsheet-btn", type: "button", onclick: () => exportKey(() => { open("Wallet security"); render(); }) },
+            h("strong", { text: "Export private key" }), h("span", { text: "Move this wallet into MetaMask or another app. Shown by Privy, never by this site." })),
+          h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
 
       async function removeTotp(e) {
         e.currentTarget.disabled = true;
@@ -772,6 +777,70 @@
         }
       }
     }
+  }
+
+  // ── Private key export ──────────────────────────────────────────────────────
+  // The key never touches this page. Privy hosts a small export page (the
+  // same one its React modal embeds) that renders a single "copy" button on
+  // Privy's origin; tapping it puts the key on the clipboard from inside that
+  // frame. We only build the URL — app id, the wallet's entropy ids (or its
+  // id on the TEE stack), a few palette colours — and pass the session access
+  // token in the URL fragment, which the browser never sends to a server.
+  // The page itself asks for MFA if the wallet has it.
+  function exportKey(onBack) {
+    const p = open("Export private key");
+    let frame = null;
+    p.then(() => { if (frame) frame.remove(); });
+    if (!_account || !_privy) {
+      setBody(h("p", { class: "tsheet-err", role: "alert", text: "Sign in with email first." }),
+        h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: onBack }, h("strong", { text: "Back" }))));
+      return p;
+    }
+    const addr = h("code", { class: "tsheet-addr", text: _address || "" });
+    const warn = h("div", { class: "tsheet-warn", role: "alert" },
+      h("strong", { text: "Anyone with this key controls the wallet and everything in it." }),
+      " Never paste it into a website or chat, and never share it. TimbSwap never sees it: the copy button below is Privy's, in a secure frame, and puts the key straight on your clipboard.");
+    const err = errLine();
+    const show = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: mountFrame }, h("strong", { text: "Show the copy button" }));
+    const back = h("button", { class: "tsheet-btn", type: "button", onclick: onBack }, h("strong", { text: "Back" }));
+    const actions = h("div", { class: "tsheet-actions" }, show, back);
+    const slot = h("div", { class: "tsheet-frame hidden" }, h("span", { class: "tsheet-frame-loading", text: "Loading Privy…" }));
+    setBody(h("p", { class: "tsheet-note", text: "Wallet " + short(_address || "") + " on " + chainName() + ":" }), addr, warn, slot, err, actions);
+    return p;
+
+    async function mountFrame() {
+      show.disabled = true; err.textContent = "";
+      let url;
+      try {
+        const token = await _privy.getAccessToken();
+        if (!token) throw new Error("Your session has expired. Sign in again.");
+        url = exportUrl(token, slot.getBoundingClientRect().width || 320);
+      } catch (ex) {
+        err.textContent = friendly(ex, String((ex && ex.message) || "Couldn't start the export. Try again."));
+        show.disabled = false;
+        return;
+      }
+      frame = h("iframe", { class: "tsheet-frame-iframe", title: "Privy: copy private key", allow: "clipboard-write self *", height: "44", src: url });
+      frame.addEventListener("load", () => setTimeout(() => slot.classList.add("ready"), 1200));
+      slot.classList.remove("hidden"); slot.append(frame);
+      show.remove();
+      actions.prepend(h("p", { class: "tsheet-note", text: "Tap Privy's button, then in MetaMask choose Add account → Import → paste the key. Keep using either app; it is the same wallet." }));
+    }
+  }
+
+  // The Privy-hosted export page, as react-auth builds it.
+  function exportUrl(token, widthPx) {
+    const origin = new URL(_privy.embeddedWallet.getURL()).origin;
+    const cs = (v, d) => { try { const x = getComputedStyle(_sheet).getPropertyValue(v).trim(); return x || d; } catch (_e) { return d; } };
+    const q = { chain_type: "ethereum", width: Math.round(widthPx) + "px",
+      background: cs("--ts-bg2", "#111820"), background2: cs("--ts-bg3", "#1a2330"), foreground3: cs("--ts-text-2", "#8ca3bf"),
+      foregroundAccent: "#000000", accent: cs("--ts-green", "#14f195"), accentDark: cs("--ts-green", "#14f195"), success: cs("--ts-green", "#14f195"), colorScheme: "dark" };
+    if (_account.id && _account.recovery_method === "privy-v2") { q.v = "1-unified"; q.wallet_id = _account.id; }
+    else {
+      const { entropyId, entropyIdVerifier } = _mod.getEntropyDetailsFromAccount(_account);
+      q.v = "1"; q.entropy_id = entropyId; q.entropy_id_verifier = entropyIdVerifier; q.hd_wallet_index = String(_account.wallet_index || 0);
+    }
+    return origin + "/apps/" + encodeURIComponent(window.PRIVY_APP_ID) + "/embedded-wallets/export?" + new URLSearchParams(q).toString() + "#" + new URLSearchParams({ token }).toString();
   }
 
   // ── Auth primitives ─────────────────────────────────────────────────────────
@@ -809,6 +878,7 @@
   async function logout() {
     _address = null;
     _user = null;
+    _account = null;
     try { if (_privy) await _privy.auth.logout(); } catch (_err) { /* already out */ }
   }
 
@@ -918,6 +988,14 @@
 .tsheet-qr.hidden { display: none !important; }
 .tsheet-qr svg { width: 180px; height: 180px; display: block; }
 a.tsheet-link { display: inline-block; }
+.tsheet-warn { padding: 10px 12px; border: 1px solid #f59e0b; border-radius: var(--ts-radius); background: rgba(245, 158, 11, 0.08); color: var(--ts-text); font-size: 13px; line-height: 1.45; }
+.tsheet-warn strong { color: #f59e0b; }
+.tsheet-frame { position: relative; min-height: 44px; }
+.tsheet-frame.hidden { display: none !important; }
+.tsheet-frame-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--ts-text-2); font-size: 13px; }
+.tsheet-frame.ready .tsheet-frame-loading { display: none; }
+.tsheet-frame-iframe { position: relative; z-index: 1; display: block; width: 100%; height: 44px; border: 0; opacity: 0; transition: opacity 50ms ease-in-out; pointer-events: none; }
+.tsheet-frame.ready .tsheet-frame-iframe { opacity: 1; pointer-events: auto; }
 `;
   function injectStyles() {
     if (document.getElementById("tsheet-style")) return;
