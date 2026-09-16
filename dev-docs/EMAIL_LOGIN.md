@@ -137,6 +137,10 @@ email.
      "privy-v2"`): Privy's **client export** — the page makes a P-256 key
      pair (`vendor/hpke.js`), loads Privy's export page hidden
      (`/apps/<appId>/embedded-wallets/export?v=1-unified&wallet_id=…&mode=client-export#token=…`),
+     — the `#token=` is **Privy's access token** (`getAccessTokenInternal()`,
+     what the wallet iframe and Privy's React SDK use), not the customer
+     token from `getAccessToken()`, which the export page rejects as
+     "Invalid JWT"; a rejected token gets one retry after a session refresh —
      posts `CLIENT_EXPORT_REQUEST { recipientPublicKey }` (base64 SPKI) and
      gets `CLIENT_EXPORT_RESPONSE { ciphertext, encapsulatedKey }` back,
      HPKE (DHKEM-P256 / HKDF-SHA256 / ChaCha20-Poly1305, AES-256-GCM tried
