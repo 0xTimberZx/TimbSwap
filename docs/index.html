@@ -309,6 +309,7 @@
         <p>TimbSwap's frontend is static and stores no accounts. What it touches:</p>
         <ul>
           <li><strong>Your wallet.</strong> Connecting shares your public address with the site (standard for any dApp). The app reads balances and signs transactions you approve; it never has custody of your keys or funds.</li>
+          <li><strong>Email sign-in (optional).</strong> If you choose “Continue with email”, the one-time code and your email address are handled by <a href="https://www.privy.io/" target="_blank" rel="noopener">Privy</a>, which creates a wallet for you; its key is split between Privy and your browser and is never seen by TimbSwap. TimbSwap only receives the resulting public wallet address, exactly as with an extension wallet. Privy's own privacy policy applies to the email.</li>
           <li><strong>Public RPC.</strong> Reads go to a public Arbitrum Sepolia RPC endpoint, which sees the requests your browser makes (a normal property of using any public node).</li>
           <li><strong>Local storage.</strong> Your theme choice and last-connected state are kept in your browser only.</li>
           <li><strong>Diagnostics (DebugHub).</strong> The app can emit anonymous diagnostic checkpoints and error events to help debugging. This telemetry is about app behavior, not your identity, and no private keys or seed phrases are ever collected. If you export a debug log to share, review it before sending.</li>
