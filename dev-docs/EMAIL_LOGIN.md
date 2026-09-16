@@ -5,9 +5,10 @@ with no wallet extension (most phones) can still connect, mint a ticket and
 claim from the faucet. Nothing on-chain changes: the embedded wallet is an EOA
 and every contract keys on `msg.sender` as before.
 
-Status: **built, off by default.** `window.PRIVY_APP_ID` in `config.js` is
-`""`, which hides the option completely and leaves every page behaving exactly
-as before. Setting it turns the feature on for that deployment.
+Status: **built; ON for the dev mirror** (`window.PRIVY_APP_ID` set in
+`config.js`). An empty value hides the option completely and leaves every page
+behaving exactly as before, which is how the live site stays until its own
+Privy app exists and the mirror pass below is done.
 
 ## How it fits the existing connect flow
 
@@ -75,9 +76,14 @@ never needed by the frontend and must not be put anywhere in this repo.
 4. **Allowed origins / domains:** this deployment's origin
    (`https://0xtimberzx.github.io` for the mirror, `https://timbswap.xyz` for
    live). Missing this = the iframe refuses to load.
-5. **Chains:** add Arbitrum Sepolia (421614) now, Arbitrum One (42161) when the
-   site moves. `email-login.js` picks the one matching `CHAIN_ID`.
-6. Copy the **App ID** into `config.js` → `window.PRIVY_APP_ID`.
+5. **Chains:** nothing to set in the dashboard. The headless SDK takes its chain
+   list from code: `email-login.js` passes Arbitrum Sepolia (421614) or
+   Arbitrum One (42161) to match `CHAIN_ID`, and the embedded wallet defaults
+   to the first chain given. (Privy's dashboard chain settings only affect its
+   React modal / funding UI, which this site does not use.)
+6. Copy the **App ID** (App settings → Basics) into `config.js` →
+   `window.PRIVY_APP_ID`. Dev mirror: `cmu3mq0in04v90bjyc1y38iij`
+   ("TimbSwap Dev", development mode).
 
 ## Rebuilding the vendored SDK
 
