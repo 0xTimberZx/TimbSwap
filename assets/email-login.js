@@ -868,9 +868,26 @@
         h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: stepWarn }, h("strong", { text: "Back" }))));
     }
 
-    // 3) The reveal.
+    // 3) The reveal. With an authenticator enrolled, Privy only honours an
+    // export after a fresh MFA verification through the wallet (its React
+    // SDK forces one right before its export screen; without it the export
+    // page answers "Invalid JWT token provided"). verifyMfa() raises the same
+    // authenticator prompt as a transaction.
     async function stepReveal() {
       _title.textContent = "Your private key";
+      if (hasTotp()) {
+        setBody(h("p", { class: "tsheet-note", text: "One more check: approve with your authenticator app." }));
+        try { await _privy.mfa.verifyMfa(); }
+        catch (ex) {
+          if (isMfaCancel(ex)) { wipe(); onBack(); return; }
+          open("Your private key"); p.then(wipe);
+          setBody(h("p", { class: "tsheet-err", role: "alert", text: friendly(ex, "Couldn't verify the authenticator: " + tidyLine((ex && ex.message) || "unknown error")) }),
+            h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: onBack }, h("strong", { text: "Back" }))));
+          return;
+        }
+        // The prompt took over the sheet; take it back and re-arm the wipe-on-close.
+        open("Your private key").then(wipe);
+      }
       const reminder = h("div", { class: "tsheet-warn", role: "alert" }, h("strong", { text: "Never share this key. " }), "Whoever has it owns the wallet. Paste it only into your own wallet app, then clear your clipboard.");
       if (!(_account.id && _account.recovery_method === "privy-v2")) {
         // Older key stack: Privy's own copy button, on Privy's origin.

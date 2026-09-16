@@ -33,7 +33,7 @@ const SITE_ROOT = (function () {
 // so bumping this one string is what makes browsers and the CDN pick up a
 // new version of those files — GitHub Pages serves them with a 10-minute
 // max-age that Cloudflare honours. Bump on every change to either file.
-window.ASSET_VER = "20260916l";
+window.ASSET_VER = "20260916m";
 
 // Resolve a root-absolute site path ("/compete/") against SITE_ROOT, so JS
 // navigation works on sub-path hosting too. Anything else passes through.
@@ -424,6 +424,7 @@ function _saveSession(address, kind) {
   try { sessionStorage.setItem(SESSION_KEY, address); } catch {}
   try { if (kind) sessionStorage.setItem(SESSION_KIND_KEY, kind); } catch {}
   _touchActivity(); // a fresh connect starts the idle clock
+  _syncSecurityMenuItem(); // the kind is known now (applyWalletChrome may have run before it was saved)
 }
 
 function _getSessionKind() {
@@ -478,7 +479,7 @@ function _syncSecurityMenuItem() {
     const dd = document.querySelector("#wallet-info .wallet-dropdown");
     if (!dd) return;
     const existing = document.getElementById("wallet-security-item");
-    const want = _getSessionKind() === "email" && !!window.PRIVY_APP_ID;
+    const want = (_getSessionKind() === "email" || !!_embeddedProvider) && !!window.PRIVY_APP_ID;
     if (!want) { existing?.remove(); return; }
     if (existing) return;
     const item = document.createElement("button");
