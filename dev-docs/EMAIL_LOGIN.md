@@ -109,7 +109,10 @@ email.
   ("Too many wrong authenticator codes…" / "Timed out…"). Cancel / Escape /
   × in the prompt rejects the request with the same 4001 error as Reject.
   The check runs inside Privy's iframe — nothing on the page can sign
-  without the phone. Removing the authenticator (`unenrollMfa("totp")`) asks
+  without the phone. Privy caches a verification for 15 minutes (dashboard
+  "Custom cache duration"), so within that window further transactions go
+  from Confirm straight to the wallet; the sheet copy says "at most once
+  every 15 minutes" — update it if you change the cache. Removing the authenticator (`unenrollMfa("totp")`) asks
   for one last code. Only TOTP is offered: no phone number to hold, works
   offline, no regional SMS limits; SMS / passkey enrolment is not built (a
   wallet that somehow has only those gets a "can't collect yet" message).
