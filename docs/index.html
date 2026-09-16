@@ -147,7 +147,7 @@
       </div>
 
       <div class="docs-callout docs-callout-warn">
-        <strong>Testnet only.</strong> TimbSwap runs entirely on the <strong>Arbitrum Sepolia</strong> test network (chain ID <code>42161</code>). Every token here — including TIMBS — is a <strong>test asset with no monetary value</strong>. Nothing on this site is an investment, a security, or financial advice. Do not send real funds or mainnet assets to any address listed here.
+        <strong>Testnet only.</strong> TimbSwap runs entirely on the <strong>Arbitrum Sepolia</strong> test network (chain ID <code>421614</code>). Every token here — including TIMBS — is a <strong>test asset with no monetary value</strong>. Nothing on this site is an investment, a security, or financial advice. Do not send real funds or mainnet assets to any address listed here.
       </div>
 
       <div class="docs-callout"><strong>New here?</strong> The <a href="../litepaper/">Litepaper</a> is the one-document overview — mechanism, tokenomics, architecture, risks, and roadmap. These docs are the detailed reference.</div>
@@ -178,14 +178,14 @@
           <li><strong>Reward.</strong> Every six rounds an autonomous keeper sweeps what was collected and replenishes the reward pools — prize pot, farm, staking, then boosted farms — in that fixed priority order.</li>
           <li><strong>Return.</strong> Winners claim, stakers and farmers compound, players re-enter — feeding step one again.</li>
         </ol>
-        <p>The whole protocol is <strong>Solidity smart contracts</strong> (0.8.24), open-source and verified on <a href="https://repo.sourcify.dev/42161/" target="_blank" rel="noopener">Sourcify</a> so anyone can read the exact deployed code. The layout mirrors the loop: the <strong>AMM core</strong> (Factory, Router, Pairs) generates fees; the <strong>game layer</strong> (TimbPrize, GameRegistry, YieldVault, PrizeEscrow) runs rounds and holds the pot's backing; the <strong>emissions layer</strong> (Staking, Farm, BoostFarm, Treasury) distributes rewards under the solvency rules described below. Settlement and payouts are <strong>permissionless</strong> — anyone can call them, no privileged operator required. The frontend is a static site — every number you see is read live from chain, and the keeper runs unattended.</p>
+        <p>The whole protocol is <strong>Solidity smart contracts</strong> (0.8.24), open-source and verified on <a href="https://repo.sourcify.dev/421614/" target="_blank" rel="noopener">Sourcify</a> so anyone can read the exact deployed code. The layout mirrors the loop: the <strong>AMM core</strong> (Factory, Router, Pairs) generates fees; the <strong>game layer</strong> (TimbPrize, GameRegistry, YieldVault, PrizeEscrow) runs rounds and holds the pot's backing; the <strong>emissions layer</strong> (Staking, Farm, BoostFarm, Treasury) distributes rewards under the solvency rules described below. Settlement and payouts are <strong>permissionless</strong> — anyone can call them, no privileged operator required. The frontend is a static site — every number you see is read live from chain, and the keeper runs unattended.</p>
       </section>
 
       <!-- Getting started -->
       <section id="start" class="docs-section">
         <h2>Getting started</h2>
         <ol>
-          <li><strong>Add the network.</strong> Arbitrum Sepolia — chain ID <code>42161</code>, RPC <code>https://sepolia-rollup.arbitrum.io/rpc</code>, explorer <code>arbiscan.io</code>. Connecting your wallet on any TimbSwap page will offer to add/switch to it automatically.</li>
+          <li><strong>Add the network.</strong> Arbitrum Sepolia — chain ID <code>421614</code>, RPC <code>https://sepolia-rollup.arbitrum.io/rpc</code>, explorer <code>arbiscan.io</code>. Connecting your wallet on any TimbSwap page will offer to add/switch to it automatically.</li>
           <li><strong>Get testnet ETH.</strong> Use a public Arbitrum Sepolia faucet to fund gas. You need a small amount of Sepolia ETH for every transaction.</li>
           <li><strong>Connect.</strong> Click <em>Connect Wallet</em> in the top bar. Reads (quotes, balances, tables) always come from the public RPC; your wallet is only asked to <em>sign</em> transactions.</li>
           <li><strong>Get test tokens.</strong> Swap a little ETH for TIMBS or another listed token to start using the farm, lock, and compete surfaces.</li>
@@ -300,7 +300,7 @@
             </tbody>
           </table>
         </div>
-        <p class="docs-note">Network: Arbitrum Sepolia (chain ID <code>42161</code>). Tap any address to open it on Arbiscan.</p>
+        <p class="docs-note">Network: Arbitrum Sepolia (chain ID <code>421614</code>). Tap any address to open it on Arbiscan.</p>
       </section>
 
       <!-- Privacy -->
