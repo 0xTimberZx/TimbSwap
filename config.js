@@ -13,6 +13,21 @@ const CHAIN_NAME = "Arbitrum Sepolia";
 // so both must be set together to enforce it). window.* so faucet.js can read it.
 window.TURNSTILE_SITE_KEY = "";
 
+// Privy app ID (PUBLIC — safe in client JS) for "Continue with email": email
+// one-time-code sign-in that yields an embedded Ethereum wallet (a normal EOA),
+// see assets/email-login.js. Leave "" to hide the option entirely — every page
+// then behaves exactly as before (browser-extension wallets only). Use a
+// separate Privy app per environment (dev mirror vs live site); the app's
+// allowed origins must include this site's origin.
+window.PRIVY_APP_ID = "cmu3mq0in04v90bjyc1y38iij"; // "TimbSwap Dev" app (dev mirror only; the live site gets its own)
+
+// Where this site is served from ("https://host/" or "https://host/sub/"),
+// derived from this script's own URL so lazily-loaded assets (the email login
+// sheet, the vendored Privy bundle) resolve on both root and sub-path hosting.
+const SITE_ROOT = (function () {
+  try { return new URL("./", document.currentScript.src).href; } catch { return "/"; }
+})();
+
 // Faucet UI mirror of the mainnet-TIMB airdrop leg. Set true ONLY once the
 // airdrop-dispatch function is live and AIRDROP_ENABLED is set on the faucet-claim
 // edge function — this just shows/hides the "+ real TIMB" explainer on the faucet
@@ -323,13 +338,21 @@ async function logsHeadBlock(fallbackBlock) {
 // first injected provider, so every request/listener targets one wallet.
 let _activeInjectedProvider = null;
 
+// "Continue with email" (assets/email-login.js) hands us an EIP-1193 provider
+// for a Privy embedded wallet. While one is set it IS the wallet: every
+// injected-provider lookup below returns it, so _initProvider / _ensureChain /
+// autoReconnect / the account listeners work unchanged for email users.
+let _embeddedProvider = null;
+
 function injectedProviders() {
+  if (_embeddedProvider) return [_embeddedProvider];
   const eth = window.ethereum;
   if (!eth) return [];
   return eth.providers && eth.providers.length ? eth.providers : [eth];
 }
 
 function injectedProvider() {
+  if (_embeddedProvider) return _embeddedProvider;
   if (_activeInjectedProvider) return _activeInjectedProvider;
   const providers = injectedProviders();
   return providers.find((p) => p.isBraveWallet)
@@ -360,13 +383,37 @@ async function selectInjectedProvider() {
 // sessionStorage clears when the browser tab is closed — no stale state.
 
 const SESSION_KEY = "timbswap_wallet";
+// Which kind of wallet the saved session is: "injected" (extension) or "email"
+// (Privy embedded). autoReconnect needs it to know whether to rehydrate the
+// embedded provider before it looks for window.ethereum.
+const SESSION_KIND_KEY = "timbswap_wallet_kind";
+// The connect method the user picked last time, so the chooser sheet is a
+// one-time thing per browser. Cleared by a manual Disconnect (which is how a
+// user switches methods).
+const CONNECT_METHOD_KEY = "timbswap_connect_method";
 
-function _saveSession(address) {
+function _saveSession(address, kind) {
   try { sessionStorage.setItem(SESSION_KEY, address); } catch {}
+  try { if (kind) sessionStorage.setItem(SESSION_KIND_KEY, kind); } catch {}
+}
+
+function _getSessionKind() {
+  try { return sessionStorage.getItem(SESSION_KIND_KEY) || "injected"; } catch { return "injected"; }
+}
+
+function _getConnectMethod() {
+  try { return localStorage.getItem(CONNECT_METHOD_KEY); } catch { return null; }
+}
+function _saveConnectMethod(m) {
+  try { localStorage.setItem(CONNECT_METHOD_KEY, m); } catch {}
+}
+function _clearConnectMethod() {
+  try { localStorage.removeItem(CONNECT_METHOD_KEY); } catch {}
 }
 
 function _clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+  try { sessionStorage.removeItem(SESSION_KIND_KEY); } catch {}
   // A cleared session means the optimistic chrome (below) must revert to the
   // gated "Connect Wallet" state — otherwise a genuine disconnect / account
   // switch would leave the nav showing connected.
@@ -409,7 +456,59 @@ function disconnectWallet() {
   userAddress = null;
   _walletChainOk = false;
   _activeInjectedProvider = null;
+  if (_embeddedProvider) {
+    _embeddedProvider = null;
+    // End the Privy session too, so the next connect genuinely asks again.
+    try { window.TimbEmailWallet && window.TimbEmailWallet.logout(); } catch {}
+  }
+  _clearConnectMethod(); // a manual disconnect is how you switch methods
   _clearSession();
+}
+
+// ─── "Continue with email" plumbing ───────────────────────────────────────────
+// The sheet + Privy bridge live in assets/email-login.js and are injected on
+// demand; nothing loads unless PRIVY_APP_ID is set AND a connect could use it.
+let _emailLoginLoad = null;
+function _loadEmailLogin() {
+  if (!window.PRIVY_APP_ID) return Promise.resolve(false);
+  if (window.TimbEmailWallet) return Promise.resolve(true);
+  if (_emailLoginLoad) return _emailLoginLoad;
+  _emailLoginLoad = new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = SITE_ROOT + "assets/email-login.js";
+    s.async = true;
+    s.onload = () => resolve(!!window.TimbEmailWallet);
+    s.onerror = () => { _emailLoginLoad = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _emailLoginLoad;
+}
+
+// Decide how this connect should happen: "injected" (extension), "email"
+// (Privy embedded wallet) or null (user dismissed the chooser). With no
+// PRIVY_APP_ID this is exactly the old behaviour. With one set: a remembered
+// choice wins; no extension → straight to email; otherwise ask once.
+async function _pickConnectMethod() {
+  const hasInjected = !!window.ethereum;
+  if (!window.PRIVY_APP_ID) {
+    if (hasInjected) return "injected";
+    alert("No wallet detected. Please use MetaMask or Brave Wallet.");
+    return null;
+  }
+  const remembered = _getConnectMethod();
+  if (remembered === "injected" && hasInjected) return "injected";
+  if (remembered === "email") return "email";
+  if (!(await _loadEmailLogin())) {
+    // The sheet failed to load (offline / blocked): fall back to the extension
+    // if there is one, otherwise there is nothing to connect with.
+    if (hasInjected) return "injected";
+    alert("Sign-in isn't available right now. Try again, or use a wallet extension.");
+    return null;
+  }
+  if (!hasInjected) return "email";
+  const pick = await window.TimbEmailWallet.chooseMethod({ hasInjected });
+  if (pick) _saveConnectMethod(pick);
+  return pick;
 }
 
 function _getSavedAddress() {
@@ -470,14 +569,37 @@ async function _ensureChain() {
 // processing"), which is benign, so re-firing is safe and actually re-triggers a
 // prompt that failed to surface.
 async function connectWallet() {
-  if (!window.ethereum) {
-    alert("No wallet detected. Please use MetaMask or Brave Wallet.");
-    return false;
+  const method = await _pickConnectMethod();
+  if (!method) return false;
+
+  if (method === "email") {
+    // Email → one-time code → embedded wallet, all inside the sheet. On
+    // success the Privy provider becomes THE injected provider (see
+    // _embeddedProvider) and the normal connect tail below runs against it.
+    _setConnectBtn("Signing in…", true);
+    let w = null;
+    try {
+      if (!(await _loadEmailLogin())) throw new Error("email-login unavailable");
+      w = await window.TimbEmailWallet.login();
+    } catch (err) {
+      try { DebugHub.logError("connectWallet:email", err); } catch {}
+      _setConnectFail("Email sign-in failed — try again.");
+      return false;
+    }
+    if (!w) { _setConnectBtn("Connect Wallet", false); return false; } // cancelled
+    _embeddedProvider = w.provider;
+    _activeInjectedProvider = null;
+  } else {
+    if (!window.ethereum) {
+      alert("No wallet detected. Please use MetaMask or Brave Wallet.");
+      return false;
+    }
+    _embeddedProvider = null;
+    await selectInjectedProvider();
   }
-  await selectInjectedProvider();
   // Feedback on the shared connect button (same id every page) — a locked-wallet
   // tap previously looked dead while eth_requestAccounts sat pending.
-  _setConnectBtn("Connecting… check your wallet", true);
+  _setConnectBtn(method === "email" ? "Connecting…" : "Connecting… check your wallet", true);
   // Which wallet are we actually talking to? When several extensions inject,
   // injectedProvider() picks one — and a request sent to a provider the user
   // isn't actually using never surfaces a prompt and never rejects. Recording
@@ -503,7 +625,7 @@ async function connectWallet() {
     // to success or a clean, retryable failure. _ensureChain() is itself bounded.
     await _withTimeout(_initProvider(), 15000, "initProvider");
     await _ensureChain();
-    _saveSession(userAddress);
+    _saveSession(userAddress, method);
     return true;
   } catch (err) {
     // Log the failure HERE, not only in the caller. A stage-labelled event is the
@@ -575,6 +697,7 @@ function _setConnectBtn(text, disabled) {
 // extensions can inject at once and only one of them holds the user's accounts.
 function _providerLabel() {
   try {
+    if (_embeddedProvider) return "privy-email";
     const p = injectedProvider();
     if (!p) return "none";
     const multi = (window.ethereum && window.ethereum.providers &&
@@ -628,9 +751,23 @@ function _withTimeout(promise, ms, label) {
 }
 
 async function autoReconnect() {
-  if (!window.ethereum) return null;
   const saved = _getSavedAddress();
   if (!saved) return null;
+
+  if (_getSessionKind() === "email") {
+    // Email session: rehydrate the Privy provider silently (its own session
+    // lives in localStorage). If Privy no longer has a session, the saved
+    // address is stale — clear it so we don't retry on every page.
+    if (!_embeddedProvider) {
+      let p = null;
+      try { if (await _loadEmailLogin()) p = await window.TimbEmailWallet.restore(); } catch { p = null; }
+      if (!p) { _clearSession(); return null; }
+      _embeddedProvider = p;
+      _activeInjectedProvider = null;
+    }
+  } else if (!window.ethereum) {
+    return null;
+  }
 
   // Retry the reconnect a couple of times: Brave often has eth_accounts /
   // getNetwork hiccup on a soft refresh, and one failed attempt used to drop the
@@ -1086,6 +1223,13 @@ function listenForAccountChanges(onChangeCallback) {
 // by design, attempting a switch always ends the session and requires a
 // fresh Connect Wallet, even if the picker is then cancelled.
 async function handleSwitchAccount() {
+  if (_embeddedProvider) {
+    // An email wallet has exactly one account. "Switch" = sign out and let the
+    // next Connect ask for a method / email again.
+    disconnectWallet();
+    window.location.reload();
+    return;
+  }
   const eth = injectedProvider();
   if (!eth) return;
   try {

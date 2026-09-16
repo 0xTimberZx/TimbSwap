@@ -45,3 +45,7 @@ dev-docs/*
 !dev-docs/AUDIT_PREP.md
 !dev-docs/FAUCET_GOLIVE.md
 !dev-docs/INCIDENT_2026-09-15_SHARED_INFRA_REPOINT.md
+!dev-docs/EMAIL_LOGIN.md
+
+# ─── Node (dev-only tooling for vendored bundles; see scripts/build-vendor.mjs) ─
+node_modules/

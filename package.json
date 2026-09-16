@@ -1,0 +1,13 @@
+{
+  "name": "timbswap-frontend-tooling",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only tooling for the static TimbSwap frontend. The site itself has no build step (GitHub Pages serves the repo as-is); this package only produces the vendored bundles committed under vendor/.",
+  "scripts": {
+    "build:vendor": "node scripts/build-vendor.mjs"
+  },
+  "devDependencies": {
+    "@privy-io/js-sdk-core": "0.76.0",
+    "esbuild": "^0.25.0"
+  }
+}
