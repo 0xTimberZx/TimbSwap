@@ -108,11 +108,20 @@
       isTimbEmailWallet: true,
       async request(args) {
         if (args && WRITE_METHODS.has(args.method)) {
-          const ok = await confirmRequest(args);
+          const isTx = (args.method === "eth_sendTransaction" || args.method === "eth_signTransaction");
+          const ok = await confirmRequest(args, provider);
           if (!ok) {
             const err = new Error("User rejected the request.");
             err.code = 4001;
             throw err;
+          }
+          try {
+            const result = await provider.request(args);
+            close(null); // sending state → done
+            return result;
+          } catch (e) {
+            await showError(e, isTx);
+            throw e;
           }
         }
         return provider.request(args);
@@ -124,25 +133,39 @@
     return g;
   }
 
-  // Human labels for the calls the site makes (selector → label). Built with
-  // ethers' keccak when the page has ethers (every page does); unknown
-  // selectors show as "Contract call 0x…".
-  const KNOWN_SIGS = [
-    "submitEntry(bytes6,bool,uint256)", "replaceEntry(bytes6,uint256)", "cancelEntry()",
-    "claimRefund(uint256)", "claimWinnings(uint256)", "reclaimFromPastGame(uint256)",
-    "advanceScroll(uint256)", "approve(address,uint256)",
-    "swapExactETHForTokens(uint256,uint256,address,address,uint256,bool)",
-    "swapExactTokensForETH(uint256,uint256,address,address,uint256,bool)",
-    "swapExactTokensForTokens(uint256,uint256,address,address,address,uint256,bool)",
-    "swapExactTokensForTokensPath(uint256,uint256,address[],address,uint256,bool)",
-    "addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256,uint256,uint256)",
-    "removeLiquidity(address,address,uint256,uint256,uint256,address,uint256,uint256)",
-    "provideLiquidityETH(address,uint256,uint256,uint256,uint256)",
-    "stake(uint256)", "unstake(uint256)", "claimRewards()", "claimRewards(uint256)",
-    "deposit()", "deposit(uint256,uint256)", "withdraw(uint256)", "withdraw(uint256,uint256)",
-    "lock(address,uint256,uint256)", "unwrapWeth(uint256)",
-    "castVote(uint256,bool)", "depositVotingPower(uint256)", "withdrawVotingPower(uint256)",
-    "resolveProposal(uint256)",
+  // ── Decoding, fee estimate and advanced overrides for the sheet ────────────
+  // Human-readable ABI for the calls the site makes (names matter: the rows
+  // below read args by name). Overloads that share a selector are listed once.
+  const KNOWN_ABI = [
+    "function submitEntry(bytes6 string6, bool useETH, uint256 extraRounds) payable",
+    "function replaceEntry(bytes6 newString6, uint256 extraRounds)",
+    "function cancelEntry()",
+    "function claimRefund(uint256 ticketId)",
+    "function claimWinnings(uint256 round)",
+    "function reclaimFromPastGame(uint256 ticketId)",
+    "function advanceScroll(uint256 count)",
+    "function approve(address spender, uint256 amount)",
+    "function swapExactETHForTokens(uint256 amountIn, uint256 amountOutMin, address tokenOut, address to, uint256 deadline, bool influencePrize) payable",
+    "function swapExactTokensForETH(uint256 amountIn, uint256 amountOutMin, address tokenIn, address to, uint256 deadline, bool influencePrize)",
+    "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address tokenIn, address tokenOut, address to, uint256 deadline, bool influencePrize)",
+    "function swapExactTokensForTokensPath(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline, bool influencePrize)",
+    "function addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline)",
+    "function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline)",
+    "function provideLiquidityETH(address token, uint256 amountTokenDesired, uint256 ethAmount, uint256 amountTokenMin, uint256 amountETHMin)",
+    "function stake(uint256 amount)",
+    "function unstake(uint256 amount)",
+    "function claimRewards()",
+    "function claimRewards(uint256 pid)",
+    "function deposit() payable",
+    "function deposit(uint256 pid, uint256 amount)",
+    "function withdraw(uint256 amount)",
+    "function withdraw(uint256 pid, uint256 amount)",
+    "function lock(address token, uint256 amount, uint256 durationSeconds)",
+    "function unwrapWeth(uint256 amount)",
+    "function castVote(uint256 proposalId, bool support)",
+    "function depositVotingPower(uint256 amount)",
+    "function withdrawVotingPower(uint256 amount)",
+    "function resolveProposal(uint256 proposalId)",
   ];
   const LABELS = {
     submitEntry: "Enter a ticket", replaceEntry: "Replace your ticket", cancelEntry: "Cancel your ticket",
@@ -156,18 +179,21 @@
     castVote: "Cast vote", depositVotingPower: "Deposit voting power", withdrawVotingPower: "Withdraw voting power",
     resolveProposal: "Resolve proposal",
   };
-  let _selectorMap = null;
-  function selectorLabel(data) {
-    const sel = (typeof data === "string" && data.length >= 10) ? data.slice(0, 10).toLowerCase() : null;
-    if (!sel || sel === "0x") return "Send ETH";
-    if (!_selectorMap) {
-      _selectorMap = {};
-      try {
-        for (const sig of KNOWN_SIGS) _selectorMap[ethers.utils.id(sig).slice(0, 10)] = sig.split("(")[0];
-      } catch (_e) { /* ethers missing → labels unavailable */ }
-    }
-    const name = _selectorMap[sel];
-    return name ? (LABELS[name] || name) : "Contract call " + sel;
+
+  let _iface = null;
+  function iface() {
+    if (_iface === null) { try { _iface = new ethers.utils.Interface(KNOWN_ABI); } catch (_e) { _iface = false; } }
+    return _iface || null;
+  }
+  function decodeTx(tx) {
+    const i = iface();
+    if (!i || !tx || typeof tx.data !== "string" || tx.data.length < 10) return null;
+    try { return i.parseTransaction({ data: tx.data, value: tx.value || 0 }); } catch (_e) { return null; }
+  }
+  function actionLabel(tx) {
+    if (!tx.data || tx.data === "0x") return "Send ETH";
+    const p = decodeTx(tx);
+    return p ? (LABELS[p.name] || p.name) : "Contract call " + String(tx.data).slice(0, 10);
   }
 
   function contractName(addr) {
@@ -178,57 +204,289 @@
     return null;
   }
 
-  function fmtEth(hexOrNum) {
-    try {
-      const wei = BigInt(hexOrNum || 0);
-      if (wei === 0n) return "0 ETH";
-      const s = wei.toString().padStart(19, "0");
-      const whole = s.slice(0, -18), frac = s.slice(-18).replace(/0+$/, "").slice(0, 6);
-      return whole + (frac ? "." + frac : "") + " ETH";
-    } catch (_e) { return String(hexOrNum); }
+  // Token symbol + decimals: known addresses from config, else read on-chain
+  // via the site's shared read provider (cached per address).
+  const _tokCache = {};
+  async function tokenInfo(addr) {
+    const a = String(addr || "").toLowerCase();
+    if (_tokCache[a]) return _tokCache[a];
+    let info = null;
+    const name = contractName(a);
+    if (name === "TIMBSToken") info = { symbol: "TIMBS", decimals: 18 };
+    else if (name === "WETH")  info = { symbol: "WETH", decimals: 18 };
+    if (!info) {
+      try {
+        const c = new ethers.Contract(a, ["function symbol() view returns (string)", "function decimals() view returns (uint8)"], sharedReadProvider());
+        const [symbol, decimals] = await Promise.all([c.symbol(), c.decimals()]);
+        info = { symbol, decimals: Number(decimals) };
+      } catch (_e) { info = { symbol: short(a), decimals: 18 }; }
+    }
+    _tokCache[a] = info;
+    return info;
   }
 
+  function fmtWei(v, decimals, dp) {
+    try {
+      const wei = BigInt(v || 0);
+      if (wei === 0n) return "0";
+      const s = wei.toString().padStart(decimals + 1, "0");
+      const whole = s.slice(0, s.length - decimals);
+      const frac = s.slice(s.length - decimals).replace(/0+$/, "").slice(0, dp);
+      return whole + (frac ? "." + frac : "");
+    } catch (_e) { return String(v); }
+  }
+  function fmtEth(v, dp = 6) { return fmtWei(v, 18, dp) + " ETH"; }
   function short(a) { return a ? a.slice(0, 6) + "…" + a.slice(-4) : ""; }
+  function bytes6Text(b) { try { return ethers.utils.toUtf8String(b).replace(/\0/g, ""); } catch (_e) { return String(b); } }
+  function deadlineText(d) {
+    const secs = Number(d) - Math.floor(Date.now() / 1000);
+    if (!isFinite(secs)) return String(d);
+    return secs > 0 ? "in " + Math.max(1, Math.round(secs / 60)) + " min" : "already passed";
+  }
+  function isMaxUint(bn) { try { return bn.eq(ethers.constants.MaxUint256); } catch (_e) { return false; } }
+
+  // Per-call detail rows (async: token symbols may need a read).
+  async function detailRows(p, tx) {
+    const a = p.args, rows = [];
+    const toName = contractName(tx.to);
+    const amt = async (addr, v) => { const t = await tokenInfo(addr); return fmtWei(v, t.decimals, 6) + " " + t.symbol; };
+    const extra = (n) => { if (n && n.gt && n.gt(0)) rows.push(["Extra rounds", n.toString() + " · paid in TIMBS, non-refundable"]); };
+    const swapTail = () => { rows.push(["Recipient", short(a.to), 1]); rows.push(["Deadline", deadlineText(a.deadline)]); rows.push(["Nudges the meter", a.influencePrize ? "yes" : "no"]); };
+    switch (p.name) {
+      case "submitEntry":
+        rows.push(["Ticket", bytes6Text(a.string6), 1]);
+        rows.push(["Backed by", a.useETH ? fmtEth(tx.value) + " (refundable escrow)" : "TIMBS entry cost (refundable escrow)"]);
+        extra(a.extraRounds); break;
+      case "replaceEntry":
+        rows.push(["New ticket", bytes6Text(a.newString6), 1]);
+        extra(a.extraRounds);
+        rows.push(["Note", "Concedes your current ticket; its principal carries over"]); break;
+      case "swapExactETHForTokens":
+        rows.push(["You pay", fmtEth(tx.value)]);
+        rows.push(["You receive", "≥ " + await amt(a.tokenOut, a.amountOutMin) + " (min after slippage)"]);
+        swapTail(); break;
+      case "swapExactTokensForETH":
+        rows.push(["You pay", await amt(a.tokenIn, a.amountIn)]);
+        rows.push(["You receive", "≥ " + fmtEth(a.amountOutMin) + " (min after slippage)"]);
+        swapTail(); break;
+      case "swapExactTokensForTokens":
+        rows.push(["You pay", await amt(a.tokenIn, a.amountIn)]);
+        rows.push(["You receive", "≥ " + await amt(a.tokenOut, a.amountOutMin) + " (min after slippage)"]);
+        swapTail(); break;
+      case "swapExactTokensForTokensPath":
+        rows.push(["You pay", await amt(a.path[0], a.amountIn)]);
+        rows.push(["You receive", "≥ " + await amt(a.path[a.path.length - 1], a.amountOutMin) + " (min after slippage)"]);
+        rows.push(["Route", (a.path.length - 1) + " hop" + (a.path.length > 2 ? "s" : "")]);
+        rows.push(["Deadline", deadlineText(a.deadline)]);
+        rows.push(["Nudges the meter", a.influencePrize ? "yes" : "no"]); break;
+      case "approve": {
+        const t = await tokenInfo(tx.to);
+        rows.push(["Token", t.symbol]);
+        rows.push(["Spender", contractName(a.spender) || short(a.spender)]);
+        rows.push(["Allowance", isMaxUint(a.amount) ? "Unlimited" : fmtWei(a.amount, t.decimals, 6) + " " + t.symbol]); break;
+      }
+      case "stake": case "unstake": case "depositVotingPower": case "withdrawVotingPower":
+        rows.push(["Amount", fmtWei(a.amount, 18, 6) + " TIMBS"]); break;
+      case "withdraw":
+        if (a.pid !== undefined) { rows.push(["Pool", a.pid.toString()]); rows.push(["Amount", fmtWei(a.amount, 18, 6) + " LP"]); }
+        else if (toName === "TimbLockVault") rows.push(["Lock #", a.amount.toString()]);
+        else rows.push(["Amount", fmtWei(a.amount, 18, 6) + " TIMBS"]);
+        break;
+      case "deposit":
+        if (a.pid !== undefined) { rows.push(["Pool", a.pid.toString()]); rows.push(["Amount", fmtWei(a.amount, 18, 6) + " LP"]); }
+        else rows.push(["Amount", fmtEth(tx.value)]);
+        break;
+      case "lock":
+        rows.push(["Amount", await amt(a.token, a.amount)]);
+        rows.push(["Duration", Math.round(Number(a.durationSeconds) / 86400) + " days"]); break;
+      case "unwrapWeth": rows.push(["Amount", fmtWei(a.amount, 18, 6) + " WETH"]); break;
+      case "claimRefund": case "reclaimFromPastGame": rows.push(["Ticket #", a.ticketId.toString()]); break;
+      case "claimWinnings": rows.push(["Round", a.round.toString()]); break;
+      case "claimRewards": if (a.pid !== undefined) rows.push(["Pool", a.pid.toString()]); break;
+      case "castVote": rows.push(["Proposal #", a.proposalId.toString()]); rows.push(["Vote", a.support ? "For" : "Against"]); break;
+      case "resolveProposal": rows.push(["Proposal #", a.proposalId.toString()]); break;
+      case "advanceScroll": rows.push(["Steps", a.count.toString()]); break;
+      case "addLiquidity":
+        rows.push(["Token A", await amt(a.tokenA, a.amountADesired) + " (min " + await amt(a.tokenA, a.amountAMin) + ")"]);
+        rows.push(["Token B", await amt(a.tokenB, a.amountBDesired) + " (min " + await amt(a.tokenB, a.amountBMin) + ")"]);
+        rows.push(["Deadline", deadlineText(a.deadline)]); break;
+      case "removeLiquidity":
+        rows.push(["LP burned", fmtWei(a.liquidity, 18, 6)]);
+        rows.push(["Min out", await amt(a.tokenA, a.amountAMin) + " + " + await amt(a.tokenB, a.amountBMin)]);
+        rows.push(["Deadline", deadlineText(a.deadline)]); break;
+      case "provideLiquidityETH":
+        rows.push(["Token", await amt(a.token, a.amountTokenDesired) + " (min " + await amt(a.token, a.amountTokenMin) + ")"]);
+        rows.push(["ETH", fmtEth(a.ethAmount) + " (min " + fmtEth(a.amountETHMin) + ")"]); break;
+      default: break;
+    }
+    return rows;
+  }
+
+  // Gas / fee / nonce, read through the wallet's own provider (reads never
+  // trigger the guard). Missing pieces degrade to a note.
+  async function feeInfo(raw, tx) {
+    const info = { gas: null, maxFee: null, nonce: null, fee: null, balance: null, gasError: null, legacy: !!tx.gasPrice };
+    try {
+      const g = tx.gas || tx.gasLimit || await raw.request({ method: "eth_estimateGas", params: [tx] });
+      info.gas = BigInt(g);
+    } catch (e) { info.gasError = txErrorText(e); }
+    try {
+      const f = tx.maxFeePerGas || tx.gasPrice || await raw.request({ method: "eth_gasPrice", params: [] });
+      info.maxFee = BigInt(f);
+    } catch (_e) {}
+    try { info.nonce = Number(BigInt(await raw.request({ method: "eth_getTransactionCount", params: [_address, "pending"] }))); } catch (_e) {}
+    try { info.balance = BigInt(await raw.request({ method: "eth_getBalance", params: [_address, "latest"] })); } catch (_e) {}
+    if (info.gas != null && info.maxFee != null) info.fee = info.gas * info.maxFee;
+    return info;
+  }
+
+  // Plain-language reason for a failed send / estimate.
+  function txErrorText(e) {
+    const msg = String((e && (e.reason || (e.error && e.error.message) || (e.data && e.data.message) || e.message)) || "Unknown error");
+    if (e && e.code === 4001) return "Rejected.";
+    if (/insufficient funds/i.test(msg)) return "Not enough ETH to cover the amount plus the network fee.";
+    if (/nonce too low/i.test(msg)) return "Nonce too low: a transaction with that nonce already went through. Leave the nonce blank to use the next one.";
+    if (/replacement transaction underpriced|already known|already exists/i.test(msg)) return "A transaction with this nonce is already pending. Raise the max fee to replace it, or wait for it to confirm.";
+    if (/gas required exceeds|intrinsic gas too low|out of gas/i.test(msg)) return "Gas limit too low for this transaction. Raise it under Advanced.";
+    const m = /execution reverted:?\s*([^"}]*)/i.exec(msg);
+    if (m) return "The contract rejected this transaction" + (m[1] && m[1].trim() ? ": " + m[1].trim() : ".");
+    if (/user rejected|user denied/i.test(msg)) return "Rejected.";
+    return msg.length > 240 ? msg.slice(0, 240) + "…" : msg;
+  }
 
   function row(k, v, mono) {
     return h("div", { class: "tsheet-row" }, h("span", { class: "tsheet-k", text: k }), h("span", { class: "tsheet-v" + (mono ? " tsheet-mono" : ""), text: v }));
   }
+  function gweiToWei(str) { const n = Number(str); if (!isFinite(n) || n < 0) return null; return BigInt(Math.round(n * 1e9)); }
+  function hex(b) { return "0x" + BigInt(b).toString(16); }
 
-  // Build the rows for one request, then wait for Confirm / Reject.
-  function confirmRequest(args) {
+  // Build the sheet for one request; resolves true (confirmed) / false. After
+  // Confirm the sheet STAYS OPEN in a "Sending…" state; guard() closes it on
+  // success or swaps in the error (showError). For transactions the details
+  // and fee rows fill in asynchronously, and the Advanced panel lets the user
+  // override gas limit, max fee and nonce — applied only when they Confirm.
+  function confirmRequest(args, raw) {
     const p = open("Confirm with your email wallet");
-    const rows = [];
     const m = args.method;
-    if (m === "eth_sendTransaction" || m === "eth_signTransaction") {
+    const rows = h("div", { class: "tsheet-rows" });
+    const more = h("div", { class: "tsheet-rows tsheet-more hidden" });
+    const err = h("p", { class: "tsheet-err", role: "alert" });
+    const adv = h("div", { class: "tsheet-adv hidden" });
+    const actions = h("div", { class: "tsheet-actions" });
+    let advInputs = null;
+    let info = null;
+    const isTx = (m === "eth_sendTransaction" || m === "eth_signTransaction");
+    const btnConfirm = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: onConfirm }, h("strong", { text: "Confirm" }));
+    const btnReject  = h("button", { class: "tsheet-btn", type: "button", onclick: () => close(false) }, h("strong", { text: "Reject" }));
+    const advLink = h("button", { class: "tsheet-link", type: "button", onclick: () => {
+      adv.classList.toggle("hidden");
+      advLink.textContent = adv.classList.contains("hidden") ? "Advanced: gas & nonce" : "Hide advanced";
+    } }, "Advanced: gas & nonce");
+
+    function onConfirm() {
+      err.textContent = "";
+      if (isTx && advInputs && !adv.classList.contains("hidden")) {
+        const tx = args.params[0];
+        const gasV = advInputs.gas.value.trim(), feeV = advInputs.fee.value.trim(), nonceV = advInputs.nonce.value.trim();
+        if (gasV !== "") {
+          if (!/^\d+$/.test(gasV) || BigInt(gasV) < 21000n) { err.textContent = "Gas limit must be a whole number of at least 21000."; return; }
+          tx.gas = hex(gasV); delete tx.gasLimit;
+        }
+        if (feeV !== "") {
+          const w = gweiToWei(feeV);
+          if (w == null || w <= 0n) { err.textContent = "Max fee must be a positive number of gwei."; return; }
+          if (info && info.legacy) tx.gasPrice = hex(w);
+          else { tx.maxFeePerGas = hex(w); if (tx.maxPriorityFeePerGas && BigInt(tx.maxPriorityFeePerGas) > w) tx.maxPriorityFeePerGas = hex(w); }
+        }
+        if (nonceV !== "") {
+          if (!/^\d+$/.test(nonceV)) { err.textContent = "Nonce must be a whole number."; return; }
+          tx.nonce = hex(nonceV);
+        }
+      }
+      // Pending state: keep the sheet up until the wallet answers.
+      btnConfirm.disabled = true; btnReject.disabled = true; advLink.disabled = true;
+      btnConfirm.firstChild.textContent = isTx ? "Sending…" : "Signing…";
+      settle(true);
+    }
+
+    if (isTx) {
       const tx = (args.params && args.params[0]) || {};
       const name = contractName(tx.to);
-      rows.push(row("Action", selectorLabel(tx.data)));
-      rows.push(row("To", name ? name + " (" + short(tx.to) + ")" : (tx.to || "(contract creation)"), !name));
-      rows.push(row("Amount", fmtEth(tx.value)));
+      rows.append(row("Action", actionLabel(tx)));
+      rows.append(row("To", name ? name + " (" + short(tx.to) + ")" : (tx.to || "(contract creation)"), !name));
+      rows.append(row("Amount", fmtEth(tx.value)));
+      rows.append(row("From", short(_address), true));
+      rows.append(row("Network", chainName()));
+      const loading = row("Details", "loading…");
+      more.classList.remove("hidden"); more.append(loading);
+
+      (async () => {
+        const parts = [];
+        try { const parsed = decodeTx(tx); if (parsed) parts.push(...await detailRows(parsed, tx)); } catch (_e) {}
+        try { info = await feeInfo(raw, tx); } catch (_e) { info = null; }
+        if (info) {
+          if (info.gasError) parts.push(["Gas estimate", "failed — this transaction would likely fail: " + info.gasError]);
+          else if (info.gas != null) parts.push(["Gas limit", info.gas.toString()]);
+          if (info.maxFee != null) parts.push(["Max fee per gas", fmtWei(info.maxFee, 9, 4) + " gwei"]);
+          if (info.fee != null) {
+            parts.push(["Network fee (max)", fmtEth(info.fee, 8)]);
+            const total = info.fee + BigInt(tx.value || 0);
+            parts.push(["Total (max)", fmtEth(total, 8)]);
+            if (info.balance != null && info.balance < total) parts.push(["Warning", "Not enough ETH: " + fmtEth(info.balance, 6) + " available"]);
+          }
+          if (info.nonce != null) parts.push(["Nonce", String(info.nonce)]);
+          advInputs = {
+            gas:   h("input", { class: "tsheet-input tsheet-adv-in", inputmode: "numeric", placeholder: info.gas != null ? info.gas.toString() : "auto", "aria-label": "Gas limit" }),
+            fee:   h("input", { class: "tsheet-input tsheet-adv-in", inputmode: "decimal", placeholder: info.maxFee != null ? fmtWei(info.maxFee, 9, 4) : "auto", "aria-label": "Max fee per gas (gwei)" }),
+            nonce: h("input", { class: "tsheet-input tsheet-adv-in", inputmode: "numeric", placeholder: info.nonce != null ? String(info.nonce) : "auto", "aria-label": "Nonce" }),
+          };
+          adv.replaceChildren(
+            h("label", { class: "tsheet-adv-row" }, h("span", { text: "Gas limit" }), advInputs.gas),
+            h("label", { class: "tsheet-adv-row" }, h("span", { text: "Max fee (gwei)" }), advInputs.fee),
+            h("label", { class: "tsheet-adv-row" }, h("span", { text: "Nonce" }), advInputs.nonce),
+            h("p", { class: "tsheet-note", text: "Leave blank to keep the estimate. Reusing a pending nonce with a higher max fee replaces that transaction." }));
+        }
+        loading.remove();
+        if (parts.length) for (const r of parts) more.append(row(r[0], r[1], r[2])); else more.classList.add("hidden");
+      })();
     } else if (m === "personal_sign" || m === "eth_sign") {
-      const raw = String((args.params && args.params[0]) || "");
-      let text = raw;
-      try { if (/^0x[0-9a-f]*$/i.test(raw)) text = new TextDecoder().decode(Uint8Array.from(raw.slice(2).match(/../g).map((x) => parseInt(x, 16)))); } catch (_e) {}
-      rows.push(row("Action", "Sign a message"));
-      rows.push(row("Message", text.length > 300 ? text.slice(0, 300) + "…" : text, true));
+      const rawMsg = String((args.params && args.params[0]) || "");
+      let text = rawMsg;
+      try { if (/^0x[0-9a-f]*$/i.test(rawMsg)) text = new TextDecoder().decode(Uint8Array.from(rawMsg.slice(2).match(/../g).map((x) => parseInt(x, 16)))); } catch (_e) {}
+      rows.append(row("Action", "Sign a message"));
+      rows.append(row("Message", text.length > 300 ? text.slice(0, 300) + "…" : text, true));
+      rows.append(row("From", short(_address), true)); rows.append(row("Network", chainName()));
     } else if (m.startsWith("eth_signTypedData")) {
       let dom = "", type = "";
       try { const td = typeof args.params[1] === "string" ? JSON.parse(args.params[1]) : args.params[1]; dom = (td.domain && td.domain.name) || ""; type = td.primaryType || ""; } catch (_e) {}
-      rows.push(row("Action", "Sign typed data"));
-      if (dom) rows.push(row("App", dom));
-      if (type) rows.push(row("Type", type));
+      rows.append(row("Action", "Sign typed data"));
+      if (dom) rows.append(row("App", dom));
+      if (type) rows.append(row("Type", type));
+      rows.append(row("From", short(_address), true)); rows.append(row("Network", chainName()));
     } else {
-      rows.push(row("Action", m));
+      rows.append(row("Action", m));
+      rows.append(row("From", short(_address), true)); rows.append(row("Network", chainName()));
     }
-    rows.push(row("From", short(_address), true));
-    rows.push(row("Network", chainName()));
-    setBody(
-      h("p", { class: "tsheet-note", text: "Your email wallet only signs after you confirm. Check the action and amount." }),
-      h("div", { class: "tsheet-rows" }, ...rows),
-      h("div", { class: "tsheet-actions" },
-        h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(true) }, h("strong", { text: "Confirm" })),
-        h("button", { class: "tsheet-btn", type: "button", onclick: () => close(false) }, h("strong", { text: "Reject" }))));
+
+    actions.append(btnConfirm, btnReject);
+    const nodes = [
+      h("p", { class: "tsheet-note", text: "Your email wallet only signs after you confirm. Check the action and amounts." }),
+      rows, more, err,
+    ];
+    if (isTx) nodes.push(h("div", { class: "tsheet-links" }, advLink), adv);
+    nodes.push(actions);
+    setBody(...nodes);
     return p.then((v) => v === true);
+  }
+
+  // After a confirmed request fails at the wallet / node: show why, in place.
+  function showError(e, isTx) {
+    const p = open(isTx ? "Transaction failed" : "Signing failed");
+    setBody(
+      h("p", { class: "tsheet-err", role: "alert", text: txErrorText(e) }),
+      h("p", { class: "tsheet-note", text: isTx ? "Nothing was sent. Adjust and try again." : "Nothing was signed." }),
+      h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(true) }, h("strong", { text: "Close" }))));
+    return p;
   }
 
   // ── Auth primitives ─────────────────────────────────────────────────────────
@@ -300,6 +558,7 @@
 @media (min-width: 560px) { .tsheet-backdrop { align-items: center; } }
 .tsheet {
   position: relative; width: 100%; max-width: 420px;
+  max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; -webkit-overflow-scrolling: touch;
   background: var(--bg2); color: var(--text);
   border: 1px solid var(--border); border-radius: 12px;
   padding: 20px 20px 18px; font-family: var(--sans);
@@ -348,6 +607,11 @@
 .tsheet-v { text-align: right; word-break: break-word; }
 .tsheet-mono { font-family: var(--mono); font-size: 12px; }
 .tsheet-actions { display: flex; flex-direction: column; gap: 8px; }
+.tsheet-adv { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--bg); border: 1px dashed var(--border); border-radius: var(--radius); }
+.tsheet-adv.hidden { display: none !important; }
+.tsheet-adv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--text-2); }
+.tsheet-adv-in { width: 55%; padding: 8px 10px; font-size: 13px; }
+.tsheet-link:disabled { color: var(--text-3); cursor: default; text-decoration: none; }
 .tsheet-addr {
   display: block; padding: 10px 12px; word-break: break-all;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
@@ -387,6 +651,11 @@
   function close(value) {
     if (!_sheet) return;
     _sheet.classList.add("hidden");
+    const fn = _onClose; _onClose = null;
+    if (fn) fn(value);
+  }
+  // Resolve the open promise but keep the sheet visible (pending state).
+  function settle(value) {
     const fn = _onClose; _onClose = null;
     if (fn) fn(value);
   }
