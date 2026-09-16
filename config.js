@@ -33,7 +33,7 @@ const SITE_ROOT = (function () {
 // so bumping this one string is what makes browsers and the CDN pick up a
 // new version of those files — GitHub Pages serves them with a 10-minute
 // max-age that Cloudflare honours. Bump on every change to either file.
-window.ASSET_VER = "20260916h";
+window.ASSET_VER = "20260916i";
 
 // Resolve a root-absolute site path ("/compete/") against SITE_ROOT, so JS
 // navigation works on sub-path hosting too. Anything else passes through.
@@ -457,6 +457,7 @@ function applyWalletChrome(addr) {
     document.getElementById("network-badge")?.classList.remove("hidden");
     const a = document.getElementById("wallet-addr");
     if (a && addr) a.textContent = fmtAddr(addr);
+    _syncSecurityMenuItem();
   } catch {}
 }
 function clearWalletChrome() {
@@ -464,7 +465,36 @@ function clearWalletChrome() {
     document.getElementById("connect-btn")?.classList.remove("hidden");
     document.getElementById("wallet-info")?.classList.add("hidden");
     document.getElementById("network-badge")?.classList.add("hidden");
+    document.getElementById("wallet-security-item")?.remove();
   } catch {}
+}
+
+// "Wallet security" in the wallet dropdown, for email sessions only: the
+// authenticator-app (transaction MFA) on/off sheet from assets/email-login.js.
+// The dropdown markup lives in every page, so the item is inserted here
+// (before Disconnect) rather than edited into each page.
+function _syncSecurityMenuItem() {
+  try {
+    const dd = document.querySelector("#wallet-info .wallet-dropdown");
+    if (!dd) return;
+    const existing = document.getElementById("wallet-security-item");
+    const want = _getSessionKind() === "email" && !!window.PRIVY_APP_ID;
+    if (!want) { existing?.remove(); return; }
+    if (existing) return;
+    const item = document.createElement("button");
+    item.id = "wallet-security-item";
+    item.className = "wallet-menu-item";
+    item.type = "button";
+    item.textContent = "Wallet security";
+    item.onclick = () => _openWalletSecurity();
+    dd.insertBefore(item, dd.querySelector(".wallet-menu-item.danger"));
+  } catch {}
+}
+async function _openWalletSecurity() {
+  try { document.getElementById("wallet-info")?.classList.remove("open"); } catch {}
+  if (!(await _loadEmailLogin())) return;
+  try { await window.TimbEmailWallet.security(); }
+  catch (e) { console.warn("wallet security:", e && e.message); }
 }
 
 // Full teardown for a MANUAL disconnect (the wallet-menu "Disconnect" on every
