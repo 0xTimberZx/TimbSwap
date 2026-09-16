@@ -151,8 +151,11 @@ email.
      Show / Hide, **Copy key** (with a "clear your clipboard" reminder),
      Done wipes it. Older wallet (no client export): Privy's own hosted copy
      button in a 44 px frame (`v=1` + entropy ids + palette; the key is
-     copied from inside Privy's origin). Privy's page asks for MFA itself
-     when enrolled.
+     copied from inside Privy's origin). Client export is a per-app switch in
+     the Privy dashboard ("Client wallet export is not enabled" until it is
+     on; Wallet infrastructure → Advanced, or ask Privy to enable it); until
+     then the reveal falls back to the hosted copy button. Privy's page asks
+     for MFA itself when enrolled.
 - **Cold start.** The wallet starts with 0 ETH, so it cannot mint a first
   ticket. The "wallet ready" step shows the address with a copy button and says
   so. Gas sponsorship (ERC-4337 / paymaster) is the phase-two answer; it is not

@@ -889,11 +889,12 @@
         open("Your private key").then(wipe);
       }
       const reminder = h("div", { class: "tsheet-warn", role: "alert" }, h("strong", { text: "Never share this key. " }), "Whoever has it owns the wallet. Paste it only into your own wallet app, then clear your clipboard.");
-      if (!(_account.id && _account.recovery_method === "privy-v2")) {
-        // Older key stack: Privy's own copy button, on Privy's origin.
+      // Privy's own hosted copy button (on Privy's origin): the path for older
+      // wallets, and the fallback when the app has client export switched off.
+      async function hostedButton(why) {
         const slot = h("div", { class: "tsheet-frame" }, h("span", { class: "tsheet-frame-loading", text: "Loading Privy…" }));
         setBody(addrLine(), reminder,
-          h("p", { class: "tsheet-note", text: "This wallet is on Privy's older key stack, so the key can't be shown here. Privy's button below copies it straight to your clipboard from inside a secure frame." }),
+          h("p", { class: "tsheet-note", text: why + " Privy's button below copies the key straight to your clipboard from inside a secure frame." }),
           slot, h("p", { class: "tsheet-note", text: "Then in your wallet app choose Add account → Import → paste the key. It is the same wallet in both." }),
           h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: () => { wipe(); onBack(); } }, h("strong", { text: "Done" }))));
         try {
@@ -903,12 +904,22 @@
           frame.addEventListener("load", () => setTimeout(() => slot.classList.add("ready"), 1200));
           slot.append(frame);
         } catch (ex) { slot.replaceChildren(h("p", { class: "tsheet-err", role: "alert", text: friendly(ex, String((ex && ex.message) || "Couldn't load the export.")) })); }
+      }
+      if (!(_account.id && _account.recovery_method === "privy-v2")) {
+        await hostedButton("This wallet is on Privy's older key stack, so the key can't be shown here.");
         return;
       }
       const status = h("p", { class: "tsheet-note", text: "Fetching your key from Privy and decrypting it in this browser…" });
       setBody(addrLine(), reminder, status, h("div", { class: "tsheet-actions" }, h("button", { class: "tsheet-btn", type: "button", onclick: () => { wipe(); onBack(); } }, h("strong", { text: "Cancel" }))));
       try { key = await clientExportWithRetry(); }
       catch (ex) {
+        // "Client wallet export is not enabled": the app has not switched on
+        // client-side export in the Privy dashboard. Privy's hosted copy
+        // button still works, so use that rather than dead-end.
+        if (/not enabled|not allowed|disabled|not supported/i.test(String((ex && ex.message) || ""))) {
+          await hostedButton("Showing the key on this page isn't switched on for this app yet, so the key can't be displayed here.");
+          return;
+        }
         status.className = "tsheet-err"; status.setAttribute("role", "alert");
         status.textContent = friendly(ex, "Couldn't fetch the key: " + tidyLine((ex && ex.message) || "unknown error"));
         return;
