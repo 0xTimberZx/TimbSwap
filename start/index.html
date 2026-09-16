@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Start Here — TimbSwap</title>
+  <meta name="description" content="New to TimbSwap? Your first round in 2 minutes — add the network, get free testnet gas and tokens, then play. Free on Arbitrum Sepolia." />
+  <link rel="canonical" href="https://timbswap.xyz/start/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Start Here — TimbSwap" />
+  <meta property="og:description" content="Your first round in 2 minutes. Free on Arbitrum Sepolia testnet — add the network, get test gas + tokens, play." />
+  <meta property="og:url" content="https://timbswap.xyz/start/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Start Here — TimbSwap" />
+  <meta name="twitter:description" content="Your first round in 2 minutes. Free on Arbitrum Sepolia testnet." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <style>
+    /* Start page — self-contained onboarding. Tokens come from style.css. */
+    .start-wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 72px; }
+
+    .start-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 40px; }
+    .start-logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; color: var(--text); text-decoration: none; }
+    .start-logo .mark { color: var(--green); }
+    .start-badge { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--green); border: var(--bw) solid var(--border); border-radius: 999px; padding: 5px 12px; }
+
+    .start-hero { text-align: center; margin-bottom: 40px; }
+    .start-eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--green); margin-bottom: 12px; }
+    .start-hero h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.1; margin: 0 0 14px; color: var(--text); }
+    .start-hero h1 .accent { color: var(--green); }
+    .start-hero p { font-size: 17px; line-height: 1.6; color: var(--text-2); max-width: 560px; margin: 0 auto; }
+
+    .start-steps { display: flex; flex-direction: column; gap: 16px; margin: 0 0 40px; }
+    .step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+    .step-num { width: 40px; height: 40px; border-radius: 999px; background: var(--bg3); color: var(--green); font-family: var(--mono); font-weight: 700; font-size: 17px; display: flex; align-items: center; justify-content: center; }
+    .step-body h3 { margin: 4px 0 6px; font-size: 18px; color: var(--text); }
+    .step-body p { margin: 0 0 10px; font-size: 15px; line-height: 1.6; color: var(--text-2); }
+    .step-body p:last-child { margin-bottom: 0; }
+    .step-body a { color: var(--green); text-decoration: none; font-weight: 600; }
+    .step-body a:hover { text-decoration: underline; }
+    .step-hint { font-size: 13px; color: var(--text-3); }
+
+    /* ── Tap targets & press feedback ──────────────────────────────────────
+       Every actionable control is ≥44px tall, gives immediate pressed feedback
+       on touch (:active, not just :hover), shows a keyboard focus ring, and
+       skips the mobile tap-highlight flash / 300ms delay. */
+    .tap { -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+
+    /* Secondary pill: external actions inside a step (wallet, network, gas faucets). */
+    .step-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+    .step-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: var(--radius); border: var(--bw) solid var(--border); background: var(--bg3); color: var(--text) !important; font-weight: 600 !important; font-size: 14px; text-decoration: none !important; transition: transform .12s ease, border-color .15s ease, background .15s ease; }
+    .step-link:hover { border-color: var(--green); }
+    .step-link:active { transform: scale(.97); background: var(--bg2); }
+    .step-link .ext { color: var(--green); margin-left: 6px; }
+
+    .step-btn { display: inline-flex; align-items: center; min-height: 44px; margin-top: 6px; background: var(--green); color: #062015; font-weight: 700; font-size: 14px; text-decoration: none; padding: 0 20px; border-radius: var(--radius); transition: transform .12s ease, filter .15s ease; }
+    .step-btn:hover { filter: brightness(1.06); text-decoration: none; }
+    .step-btn:active { transform: scale(.97); filter: brightness(.95); }
+
+    .start-cta { text-align: center; background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius-lg); padding: 32px 24px; }
+    .start-cta h2 { margin: 0 0 10px; font-size: 24px; color: var(--text); }
+    .start-cta p { margin: 0 0 20px; color: var(--text-2); font-size: 15px; }
+    .btn-big { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; background: var(--green); color: #062015; font-weight: 700; font-size: 16px; text-decoration: none; padding: 0 32px; border-radius: var(--radius); transition: transform .12s ease, filter .15s ease; }
+    .btn-big:hover { filter: brightness(1.06); }
+    .btn-big:active { transform: scale(.97); filter: brightness(.95); }
+
+    /* Keyboard focus ring for every control (mouse clicks don't show it). */
+    .step-link:focus-visible, .step-btn:focus-visible, .btn-big:focus-visible, .foot-link:focus-visible, .start-logo:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+
+    .start-logo { min-height: 44px; padding: 4px 0; }
+
+    .start-safe { margin-top: 28px; background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius); padding: 16px 18px; font-size: 13px; line-height: 1.55; color: var(--text-2); }
+    .start-safe strong { color: var(--text); }
+
+    /* Footer links as wrapping pills — never mid-link line breaks, always ≥44px. */
+    .start-foot { text-align: center; margin-top: 36px; font-size: 13px; color: var(--text-3); }
+    .foot-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 4px; margin-top: 8px; }
+    .foot-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--radius); color: var(--text-2); text-decoration: none; white-space: nowrap; transition: color .15s ease, background .15s ease; }
+    .foot-link:hover { color: var(--green); }
+    .foot-link:active { background: var(--bg2); color: var(--green); }
+
+    /* Short landscape phones: don't let the hero eat the whole viewport —
+       tighten vertical rhythm so step 1 is visible without scrolling. */
+    @media (max-height: 520px) {
+      .start-wrap { padding-top: 14px; }
+      .start-head { margin-bottom: 16px; }
+      .start-hero { margin-bottom: 18px; }
+      .start-hero h1 { font-size: clamp(24px, 5vh, 34px); margin-bottom: 8px; }
+      .start-hero h1 br { display: none; }
+      .start-hero p { font-size: 15px; }
+      .start-steps { gap: 12px; }
+      .step { padding: 14px 16px; }
+    }
+
+    /* Narrowest phones: keep the header from crowding. */
+    @media (max-width: 360px) {
+      .start-badge { font-size: 10px; padding: 4px 9px; }
+      .start-logo { font-size: 18px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .step-link, .step-btn, .btn-big, .foot-link { transition: none; }
+      .step-link:active, .step-btn:active, .btn-big:active { transform: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="start-wrap">
+
+    <header class="start-head">
+      <a href="/" class="start-logo tap"><span class="mark">⬡</span> TimbSwap</a>
+      <span class="start-badge">Testnet · Free</span>
+    </header>
+
+    <section class="start-hero">
+      <div class="start-eyebrow">Start here</div>
+      <h1>Your first round <br /><span class="accent">in 2 minutes.</span></h1>
+      <p>
+        TimbSwap runs on the Arbitrum Sepolia <strong>testnet</strong> — everything below is
+        free and uses no real money. Follow the four steps and you'll be in your first round.
+      </p>
+    </section>
+
+    <ol class="start-steps">
+
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Get a wallet + add the network</h3>
+          <p>
+            Install MetaMask (or any EVM wallet), then add the <strong>Arbitrum Sepolia</strong>
+            testnet in one click.
+          </p>
+          <div class="step-links">
+            <a class="step-link tap" href="https://metamask.io/" target="_blank" rel="noopener">Get MetaMask<span class="ext">&#8599;</span></a>
+            <a class="step-link tap" href="https://chainlist.org/chain/421614" target="_blank" rel="noopener">Add network on Chainlist<span class="ext">&#8599;</span></a>
+          </div>
+          <p class="step-hint">Already have a wallet? Just switch it to Arbitrum Sepolia and skip ahead.</p>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Grab free test gas (ETH)</h3>
+          <p>
+            You need a little Arbitrum Sepolia ETH to pay gas — it's free from a public faucet.
+            Pick one and send it to your wallet address.
+          </p>
+          <div class="step-links">
+            <a class="step-link tap" href="https://www.alchemy.com/faucets/arbitrum-sepolia" target="_blank" rel="noopener">Alchemy faucet<span class="ext">&#8599;</span></a>
+            <a class="step-link tap" href="https://faucet.quicknode.com/arbitrum/sepolia" target="_blank" rel="noopener">QuickNode faucet<span class="ext">&#8599;</span></a>
+          </div>
+          <p class="step-hint">Testnet ETH has no value — it just covers network fees so your trades go through.</p>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Get your TIMBS</h3>
+          <p>
+            Head to the TimbSwap faucet, connect your wallet, and claim free testnet TIMBS to
+            play with.
+          </p>
+          <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Enter a round</h3>
+          <p>
+            Set a 6-character string, then trade. Every eligible swap nudges the live meter —
+            if the round locks on your six, you split the pot. The prize is funded by yield, so
+            <strong>what you put in stays yours.</strong>
+          </p>
+          <a class="step-btn tap" href="/compete/">Play a round &rarr;</a>
+        </div>
+      </li>
+
+    </ol>
+
+    <section class="start-cta">
+      <h2>That's it — you're playing.</h2>
+      <p>Your testnet activity builds Timber Points and puts you first in line for the mainnet transition.</p>
+      <a class="btn-big tap" href="/compete/">Enter your first round &rarr;</a>
+    </section>
+
+    <div class="start-safe">
+      <strong>Stay safe:</strong> everything here is free and on a testnet. TimbSwap will never DM you
+      first or ask for your seed phrase or private keys. The only official sources are
+      <strong>timbswap.xyz</strong>, our Telegram, and our X account — anyone else is an impersonator.
+    </div>
+
+    <div class="start-foot">
+      Want the bigger picture?
+      <div class="foot-links">
+        <a class="foot-link tap" href="/litepaper/">Read the litepaper</a>
+        <a class="foot-link tap" href="/quests/">See the leaderboard</a>
+        <a class="foot-link tap" href="/#waitlist">Join the mainnet list</a>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
