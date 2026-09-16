@@ -721,7 +721,7 @@
       setBody(
         h("p", { class: "tsheet-note", text: "Scan this with Google Authenticator, Authy, 1Password or any authenticator app, or type in the key:" }),
         qrBox, key, links,
-        h("p", { class: "tsheet-note", text: "Then enter the 6-digit code the app shows to turn it on. Keep the app: you will need a code for every transaction from this wallet." }),
+        h("p", { class: "tsheet-note", text: "Then enter the 6-digit code the app shows to turn it on. Keep the app: this wallet asks for a code before transactions, at most once every 15 minutes." }),
         form);
     });
   }
@@ -751,11 +751,11 @@
       const action = on
         ? h("button", { class: "tsheet-btn", type: "button", onclick: removeTotp }, h("strong", { text: "Remove authenticator" }), h("span", { text: "Asks for one last code. Transactions will then only need the on-site confirmation." }))
         : h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => enrollTotp(() => { _title.textContent = "Wallet security"; render(); }).then((ok) => { if (ok) render(); }) },
-            h("strong", { text: "Set up authenticator app" }), h("span", { text: "Recommended. Every transaction will also need a 6-digit code from your phone." }));
+            h("strong", { text: "Set up authenticator app" }), h("span", { text: "Recommended. Transactions also need a 6-digit code from your phone, at most once every 15 minutes." }));
       setBody(
         rows,
         h("p", { class: "tsheet-note", text: on
-          ? "Every transaction and signature from this wallet needs a code from your authenticator app. That check runs inside Privy's wallet, so nothing on this site can sign without your phone."
+          ? "Transactions and signatures from this wallet need a code from your authenticator app — at most once every 15 minutes, since Privy remembers a code for that long. That check runs inside Privy's wallet, so nothing on this site can sign without your phone."
           : "Right now transactions only need the confirmation sheet on this site. An authenticator app adds a check that runs outside the page — the strongest protection for this wallet." }),
         err,
         h("div", { class: "tsheet-actions" }, action, h("button", { class: "tsheet-btn", type: "button", onclick: () => close(null) }, h("strong", { text: "Close" }))));
@@ -1056,7 +1056,7 @@ a.tsheet-link { display: inline-block; }
         actions.append(h("button", { class: "tsheet-btn", type: "button", onclick: () => {
           _title.textContent = "Add an authenticator app";
           enrollTotp(() => stepReady(w)).then((ok) => { if (ok) stepReady(w); });
-        } }, h("strong", { text: "Add an authenticator app" }), h("span", { text: "Recommended: every transaction then also needs a code from your phone, checked inside the wallet." })));
+        } }, h("strong", { text: "Add an authenticator app" }), h("span", { text: "Recommended: transactions then also need a code from your phone (at most once every 15 minutes), checked inside the wallet." })));
       }
       actions.append(h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", onclick: () => close(w) }, h("strong", { text: "Continue" })));
       setBody(
@@ -1065,7 +1065,7 @@ a.tsheet-link { display: inline-block; }
         h("div", { class: "tsheet-links" }, copy),
         h("p", { class: "tsheet-note", text: "It starts empty. To enter a ticket it needs a little ETH for gas and the entry cost — send some to this address first. Come back here any time with the same email." }),
         h("p", { class: "tsheet-note", text: on
-          ? "Authenticator app is on: every transaction asks you to confirm on this site and then for a code from your app."
+          ? "Authenticator app is on: transactions ask you to confirm on this site and then for a code from your app (at most once every 15 minutes)."
           : "Every transaction or signature from this wallet asks you to confirm on this site first. Keep only what you are playing with in it. You can add an authenticator app now or later under Wallet security." }),
         actions);
     }
