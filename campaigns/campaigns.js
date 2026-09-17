@@ -5,7 +5,7 @@
 // page shows it, links Arbiscan, and reads its live USDT balance client-side.
 // COMP_DATES: shown in the hero status pill, e.g. "JUL 14 – JUL 20 · ends Sunday 23:59 UTC".
 // RECEIPTS: append one entry per payout — it renders with an Arbiscan link.
-const PRIZE_WALLET = "";              // e.g. "0xYourPrizeWallet"
+const PRIZE_WALLET = "0x6dc9380d32Bd7CaA16Cc079073fb54D644C6138C"; // Arbitrum One prize wallet — published before entries open (Sep 25)
 const COMP_DATES   = "SEP 25 – OCT 25 · ends Sunday 23:59 UTC"; // Fri Sep 25 → Sun Oct 25, 2026 (30 days)
 const PRIZE_POOL   = "$25 grand · 5 × $5 raffle";
 const RECEIPTS     = [
