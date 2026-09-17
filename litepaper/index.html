@@ -216,7 +216,7 @@
           <li><strong>Fixed supply.</strong> TIMBS is hard-capped at <strong>100,000,000</strong>, with no mint beyond the cap — a fixed schedule finalized at mainnet launch.</li>
           <li><strong>Fee split.</strong> Each swap's 0.3% fee splits 0.25% to LPs and 0.05% to the treasury, which funds buybacks and the reward cycle. Bought-back TIMBS splits <strong>5% burned · 20% to reserve · 75% into the reward waterfall</strong>, and each buyback is <strong>floored at an on-chain TWAP</strong> and size-capped, so it can't be sandwiched.</li>
           <li><strong>Abandoned tickets fund players.</strong> If a ticket's refund window lapses unclaimed, a <strong>community-tilted split</strong> routes the majority of its ETH principal (default <strong>70%</strong>) back into the live prize pot and the remainder to the treasury sink — recycled to players, never printed.</li>
-          <li><strong>The epoch waterfall.</strong> Every 6 rounds the keeper measures what was actually claimed from farm and staking and what the treasury collected, then refills in priority: <em>farm</em> first (≤80% of its claims), <em>staking</em> next (≤1.25× its claims, capped at 80% of the remainder), and <em>boosted farms</em> receive only what's left. If inflow runs short, the tail goes unfunded — nothing is printed to cover it.</li>
+          <li><strong>The epoch waterfall.</strong> Every 6 rounds the keeper measures what was actually claimed from farm and staking and what the treasury collected, then refills in priority: <em>farm</em> first (≤80% of its claims), <em>staking</em> next (≤1.25× its claims, capped at 80% of the remainder), and <em>boosted farms</em> receive only what's left. If inflow runs short, the tail goes unfunded — nothing is printed to cover it. Boosted farms are deferred until the airdrop launch campaign ends, so for now the boost leg is not drawn at all; TIMBS staking and the TIMBS/ETH farm are the open seats.</li>
           <li><strong>Solvency stop.</strong> Reward contracts track every wallet's accrued-but-unclaimed balance as an explicit liability. When obligations reach <strong>99% of reserves</strong>, accrual halts until the next refill. The system cannot promise tokens it does not hold.</li>
           <li><strong>Self-retargeting rates.</strong> Emission rates recompute from free (unowed) reserves over the emission window, so a shrinking reserve slows emissions instead of over-committing.</li>
         </ul>
@@ -229,7 +229,7 @@
         <ul>
           <li><strong>AMM core</strong> — Factory, Router, and Pairs generate fees (a Uniswap-V2-style constant-product exchange).</li>
           <li><strong>Game layer</strong> — TimbPrize, GameRegistry, TimbYieldVault, and PrizeEscrow run rounds and hold the pot's backing.</li>
-          <li><strong>Emissions layer</strong> — Staking, Farm, BoostFarm, and Treasury distribute rewards under the solvency rules above.</li>
+          <li><strong>Emissions layer</strong> — Staking, Farm, BoostFarm (deployed, opens after the airdrop launch campaign), and Treasury distribute rewards under the solvency rules above.</li>
         </ul>
         <p>The frontend is a static site — every figure is read live from chain, users hold their own keys, and an autonomous GitHub Actions keeper settles segments and runs the reward sweep without a human in the loop. Contract addresses are published in the <a href="../docs/#authenticity">Docs address table</a> and the <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener">open-source repository</a> — verify before you trust any label.</p>
       </section>
@@ -251,7 +251,7 @@
         <h2><span class="lp-num">7</span>Risks</h2>
         <ul>
           <li><strong>Smart-contract risk.</strong> The contracts are testnet-hardened but <strong>unaudited</strong>; an independent audit gates mainnet. Permissionless refund and recovery paths exist so funds are never trapped behind an operator.</li>
-          <li><strong>Impermanent loss.</strong> Providing liquidity carries standard AMM IL, larger on thin or volatile pairs (boosted farms are the highest-risk seat).</li>
+          <li><strong>Impermanent loss.</strong> Providing liquidity carries standard AMM IL, larger on thin or volatile pairs (boosted farms, once open, are the highest-risk seat).</li>
           <li><strong>Game randomness.</strong> Locked characters are jittered with the settling block's hash — you aim a class, not an exact character. Treat the game as chance-weighted, not skill-guaranteed.</li>
           <li><strong>Emissions variance.</strong> Reward rates move with the waterfall and total staked; a testnet APR is illustrative, not a promise of yield.</li>
           <li><strong>Regulatory.</strong> Prize mechanics are classified differently by jurisdiction. On testnet nothing has value; before any real-value launch, formal counsel and likely geofencing are gating conditions.</li>
