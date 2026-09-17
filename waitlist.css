@@ -124,6 +124,9 @@
 .wl-success-text strong { color: var(--text); display: block; margin-bottom: 2px; }
 .wl-success-text a { color: var(--green); border-bottom: 1px solid var(--border); }
 .wl-success-text a:hover { border-color: var(--green); }
+.wl-reset { margin-top: 8px; font-size: 12px; color: var(--text-3, var(--text-2)); }
+.wl-reset a { color: var(--text-2); }
+.wl-reset a:hover { color: var(--green); }
 
 .wl-alt {
   margin-top: 22px;

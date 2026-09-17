@@ -53,6 +53,18 @@
     if (okEl) okEl.hidden = false;
   }
 
+  // Escape hatch: shared device or a second address. Clears the remembered
+  // flag and brings the form back; the server still dedupes by email.
+  var resetEl = document.getElementById("wl-reset");
+  if (resetEl) resetEl.addEventListener("click", function (e) {
+    e.preventDefault();
+    try { localStorage.removeItem(STORE_KEY); } catch (e2) {}
+    if (okEl) okEl.hidden = true;
+    form.hidden = false;
+    clearMsg();
+    if (emailEl) { emailEl.value = ""; emailEl.focus(); }
+  });
+
   // If this browser already joined, show the thank-you and skip the form.
   try {
     if (localStorage.getItem(STORE_KEY)) showSuccess();
