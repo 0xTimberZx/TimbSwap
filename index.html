@@ -50,6 +50,7 @@
       <div class="nav-group">
         <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
+          <a href="/start/">Start Here</a>
           <a href="/swap/">Swap</a>
           <a href="/analytics/">Analytics</a>
           <a href="/gov/">Protocol</a>
@@ -58,7 +59,6 @@
       <div class="nav-group">
         <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
-          <a href="/start/">Start Here</a>
           <a href="/farm/">Farm</a>
           <a href="/compete/">Compete</a>
           <a href="/faucet/">Faucet</a>
@@ -73,8 +73,6 @@
           <a href="/explore/">V2 Pools</a>
           <a href="/docs/">Docs</a>
           <a href="/litepaper/">Litepaper</a>
-          <a href="/gov/#bounty">Bug Bounty</a>
-          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
         </div>
       </div>
     </div>
@@ -101,12 +99,13 @@
   </nav>
 
   <div class="nav-mobile-overlay" id="mobile-nav">
+    <button class="nav-mobile-close" type="button" aria-label="Close menu" onclick="document.getElementById('mobile-nav').classList.remove('open')">CLOSE &#10005;</button>
     <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="/start/">Start Here</a>
     <a href="/swap/">Swap</a>
     <a href="/analytics/">Analytics</a>
     <a href="/gov/">Protocol</a>
     <div class="nav-mobile-section">EARN TIMBS</div>
-    <a href="/start/">Start Here</a>
     <a href="/farm/">Farm</a>
     <a href="/compete/">Compete</a>
     <a href="/faucet/">Faucet</a>
@@ -117,8 +116,6 @@
     <a href="/explore/">V2 Pools</a>
     <a href="/docs/">Docs</a>
     <a href="/litepaper/">Litepaper</a>
-    <a href="/gov/#bounty">Bug Bounty</a>
-    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
   </div>
 
   <section class="hero">
@@ -138,7 +135,7 @@
       </p>
       <div class="hero-actions">
         <a href="/compete/" class="btn-primary" onclick="return goGated(event, '/compete/')">Enter Your Ticket</a>
-        <a href="/swap/" class="btn-secondary" onclick="return goGated(event, '/swap/')">Get Your Tokens</a>
+        <a href="/faucet/" class="btn-secondary" onclick="return goGated(event, '/faucet/')">Get Your Tokens</a>
       </div>
       <!-- Cold-visitor on-ramp: the zero-to-first-round path the game pages assume. -->
       <p class="hero-newhere" style="margin:10px 0 0;font-size:14px;color:var(--text-2);">New to this? <a href="/start/" style="display:inline-flex;align-items:center;min-height:44px;padding:0 6px;color:var(--green);text-decoration:none;font-weight:600;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">Play your first round in 2 minutes &rarr;</a></p>
@@ -387,7 +384,7 @@
     <div class="trust-item"><span class="t-label">CONTRACTS</span><a href="/docs/#authenticity">Address table in Docs</a></div>
     <div class="trust-item"><span class="t-label">LITEPAPER</span><a href="/litepaper/">Read the litepaper</a></div>
     <div class="trust-item"><span class="t-label">BOUNTY</span><a href="/gov/#bounty">Bug bounty — up to $500</a></div>
-    <div class="trust-item"><span class="t-label">EXPLORER</span><a href="https://arbiscan.io/address/0x0000000000000000000000000000000000000000" target="_blank" rel="noopener">Factory on Arbiscan ↗︎</a></div>
+    <div class="trust-item"><span class="t-label">EXPLORER</span><a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank" rel="noopener">Factory on Arbiscan ↗︎</a></div>
     <div class="trust-item"><span class="t-label">AUDIT</span><span class="t-muted">Independent audit gates mainnet — testnet today</span></div>
   </div>
 
@@ -446,11 +443,10 @@
       <a href="/litepaper/">Litepaper</a>
       <a href="/gov/#bounty">Bug Bounty</a>
       <a href="/quests/">Quests</a>
-      <a href="https://arbiscan.io/address/0x0000000000000000000000000000000000000000" target="_blank">Factory ↗︎</a>
+      <a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
       <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
       <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
       <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
-      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
     </div>
   </footer>
 

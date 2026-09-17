@@ -49,18 +49,19 @@
       <div class="nav-group">
         <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
+          <a href="../start/">Start Here</a>
           <a href="../swap/">Swap</a>
           <a href="../analytics/" class="nav-active">Analytics</a>
-          <a href="/gov/">Protocol</a>
+          <a href="../gov/">Protocol</a>
         </div>
       </div>
       <div class="nav-group">
         <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
-          <a href="../start/">Start Here</a>
           <a href="../farm/">Farm</a>
           <a href="../compete/">Compete</a>
           <a href="../faucet/">Faucet</a>
+          <a href="../quests/">Quests</a>
           <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
         </div>
       </div>
@@ -70,7 +71,7 @@
           <a class="nav-off">Lock Vault</a>
           <a href="../explore/">V2 Pools</a>
           <a href="../docs/">Docs</a>
-          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+          <a href="../litepaper/">Litepaper</a>
         </div>
       </div>
     </div>
@@ -96,21 +97,23 @@
   </nav>
 
   <div class="nav-mobile-overlay" id="mobile-nav">
+    <button class="nav-mobile-close" type="button" aria-label="Close menu" onclick="document.getElementById('mobile-nav').classList.remove('open')">CLOSE &#10005;</button>
     <div class="nav-mobile-section">DASHBOARD</div>
-    <a href="../swap/">Swap</a>
-    <a href="../analytics/">Analytics</a>
-    <a href="/gov/">Protocol</a>
-    <div class="nav-mobile-section">EARN TIMBS</div>
     <a href="../start/">Start Here</a>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/" class="nav-active">Analytics</a>
+    <a href="../gov/">Protocol</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
     <a href="../farm/">Farm</a>
     <a href="../compete/">Compete</a>
     <a href="../faucet/">Faucet</a>
+    <a href="../quests/">Quests</a>
     <a class="nav-off">Airdrop</a>
     <div class="nav-mobile-section">TOOLS</div>
     <a class="nav-off">Lock Vault</a>
     <a href="../explore/">V2 Pools</a>
     <a href="../docs/">Docs</a>
-    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+    <a href="../litepaper/">Litepaper</a>
   </div>
 
   <div class="analytics-page">
@@ -163,7 +166,7 @@
         <div class="metric-sub">of 100M hard cap</div>
       </div>
       <div class="metric-card" data-cat="platform">
-        <div class="metric-label">Pot Backing</div>
+        <div class="metric-label">Total Pot</div>
         <div class="metric-val" id="m-escrow">—</div>
         <div class="metric-sub" id="m-escrow-sub">last funded —</div>
       </div>
@@ -346,11 +349,10 @@
     </div>
     <div class="footer-links">
       <a href="/docs/">Docs</a>
-      <a href="https://arbiscan.io/address/0x0000000000000000000000000000000000000000" target="_blank">Factory ↗︎</a>
+      <a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
       <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
       <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
       <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
-      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
     </div>
   </footer>
 

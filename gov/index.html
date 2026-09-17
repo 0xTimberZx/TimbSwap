@@ -57,7 +57,7 @@
     .pb-section { margin: 26px 0; }
     .pb-section h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 10px; }
     .pb-section p { color: var(--text-2); line-height: 1.6; font-size: 14.5px; margin-bottom: 10px; }
-    .pb-section a { color: var(--green); }
+    .pb-section a:not(.btn-primary):not(.btn-secondary) { color: var(--green); } /* buttons keep their own text colour */
     .pb-section ul { margin: 8px 0 8px 18px; }
     .pb-section li { color: var(--text-2); line-height: 1.55; font-size: 14px; margin-bottom: 7px; }
     .pb-section strong { color: var(--text); }
@@ -96,6 +96,7 @@
       <div class="nav-group">
         <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
+          <a href="../start/">Start Here</a>
           <a href="../swap/">Swap</a>
           <a href="../analytics/">Analytics</a>
           <a href="../gov/" class="nav-active">Protocol</a>
@@ -104,7 +105,6 @@
       <div class="nav-group">
         <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
-          <a href="../start/">Start Here</a>
           <a href="../farm/">Farm</a>
           <a href="../compete/">Compete</a>
           <a href="../faucet/">Faucet</a>
@@ -145,12 +145,13 @@
   </nav>
 
   <div class="nav-mobile-overlay" id="mobile-nav">
+    <button class="nav-mobile-close" type="button" aria-label="Close menu" onclick="document.getElementById('mobile-nav').classList.remove('open')">CLOSE &#10005;</button>
     <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../start/">Start Here</a>
     <a href="../swap/">Swap</a>
     <a href="../analytics/">Analytics</a>
-    <a href="../gov/">Protocol</a>
+    <a href="../gov/" class="nav-active">Protocol</a>
     <div class="nav-mobile-section">EARN TIMBS</div>
-    <a href="../start/">Start Here</a>
     <a href="../farm/">Farm</a>
     <a href="../compete/">Compete</a>
     <a href="../faucet/">Faucet</a>
@@ -241,7 +242,7 @@
       <div class="pb-stats">
         <div class="pb-stat"><div class="v">up to $500</div><div class="l">top reward — testnet hardening pool</div></div>
         <div class="pb-stat"><div class="v">72 hours</div><div class="l">to first acknowledgement</div></div>
-        <div class="pb-stat"><div class="v">ETH / USDC</div><div class="l">paid to the first valid reporter</div></div>
+        <div class="pb-stat"><div class="v">Pari-mutuel</div><div class="l">ETH / USDC, shared per tier — first valid reporter of each issue is eligible</div></div>
         <div class="pb-stat"><div class="v">Safe harbor</div><div class="l">good-faith research is authorized</div></div>
       </div>
 
@@ -261,10 +262,10 @@
 
       <div class="pb-section">
         <h2>Rewards</h2>
-        <p>Severity is <strong>impact-based</strong> — what the bug would do with real funds — guided by the <a href="https://immunefi.com/immunefi-vulnerability-severity-classification-system-v2-3/" target="_blank" rel="noopener">Immunefi severity classification</a>. Rewards are paid in <strong>ETH or USDC</strong> to the first reporter of a unique issue, from the testnet hardening pool. No single payout exceeds <strong>$500</strong> in this pre-mainnet phase.</p>
+        <p>Severity is <strong>impact-based</strong> — what the bug would do with real funds — guided by the <a href="https://immunefi.com/immunefi-vulnerability-severity-classification-system-v2-3/" target="_blank" rel="noopener">Immunefi severity classification</a>. Rewards are <strong>pari-mutuel</strong>, paid in <strong>ETH or USDC</strong> from the testnet hardening pool: each tier holds a share of the pool, and that share is split among <em>all</em> accepted reports in the tier. The ranges below are what a report pays when it is the only accepted report in its tier — every additional accepted report in the same tier divides the share. Lower tiers attract more reports, so expect those to be shared; a T5 is far more likely to stand alone. Only the first valid reporter of a given issue is eligible for it. No single payout exceeds <strong>$500</strong> in this pre-mainnet phase.</p>
         <div class="table-wrap">
           <table class="pb-table">
-            <thead><tr><th>Tier</th><th>Class</th><th>What lands here</th><th>Reward</th></tr></thead>
+            <thead><tr><th>Tier</th><th>Class</th><th>What lands here</th><th>Reward (tier share, if unshared)</th></tr></thead>
             <tbody>
               <tr><td class="tier">T1</td><td>UI / display</td><td>A display or labelling bug that could mislead a user into a losing on-chain action. Pure cosmetic issues are out of scope.</td><td class="reward">credit + up to $50</td></tr>
               <tr><td class="tier">T2</td><td>Operational / fallback</td><td>Keeper / automation failures, VRF stall or re-request griefing, recoverable settlement / liveness DoS. Value stuck or degraded, not lost.</td><td class="reward">$50 – $100</td></tr>
@@ -274,6 +275,7 @@
             </tbody>
           </table>
         </div>
+        <p class="pb-note"><strong>How pari-mutuel settles:</strong> accepted reports are tallied per tier; each report receives its tier share divided by the number of accepted reports in that tier, rounded down to the cap. Two accepted T2 reports split the T2 share; five accepted T1 reports split the T1 share five ways. Duplicates of an already-reported issue earn nothing.</p>
         <p class="pb-note">Reentrancy that bypasses the <code>nonReentrant</code> guards is priced by its impact — a reentrancy that drains escrow is a T5, not a tier of its own. Final severity and reward are at the maintainers' discretion.</p>
       </div>
 

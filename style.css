@@ -682,6 +682,24 @@ body { padding-top: 60px; }
   gap: 4px;
 }
 .nav-mobile-overlay.open { display: flex; }
+/* Long menus must scroll instead of running off short (landscape) screens. */
+.nav-mobile-overlay { max-height: calc(100vh - 60px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* Close row at the top of the overlay — a visible way out without hunting for the hamburger. */
+.nav-mobile-close {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  width: 100%; min-height: 44px; margin: -4px 0 4px; padding: 8px 12px;
+  background: none; border: none; border-bottom: var(--bw) solid var(--border);
+  color: var(--text-2); font-family: var(--mono); font-size: 12px; letter-spacing: 1px;
+  cursor: pointer; border-radius: 0; -webkit-tap-highlight-color: transparent;
+}
+.nav-mobile-close:hover, .nav-mobile-close:active { color: var(--text); }
+/* Hamburger turns into an X while the overlay is open (progressive: needs :has()). */
+body:has(.nav-mobile-overlay.open) .nav-hamburger span { background: var(--text); transition: transform .18s ease, opacity .18s ease; }
+body:has(.nav-mobile-overlay.open) .nav-hamburger span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+body:has(.nav-mobile-overlay.open) .nav-hamburger span:nth-child(2) { opacity: 0; }
+body:has(.nav-mobile-overlay.open) .nav-hamburger span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+/* Current page, in the dropdown and the overlay. */
+.nav-dropdown a.nav-active, .nav-mobile-overlay a.nav-active { color: var(--green); }
 .nav-mobile-overlay a {
   padding: 10px 12px;
   font-size: 15px;

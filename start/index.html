@@ -47,8 +47,11 @@
     .step-body h3 { margin: 4px 0 6px; font-size: 18px; color: var(--text); }
     .step-body p { margin: 0 0 10px; font-size: 15px; line-height: 1.6; color: var(--text-2); }
     .step-body p:last-child { margin-bottom: 0; }
-    .step-body a { color: var(--green); text-decoration: none; font-weight: 600; }
-    .step-body a:hover { text-decoration: underline; }
+    /* Inline text links only — the pill/button anchors set their own colour. A bare
+       `.step-body a` outranks `.step-btn` (class + type beats class) and painted the
+       green buttons' text green-on-green. */
+    .step-body p a { color: var(--green); text-decoration: none; font-weight: 600; }
+    .step-body p a:hover { text-decoration: underline; }
     .step-hint { font-size: 13px; color: var(--text-3); }
 
     /* ── Tap targets & press feedback ──────────────────────────────────────
