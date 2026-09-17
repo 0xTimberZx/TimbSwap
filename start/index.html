@@ -7,21 +7,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Start Here — TimbSwap</title>
-  <meta name="description" content="New to TimbSwap? Your first round in 2 minutes — add the network, get free testnet gas and tokens, then play. Free on Arbitrum Sepolia." />
+  <meta name="description" content="New to TimbSwap? Play your first round in minutes — add the network, get free testnet gas and tokens, then play. Free on Arbitrum Sepolia." />
   <link rel="canonical" href="https://timbswap.xyz/start/" />
   <meta name="theme-color" content="#0b0f14" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="TimbSwap" />
   <meta property="og:title" content="Start Here — TimbSwap" />
-  <meta property="og:description" content="Your first round in 2 minutes. Free on Arbitrum Sepolia testnet — add the network, get test gas + tokens, play." />
+  <meta property="og:description" content="Play your first round in minutes. Free on Arbitrum Sepolia testnet — add the network, get test gas + tokens, play." />
   <meta property="og:url" content="https://timbswap.xyz/start/" />
   <meta property="og:image" content="https://timbswap.xyz/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Start Here — TimbSwap" />
-  <meta name="twitter:description" content="Your first round in 2 minutes. Free on Arbitrum Sepolia testnet." />
+  <meta name="twitter:description" content="Play your first round in minutes. Free on Arbitrum Sepolia testnet." />
   <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
@@ -47,8 +47,11 @@
     .step-body h3 { margin: 4px 0 6px; font-size: 18px; color: var(--text); }
     .step-body p { margin: 0 0 10px; font-size: 15px; line-height: 1.6; color: var(--text-2); }
     .step-body p:last-child { margin-bottom: 0; }
-    .step-body a { color: var(--green); text-decoration: none; font-weight: 600; }
-    .step-body a:hover { text-decoration: underline; }
+    /* Inline text links only — the pill/button anchors set their own colour. A bare
+       `.step-body a` outranks `.step-btn` (class + type beats class) and painted the
+       green buttons' text green-on-green. */
+    .step-body p a { color: var(--green); text-decoration: none; font-weight: 600; }
+    .step-body p a:hover { text-decoration: underline; }
     .step-hint { font-size: 13px; color: var(--text-3); }
 
     /* ── Tap targets & press feedback ──────────────────────────────────────
@@ -126,7 +129,7 @@
 
     <section class="start-hero">
       <div class="start-eyebrow">Start here</div>
-      <h1>Your first round <br /><span class="accent">in 2 minutes.</span></h1>
+      <h1>Play your first round <br /><span class="accent">in minutes.</span></h1>
       <p>
         TimbSwap runs on the Arbitrum Sepolia <strong>testnet</strong> — everything below is
         free and uses no real money. Follow the four steps and you'll be in your first round.

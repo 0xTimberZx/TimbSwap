@@ -51,28 +51,29 @@
       <div class="nav-group">
         <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
+          <a href="../start/">Start Here</a>
           <a href="../swap/">Swap</a>
           <a href="../analytics/">Analytics</a>
-          <a href="/gov/">Protocol</a>
+          <a href="../gov/">Protocol</a>
         </div>
       </div>
       <div class="nav-group">
         <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
-          <a href="../start/">Start Here</a>
           <a href="../farm/">Farm</a>
           <a href="../compete/">Compete</a>
-          <a class="nav-off">Faucet</a>
+          <a href="../faucet/" class="nav-active">Faucet</a>
+          <a href="../quests/">Quests</a>
           <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
         </div>
       </div>
       <div class="nav-group">
         <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
-          <a href="../lock/">Lock Vault</a>
+          <a class="nav-off">Lock Vault</a>
           <a href="../explore/">V2 Pools</a>
           <a href="../docs/">Docs</a>
-          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+          <a href="../litepaper/">Litepaper</a>
         </div>
       </div>
     </div>
@@ -98,21 +99,23 @@
   </nav>
 
   <div class="nav-mobile-overlay" id="mobile-nav">
+    <button class="nav-mobile-close" type="button" aria-label="Close menu" onclick="document.getElementById('mobile-nav').classList.remove('open')">CLOSE &#10005;</button>
     <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../start/">Start Here</a>
     <a href="../swap/">Swap</a>
     <a href="../analytics/">Analytics</a>
-    <a href="/gov/">Protocol</a>
+    <a href="../gov/">Protocol</a>
     <div class="nav-mobile-section">EARN TIMBS</div>
-    <a href="../start/">Start Here</a>
     <a href="../farm/">Farm</a>
     <a href="../compete/">Compete</a>
-    <a class="nav-off">Faucet</a>
+    <a href="../faucet/" class="nav-active">Faucet</a>
+    <a href="../quests/">Quests</a>
     <a class="nav-off">Airdrop</a>
     <div class="nav-mobile-section">TOOLS</div>
-    <a href="../lock/">Lock Vault</a>
+    <a class="nav-off">Lock Vault</a>
     <a href="../explore/">V2 Pools</a>
     <a href="../docs/">Docs</a>
-    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+    <a href="../litepaper/">Litepaper</a>
   </div>
 
   <div class="lock-page">
@@ -187,6 +190,19 @@
       </ul>
     </div>
   </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
+      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+    </div>
+  </footer>
 
   <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
   <script src="faucet.js?v=20260913a"></script>

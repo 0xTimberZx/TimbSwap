@@ -50,18 +50,19 @@
       <div class="nav-group">
         <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
+          <a href="../start/">Start Here</a>
           <a href="../swap/">Swap</a>
           <a href="../analytics/">Analytics</a>
-          <a href="/gov/">Protocol</a>
+          <a href="../gov/">Protocol</a>
         </div>
       </div>
       <div class="nav-group">
         <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
-          <a href="../start/">Start Here</a>
           <a href="../farm/">Farm</a>
           <a href="../compete/">Compete</a>
           <a href="../faucet/">Faucet</a>
+          <a href="../quests/">Quests</a>
           <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
         </div>
       </div>
@@ -71,7 +72,7 @@
           <a class="nav-off">Lock Vault</a>
           <a href="../explore/">V2 Pools</a>
           <a href="../docs/" class="nav-active">Docs</a>
-          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+          <a href="../litepaper/">Litepaper</a>
         </div>
       </div>
     </div>
@@ -97,21 +98,23 @@
   </nav>
 
   <div class="nav-mobile-overlay" id="mobile-nav">
+    <button class="nav-mobile-close" type="button" aria-label="Close menu" onclick="document.getElementById('mobile-nav').classList.remove('open')">CLOSE &#10005;</button>
     <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../start/">Start Here</a>
     <a href="../swap/">Swap</a>
     <a href="../analytics/">Analytics</a>
-    <a href="/gov/">Protocol</a>
+    <a href="../gov/">Protocol</a>
     <div class="nav-mobile-section">EARN TIMBS</div>
-    <a href="../start/">Start Here</a>
     <a href="../farm/">Farm</a>
     <a href="../compete/">Compete</a>
     <a href="../faucet/">Faucet</a>
+    <a href="../quests/">Quests</a>
     <a class="nav-off">Airdrop</a>
     <div class="nav-mobile-section">TOOLS</div>
     <a class="nav-off">Lock Vault</a>
     <a href="../explore/">V2 Pools</a>
-    <a href="../docs/">Docs</a>
-    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+    <a href="../docs/" class="nav-active">Docs</a>
+    <a href="../litepaper/">Litepaper</a>
   </div>
 
   <div class="docs-page">
@@ -187,8 +190,8 @@
       <section id="start" class="docs-section">
         <h2>Getting started</h2>
         <ol>
-          <li><strong>Add the network.</strong> Arbitrum Sepolia — chain ID <code>421614</code>, RPC <code>https://sepolia-rollup.arbitrum.io/rpc</code>, explorer <code>arbiscan.io</code>. Connecting your wallet on any TimbSwap page will offer to add/switch to it automatically.</li>
-          <li><strong>Get testnet ETH.</strong> Use a public Arbitrum Sepolia faucet to fund gas. You need a small amount of Sepolia ETH for every transaction.</li>
+          <li><strong>Add the network.</strong> Arbitrum Sepolia — chain ID <code>421614</code>, RPC <code>https://sepolia-rollup.arbitrum.io/rpc</code>, explorer <code>sepolia.arbiscan.io</code>. Connecting your wallet on any TimbSwap page will offer to add/switch to it automatically.</li>
+          <li><strong>Get testnet ETH.</strong> Use a public Arbitrum Sepolia faucet to fund gas. You need a small amount of Sepolia ETH for every transaction. Once you hold an <em>Active</em> ticket in the prize game, the <a href="../faucet/">TimbSwap faucet</a> tops you up with testnet TIMBS once every 24 hours.</li>
           <li><strong>Connect.</strong> Click <em>Connect Wallet</em> in the top bar. Reads (quotes, balances, tables) always come from the public RPC; your wallet is only asked to <em>sign</em> transactions.</li>
           <li><strong>Get test tokens.</strong> Swap a little ETH for TIMBS or another listed token to start using the farm, lock, and compete surfaces.</li>
         </ol>
@@ -314,7 +317,8 @@
           <li><strong>Email sign-in (optional).</strong> If you choose “Continue with email”, the one-time code and your email address are handled by <a href="https://www.privy.io/" target="_blank" rel="noopener">Privy</a>, which creates a wallet for you; its key is split between Privy and your browser and is never seen by TimbSwap. TimbSwap only receives the resulting public wallet address, exactly as with an extension wallet. Privy's own privacy policy applies to the email.</li>
           <li><strong>Public RPC.</strong> Reads go to a public Arbitrum Sepolia RPC endpoint, which sees the requests your browser makes (a normal property of using any public node).</li>
           <li><strong>Local storage.</strong> Your theme choice and last-connected state are kept in your browser only.</li>
-          <li><strong>Diagnostics (DebugHub).</strong> The app can emit anonymous diagnostic checkpoints and error events to help debugging. This telemetry is about app behavior, not your identity, and no private keys or seed phrases are ever collected. If you export a debug log to share, review it before sending.</li>
+          <li><strong>Diagnostics.</strong> The app records diagnostic checkpoints and error events <em>in your browser only</em> — nothing is sent to a server during the capped beta. No private keys or seed phrases are ever collected. If you export a debug log to share with us, review it before sending.</li>
+          <li><strong>Faucet claims.</strong> If you use the faucet, a Cloudflare Turnstile human-check runs and your wallet address is recorded to enforce the 24-hour cooldown. Nothing else is collected.</li>
         </ul>
       </section>
 
@@ -328,8 +332,7 @@
         <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
         <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
       <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
-        <a href="https://arbiscan.io/" target="_blank">Arbiscan ↗︎</a>
-        <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
+        <a href="https://sepolia.arbiscan.io/" target="_blank">Arbiscan ↗︎</a>
       </div>
 
     </main>
@@ -341,11 +344,10 @@
     </div>
     <div class="footer-links">
       <a href="/docs/">Docs</a>
-      <a href="https://arbiscan.io/address/0x0000000000000000000000000000000000000000" target="_blank">Factory ↗︎</a>
+      <a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
       <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
       <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
       <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
-      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
     </div>
   </footer>
 

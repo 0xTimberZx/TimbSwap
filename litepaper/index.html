@@ -59,18 +59,19 @@
       <div class="nav-group">
         <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
+          <a href="../start/">Start Here</a>
           <a href="../swap/">Swap</a>
           <a href="../analytics/">Analytics</a>
-          <a href="/gov/">Protocol</a>
+          <a href="../gov/">Protocol</a>
         </div>
       </div>
       <div class="nav-group">
         <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
         <div class="nav-dropdown">
-          <a href="../start/">Start Here</a>
           <a href="../farm/">Farm</a>
           <a href="../compete/">Compete</a>
           <a href="../faucet/">Faucet</a>
+          <a href="../quests/">Quests</a>
           <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
         </div>
       </div>
@@ -81,7 +82,6 @@
           <a href="../explore/">V2 Pools</a>
           <a href="../docs/">Docs</a>
           <a href="../litepaper/" class="nav-active">Litepaper</a>
-          <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
         </div>
       </div>
     </div>
@@ -107,22 +107,23 @@
   </nav>
 
   <div class="nav-mobile-overlay" id="mobile-nav">
+    <button class="nav-mobile-close" type="button" aria-label="Close menu" onclick="document.getElementById('mobile-nav').classList.remove('open')">CLOSE &#10005;</button>
     <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../start/">Start Here</a>
     <a href="../swap/">Swap</a>
     <a href="../analytics/">Analytics</a>
-    <a href="/gov/">Protocol</a>
+    <a href="../gov/">Protocol</a>
     <div class="nav-mobile-section">EARN TIMBS</div>
-    <a href="../start/">Start Here</a>
     <a href="../farm/">Farm</a>
     <a href="../compete/">Compete</a>
     <a href="../faucet/">Faucet</a>
+    <a href="../quests/">Quests</a>
     <a class="nav-off">Airdrop</a>
     <div class="nav-mobile-section">TOOLS</div>
     <a class="nav-off">Lock Vault</a>
     <a href="../explore/">V2 Pools</a>
     <a href="../docs/">Docs</a>
-    <a href="../litepaper/">Litepaper</a>
-    <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">Debugger ↗︎</a>
+    <a href="../litepaper/" class="nav-active">Litepaper</a>
   </div>
 
   <div class="docs-page">
@@ -137,8 +138,9 @@
         <a href="#game" class="toc-link">3 · The prize game</a>
         <a href="#tokenomics" class="toc-link">4 · Tokenomics &amp; emissions</a>
         <a href="#architecture" class="toc-link">5 · Architecture &amp; trust</a>
-        <a href="#risks" class="toc-link">6 · Risks</a>
-        <a href="#roadmap" class="toc-link">7 · Roadmap &amp; the gate</a>
+        <a href="#governance" class="toc-link">6 · Governance &amp; ownership</a>
+        <a href="#risks" class="toc-link">7 · Risks</a>
+        <a href="#roadmap" class="toc-link">8 · Roadmap &amp; the gate</a>
         <a href="#refs" class="toc-link">References</a>
       </nav>
     </aside>
@@ -198,9 +200,10 @@
         <p>Each round is a six-character combination that assembles live. Players hold a <strong>ticket</strong> — a 6-character string (A–Z, 0–9, no repeats) that plays the next round.</p>
         <ul>
           <li><strong>Six segments, one hour each.</strong> A round has 6 segments (≈60 min: open window + a short settlement). Every eligible swap nudges the active segment's character upward on a continuous meter.</li>
-          <li><strong>Locking &amp; jitter.</strong> When a segment closes, its character locks — the nudge counter <em>jittered with the settling block's hash</em>, and randomized within its class (a letter stays a letter, a digit stays a digit). You can aim the <em>class</em> per position, but the exact character stays unpredictable.</li>
+          <li><strong>Locking &amp; jitter.</strong> When a segment closes, its character locks — the nudge counter <em>jittered with the settling block's hash</em>, and randomized within its class (a letter stays a letter, a digit stays a digit). You can aim the <em>class</em> per position, but the exact character stays unpredictable. The class is <strong>snapshotted when the segment arms</strong>, so a nudge late in the window can't steer whether the position lands a letter or a digit.</li>
           <li><strong>Permissionless settlement.</strong> Segments settle <strong>permissionlessly</strong> once the window elapses — anyone can call <code>settleSegment</code>. No operator gates the round.</li>
           <li><strong>Winning &amp; claiming.</strong> After all six lock, an exact match wins the pot. Winners claim within <strong>2 rounds</strong> of the match; a lapsed prize recycles into the pot.</li>
+          <li><strong>Every round is winnable.</strong> The winning combination is itself drawn with <strong>no repeated characters</strong> — the same rule tickets follow — so it is always reachable by a valid ticket; there are no dead, unwinnable rounds. Repeats are disallowed on both sides by default, and a <strong>governance toggle</strong> can later permit them on the ticket and the winning string together.</li>
           <li><strong>Principal is yours.</strong> A ticket's deposit stays refundable for <strong>4 rounds</strong> after its last eligible round (extended, never shortened, if you win near the end), and while active it earns yield that grows the pot.</li>
           <li><strong>Generations.</strong> The registry is keyed by a game generation; a redeploy bumps the generation and makes prior tickets inert, their principal recoverable at any time — a clean reset without a fresh registry.</li>
         </ul>
@@ -211,7 +214,8 @@
         <h2><span class="lp-num">4</span>Tokenomics &amp; emissions</h2>
         <ul>
           <li><strong>Fixed supply.</strong> TIMBS is hard-capped at <strong>100,000,000</strong>, with no mint beyond the cap — a fixed schedule finalized at mainnet launch.</li>
-          <li><strong>Fee split.</strong> Each swap's 0.3% fee splits 0.25% to LPs and 0.05% to the treasury, which funds buybacks (50% burned, 50% to stakers) and the reward cycle.</li>
+          <li><strong>Fee split.</strong> Each swap's 0.3% fee splits 0.25% to LPs and 0.05% to the treasury, which funds buybacks and the reward cycle. Bought-back TIMBS splits <strong>5% burned · 20% to reserve · 75% into the reward waterfall</strong>, and each buyback is <strong>floored at an on-chain TWAP</strong> and size-capped, so it can't be sandwiched.</li>
+          <li><strong>Abandoned tickets fund players.</strong> If a ticket's refund window lapses unclaimed, a <strong>community-tilted split</strong> routes the majority of its ETH principal (default <strong>70%</strong>) back into the live prize pot and the remainder to the treasury sink — recycled to players, never printed.</li>
           <li><strong>The epoch waterfall.</strong> Every 6 rounds the keeper measures what was actually claimed from farm and staking and what the treasury collected, then refills in priority: <em>farm</em> first (≤80% of its claims), <em>staking</em> next (≤1.25× its claims, capped at 80% of the remainder), and <em>boosted farms</em> receive only what's left. If inflow runs short, the tail goes unfunded — nothing is printed to cover it.</li>
           <li><strong>Solvency stop.</strong> Reward contracts track every wallet's accrued-but-unclaimed balance as an explicit liability. When obligations reach <strong>99% of reserves</strong>, accrual halts until the next refill. The system cannot promise tokens it does not hold.</li>
           <li><strong>Self-retargeting rates.</strong> Emission rates recompute from free (unowed) reserves over the emission window, so a shrinking reserve slows emissions instead of over-committing.</li>
@@ -230,9 +234,21 @@
         <p>The frontend is a static site — every figure is read live from chain, users hold their own keys, and an autonomous GitHub Actions keeper settles segments and runs the reward sweep without a human in the loop. Contract addresses are published in the <a href="../docs/#authenticity">Docs address table</a> and the <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener">open-source repository</a> — verify before you trust any label.</p>
       </section>
 
-      <!-- 5 Risks -->
+      <!-- 6 Governance -->
+      <section id="governance" class="docs-section">
+        <h2><span class="lp-num">6</span>Governance &amp; ownership</h2>
+        <p>Trust in TimbSwap rests on <strong>immutable, verified contract logic behind a delay-gated multisig</strong> — not on an upgradeable proxy an owner could silently rewrite.</p>
+        <ul>
+          <li><strong>Ownership.</strong> Every privileged contract is <code>Ownable2Step</code> (two-step handoff — no fat-finger transfers). At mainnet, ownership moves to a <strong>timelock + multisig</strong>, so every privileged action — pauses, rate changes, parameter toggles, emergency withdrawals — becomes multisig-proposed and <strong>delay-gated</strong>: users can see a change coming and exit ahead of it. <em>On testnet these keys are developer-controlled — disclosed, and exactly what the mainnet handoff removes.</em></li>
+          <li><strong>Governance today is signaling.</strong> The on-chain governance module records votes but does not execute them; real authority is the timelock/multisig. This is deliberate for launch — no live governance-execution attack surface to exploit.</li>
+          <li><strong>Change model — govern, don't upgrade.</strong> The launch contracts are immutable: <strong>there are no proxies</strong>. A "contract update" is a <strong>governed migration</strong> — deploy the new version, then governance repoints the wiring and migrates ownership (the same pattern the game already uses to swap a module). The attack surface stays small and nothing an owner can rewrite in place.</li>
+          <li><strong>Where it's heading (post-beta).</strong> A tiered model is planned: a <strong>security class</strong> (top governance stakers) alongside the broader <strong>community</strong>, voting together on emergency actions and contract updates, with accumulating stakes and time-locked withdrawals. It plugs into the timelock as its proposer with no redeploy. <em>Stated as direction, not a capability claimed today.</em></li>
+        </ul>
+      </section>
+
+      <!-- 7 Risks -->
       <section id="risks" class="docs-section">
-        <h2><span class="lp-num">6</span>Risks</h2>
+        <h2><span class="lp-num">7</span>Risks</h2>
         <ul>
           <li><strong>Smart-contract risk.</strong> The contracts are testnet-hardened but <strong>unaudited</strong>; an independent audit gates mainnet. Permissionless refund and recovery paths exist so funds are never trapped behind an operator.</li>
           <li><strong>Impermanent loss.</strong> Providing liquidity carries standard AMM IL, larger on thin or volatile pairs (boosted farms are the highest-risk seat).</li>
@@ -243,11 +259,11 @@
         </ul>
       </section>
 
-      <!-- 6 Roadmap -->
+      <!-- 8 Roadmap -->
       <section id="roadmap" class="docs-section">
-        <h2><span class="lp-num">7</span>Roadmap &amp; the graduation gate</h2>
+        <h2><span class="lp-num">8</span>Roadmap &amp; the graduation gate</h2>
         <p><span class="lp-tag">Now · live</span> — The full engine runs end-to-end on Arbitrum Sepolia: AMM, prize game with permissionless settlement and generations, emissions on the epoch waterfall with the 99% solvency stop, and an unattended keeper.</p>
-        <p><span class="lp-tag">Next</span> — The road to mainnet, gated on evidence and safety: proven engagement (sustained wallets, repeat play, eligible volume tracking rounds); an <strong>independent audit</strong> and security policy; <strong>legal counsel</strong> and likely geofencing; seeded liquidity and an initial pot; and live signal dashboards from existing telemetry.</p>
+        <p><span class="lp-tag">Next</span> — The road to mainnet, gated on evidence and safety: proven engagement (sustained wallets, repeat play, eligible volume tracking rounds); an <strong>independent audit</strong> and security policy (a multi-pass internal source review and remediation is already complete; an external audit remains the gate); <strong>legal counsel</strong> and likely geofencing; seeded liquidity and an initial pot; and live signal dashboards from existing telemetry.</p>
         <p><span class="lp-tag">Vision</span> — Adaptive incentives: the allocation cycle is rule-based and solvency-bounded today; the same telemetry that proves solvency is the substrate for a future policy that tunes incentives to observed protocol health — still on-chain, still bounded by the identical guardrails. <em>Stated as direction, not a capability claimed today.</em></p>
         <div class="docs-callout">
           <strong>The gate.</strong> TimbSwap deploys to mainnet when engagement is <strong>proven</strong> and the security and legal gates are <strong>cleared</strong> — never before. Until then, everything is a test asset with no value, and the point of the exercise is to earn the evidence. See the full <a href="https://github.com/0xTimberZx/TimbSwap/blob/main/ROADMAP.md" target="_blank" rel="noopener">ROADMAP</a>.
@@ -286,7 +302,6 @@
       <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
       <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
       <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
-      <a href="https://0xtimberzx.github.io/MyDapp/debughub/" target="_blank">DebugHub ↗︎</a>
     </div>
   </footer>
 
