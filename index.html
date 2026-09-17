@@ -36,7 +36,7 @@
     }
   </script>
   <link rel="stylesheet" href="style.css?v=20260902a" />
-  <link rel="stylesheet" href="waitlist.css?v=1" />
+  <link rel="stylesheet" href="waitlist.css?v=2" />
 </head>
 <body>
 
@@ -62,8 +62,7 @@
           <a href="/farm/">Farm</a>
           <a href="/compete/">Compete</a>
           <a href="/faucet/">Faucet</a>
-          <a href="/quests/">Quests</a>
-          <a class="nav-off">Airdrop <span class="badge-soon">Soon</span></a>
+          <a href="/quests/">Airdrop <span class="badge-soon">Soon</span></a>
         </div>
       </div>
       <div class="nav-group">
@@ -72,7 +71,6 @@
           <a class="nav-off">Lock Vault</a>
           <a href="/explore/">V2 Pools</a>
           <a href="/docs/">Docs</a>
-          <a href="/litepaper/">Litepaper</a>
         </div>
       </div>
     </div>
@@ -109,13 +107,11 @@
     <a href="/farm/">Farm</a>
     <a href="/compete/">Compete</a>
     <a href="/faucet/">Faucet</a>
-    <a href="/quests/">Quests</a>
-    <a class="nav-off">Airdrop</a>
+    <a href="/quests/">Airdrop <span class="badge-soon">Soon</span></a>
     <div class="nav-mobile-section">TOOLS</div>
     <a class="nav-off">Lock Vault</a>
     <a href="/explore/">V2 Pools</a>
     <a href="/docs/">Docs</a>
-    <a href="/litepaper/">Litepaper</a>
   </div>
 
   <section class="hero">
@@ -382,8 +378,6 @@
   <div class="trust-bar" aria-label="Verify TimbSwap">
     <div class="trust-item"><span class="t-label">SOURCE</span><a href="https://github.com/0xTimberZx/TimbSwap" target="_blank" rel="noopener">Open-source on GitHub ↗︎</a></div>
     <div class="trust-item"><span class="t-label">CONTRACTS</span><a href="/docs/#authenticity">Address table in Docs</a></div>
-    <div class="trust-item"><span class="t-label">LITEPAPER</span><a href="/litepaper/">Read the litepaper</a></div>
-    <div class="trust-item"><span class="t-label">BOUNTY</span><a href="/gov/#bounty">Bug bounty — up to $500</a></div>
     <div class="trust-item"><span class="t-label">EXPLORER</span><a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank" rel="noopener">Factory on Arbiscan ↗︎</a></div>
     <div class="trust-item"><span class="t-label">AUDIT</span><span class="t-muted">Independent audit gates mainnet — testnet today</span></div>
   </div>
@@ -423,13 +417,12 @@
           <strong>You're on the list.</strong>
           Watch your inbox for the mainnet call. In the meantime the testnet is
           live — <a href="/faucet/">grab test tokens</a>, <a href="/quests/">earn points</a>, and take a round for a spin.
+          <div class="wl-reset">Not you? <a href="#waitlist" id="wl-reset">Join with a different email</a></div>
         </div>
       </div>
 
       <div class="wl-alt">
         Prefer Telegram? <a href="https://t.me/timbswapann" target="_blank" rel="noopener">Join the channel ↗︎</a>
-        · <a href="https://x.com/timbswap" target="_blank" rel="noopener">Follow on X ↗︎</a>
-        · <a href="/gov/#bounty">Hunt the bug bounty</a>
       </div>
     </div>
   </section>
@@ -452,7 +445,7 @@
 
   <script>document.write('<script src="config.js?t=' + Date.now() + '"><\/script>');</script>
 <script src="landing.js?v=20260904c"></script>
-<script src="waitlist.js?v=1"></script>
+<script src="waitlist.js?v=2"></script>
   <script>
     function toggleMobileNav() {
       document.getElementById("mobile-nav").classList.toggle("open");
