@@ -53,12 +53,17 @@ const STAKE_CAP_BPS    = 8_000;  // ≤ 0.80 × leftover
 const BOOST_DRAW_BPS   = 500;    // 5% of each farm claim
 const LOG_CHUNK        = Number(process.env.EPOCH_LOG_CHUNK || 40_000); // getLogs block-range chunk
 
-// Emission window sizing. The nominal window (ROUND_DURATION × ROUNDS_PER_EPOCH,
-// 36h) assumes rounds tick at their on-chain nominal rate. On a quiet chain they
-// run far slower, so a nominal window drains and the main pools go dark mid-epoch.
-// Size the window to the LAST epoch's real wall-clock × slack, with a floor.
-const EMIT_SLACK         = Number(process.env.EMIT_SLACK || "2");   // 2× the last epoch's measured length
-const EMIT_FLOOR_SECONDS = Number(process.env.EMIT_FLOOR_DAYS || "4") * 86_400; // never below 4 days
+// Emission period — FIXED, not sized from the last epoch's wall-clock.
+// notifyRewardAmount(amount, duration) sets periodFinish = block.timestamp +
+// duration UNCONDITIONALLY and re-spreads (amount + leftover) over it, so a
+// constant duration means every successful grant re-anchors the window to
+// exactly this many days from the grant. The pool can then only dead-zone if
+// no grant lands for a whole period, instead of drifting with a computed
+// window (the earlier adaptive sizing produced windows from 4 to 60 days and
+// silently rewrote the pace on every settlement).
+// See dev-docs/EMISSIONS_SCHEDULE.md §6.
+const EMIT_PERIOD_DAYS    = Number(process.env.EMIT_PERIOD_DAYS || "90");
+const EMIT_PERIOD_SECONDS = Math.round(EMIT_PERIOD_DAYS * 86_400);
 
 // Post-blackout restart. The waterfall is claim-driven (farm 0.8×y, staking
 // 1.25×w) — after an emission blackout y = w = 0, so the grants stay zero even
@@ -387,18 +392,16 @@ async function main() {
     B -= stakeGrant;
     const boostBudget = B;
 
-    // Window must OUTLAST the epoch's real wall-clock, not the nominal round time.
-    // Base it on how long the previous epoch actually took (× slack), floored so a
-    // first/one-off epoch can't dead-zone. Synthetix (notifyRewardAmount) rolls any
-    // leftover into the next notify, so over-provisioning only smooths the rate.
-    const nominalDuration = Number(await prize.ROUND_DURATION()) * ROUNDS_PER_EPOCH;
+    // Fixed period: each grant re-anchors periodFinish to now + duration and
+    // rolls the unspent leftover into the new rate. `observed` is logged for
+    // ops only — it no longer sizes the window.
+    const duration = EMIT_PERIOD_SECONDS;
     const nowTime  = Math.floor(Date.now() / 1000);
     const lastTime = Number(state.lastEpochTime || 0);
     const observed = lastTime ? Math.max(0, nowTime - lastTime) : 0;
-    const duration = Math.max(nominalDuration, EMIT_FLOOR_SECONDS, Math.ceil(observed * EMIT_SLACK));
 
     console.log(`EPOCH SETTLE  z=${fmt(z)} y=${fmt(y)} w=${fmt(w)}`);
-    console.log(`  window: nominal=${nominalDuration}s observed=${observed}s -> duration=${duration}s (${(duration/86400).toFixed(1)}d)`);
+    console.log(`  period: fixed ${EMIT_PERIOD_DAYS}d (${duration}s) — re-anchors on every grant; last epoch ran ${(observed/86400).toFixed(1)}d`);
     console.log(`  farmGrant=${fmt(farmGrant)} stakeGrant=${fmt(stakeGrant)} boostBudget=${fmt(boostBudget)} duration=${duration}s`);
 
     if (!DRY_RUN) {
