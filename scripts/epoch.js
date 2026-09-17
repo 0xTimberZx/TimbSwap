@@ -339,9 +339,20 @@ async function main() {
   }
 
   // ── 1. Epoch settlement — beginning of each 6-round block ────────────────
-  const due = state.lastEpochRound === 0
+  // A game redeploy (new TimbPrize generation) restarts currentRound at 1, so
+  // the cursor left by the previous generation sits far ahead of the live
+  // round and `epochOf(round) > epochOf(cursor)` can never come true — the
+  // keeper logs "epoch not due" for months while the farm and staking windows
+  // run dry (gen-3 migration: cursor 199, live round 54, ~150 rounds away).
+  // Treat round < cursor as a reset: settle now over the usual scan window
+  // (lastEpochBlock → now) and rebase the cursor onto the new numbering.
+  const reset = state.lastEpochRound > 0 && round < state.lastEpochRound;
+  if (reset) {
+    console.log(`game reset detected: round ${round} < cursor ${state.lastEpochRound} — settling now, cursor rebases to ${round}`);
+  }
+  const due = reset || (state.lastEpochRound === 0
     ? round > ROUNDS_PER_EPOCH               // let the first full epoch elapse
-    : epochOf(round) > epochOf(state.lastEpochRound);
+    : epochOf(round) > epochOf(state.lastEpochRound));
 
   if (due) {
     const fromBlock = state.lastEpochBlock + 1;
