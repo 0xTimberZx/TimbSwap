@@ -222,7 +222,7 @@
       <!-- Liquidity -->
       <section id="liquidity" class="docs-section">
         <h2>Liquidity &amp; V2 Pools</h2>
-        <p>Add liquidity from the <a href="../swap/">Swap</a> page's Liquidity tab. You deposit both sides of a pair in the current ratio and receive LP tokens representing your share; you earn the 0.3% fee pro-rata and can withdraw anytime by burning LP.</p>
+        <p>Add liquidity from the <a href="../swap/">Swap</a> page's Liquidity tab. You deposit both sides of a pair in the current ratio and receive LP tokens representing your share; you earn the 0.3% fee pro-rata and can withdraw anytime by burning LP. Pool creation is permissionless — any two tokens can be paired; only the TIMBS/ETH pair earns farm emissions today.</p>
         <p>The <a href="../explore/">V2 Pools</a> page is a wallet-free explorer showing every pool's reserves, USD TVL (for pools with a priceable side), <strong>24h volume</strong>, recent trades, and recent liquidity events — all read live from chain.</p>
       </section>
 
@@ -230,6 +230,7 @@
       <section id="farm" class="docs-section">
         <h2>Farm (staking)</h2>
         <p>The <a href="../farm/">Farm</a> lets you stake eligible tokens to earn TIMBS emissions. Rewards stream at a per-second rate and are claimable at any time; claiming does not reset your stake.</p>
+        <p><strong>What is open today.</strong> Two seats: <strong>TIMBS single-asset staking</strong> and the <strong>TIMBS/ETH LP farm</strong>. <strong>Boosted farms</strong> (extra pairs on the waterfall's boost tier) are deployed but deferred until the airdrop launch campaign ends; the Farm page says so in place. Creating and funding pools for any pair stays permissionless — only the emission seats are limited.</p>
         <p><strong>Reading APR.</strong> APR is derived from the reward rate and the total staked, so it swings when either changes. On a small testnet pool a tiny stake can produce an astronomical headline APR — the UI caps the displayed figure, and you should treat testnet APR as illustrative, not a yield promise.</p>
       </section>
 
@@ -279,7 +280,7 @@
         <ul>
           <li><strong>Fixed supply.</strong> TIMBS is hard-capped at <strong>100,000,000</strong>. There is no mechanism to mint beyond the cap.</li>
           <li><strong>Fee split.</strong> Every swap's 0.3% fee splits 0.25% to LPs and 0.05% to the treasury, which funds buybacks and the reward cycle.</li>
-          <li><strong>The epoch waterfall.</strong> Every 6 rounds the keeper measures what was actually claimed from the farm and staking pools and what the treasury actually collected, then refills in priority order: the <em>farm</em> first (capped at 80% of its claims), <em>staking</em> next (up to 1.25× its claims, but no more than 80% of what remains), and <em>boosted farms</em> receive only the remainder. If inflow runs short, the tail of the waterfall goes unfunded — nothing is printed to cover the gap.</li>
+          <li><strong>The epoch waterfall.</strong> Every 6 rounds the keeper measures what was actually claimed from the farm and staking pools and what the treasury actually collected, then refills in priority order: the <em>farm</em> first (capped at 80% of its claims), <em>staking</em> next (up to 1.25× its claims, but no more than 80% of what remains), and <em>boosted farms</em> receive only the remainder. If inflow runs short, the tail of the waterfall goes unfunded — nothing is printed to cover the gap. Boosted farms are deferred until the airdrop launch campaign ends, so the boost leg is not drawn today.</li>
           <li><strong>Solvency stop.</strong> Reward contracts track every wallet's accrued-but-unclaimed balance as an explicit liability. When total obligations reach <strong>99% of reserves</strong>, accrual halts until the next refill — the system cannot promise tokens it does not hold.</li>
           <li><strong>Self-retargeting rates.</strong> Emission rates are recomputed from free (unowed) reserves over the emission window, so a shrinking reserve slows emissions instead of over-committing.</li>
         </ul>
@@ -291,7 +292,7 @@
         <p>Plainly stated — these apply on testnet today and would apply with real value on mainnet:</p>
         <ul>
           <li><strong>Smart-contract risk.</strong> The contracts are testnet-hardened but <strong>unaudited</strong>. An independent audit is a gating condition for any mainnet deployment. Permissionless refund and recovery paths exist so funds are not trapped behind an operator.</li>
-          <li><strong>Impermanent loss.</strong> Providing liquidity carries standard AMM impermanent-loss risk, larger on thin or volatile pairs (the boosted farms are the highest-risk seat).</li>
+          <li><strong>Impermanent loss.</strong> Providing liquidity carries standard AMM impermanent-loss risk, larger on thin or volatile pairs (boosted farms, once they open, are the highest-risk seat).</li>
           <li><strong>Game randomness.</strong> Locked characters are jittered with the settling block's hash. You can aim a position's <em>class</em> (letter vs digit) but not the exact character — treat the game as chance-weighted, not skill-guaranteed.</li>
           <li><strong>Emissions variance.</strong> APR figures move with the epoch waterfall and total staked; a testnet APR is illustrative, never a promise of yield.</li>
           <li><strong>Regulatory.</strong> Prize mechanics are classified differently by jurisdiction. On testnet nothing has monetary value; before any real-value launch, formal legal review (and likely geofencing) is a gating condition.</li>

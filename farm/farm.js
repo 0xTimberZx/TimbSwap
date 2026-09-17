@@ -281,9 +281,22 @@ async function loadBoost() {
   if (!addr || !section) { if (section) section.style.display = "none"; return; }
   section.style.display = "";
 
-  const boost = new ethers.Contract(addr, BOOST_ABI, readProv());
   const statusEl = document.getElementById("boost-status");
   const poolsEl  = document.getElementById("boost-pools");
+
+  // Deferred by plan (config.js BOOST_FARMS_OPEN): boosted farms open after
+  // the airdrop launch campaign ends. Show the heading with a notice and skip
+  // the contract reads so nothing here looks stakeable.
+  if (!window.BOOST_FARMS_OPEN) {
+    if (statusEl) {
+      statusEl.textContent = "Not open yet — boosted farms start after the airdrop launch campaign ends. Until then, TIMBS staking and the TIMBS/ETH farm above are the emission seats; adding liquidity to any pair stays permissionless.";
+      statusEl.className = "boost-status";
+    }
+    if (poolsEl) { poolsEl.innerHTML = ""; delete poolsEl.dataset.built; }
+    return;
+  }
+
+  const boost = new ethers.Contract(addr, BOOST_ABI, readProv());
 
   try {
     const [count, reserve, owed, rate, periodFinish] = await Promise.all([

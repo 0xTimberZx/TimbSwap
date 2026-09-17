@@ -66,6 +66,13 @@ function siteUrl(path) {
 // page; the edge function's own flag is what actually enqueues payouts.
 window.AIRDROP_ENABLED = false;
 
+// Boosted farms (TimbBoostFarm — extra pairs on the waterfall's boost tier)
+// open only after the airdrop launch campaign ends. Until then the Farm page
+// shows a placeholder instead of the boosted section and the boost leg stays
+// unfunded; single-asset TIMBS staking and the TIMBS/ETH farm are the only
+// emission seats. Pool creation itself stays permissionless. Flip to true to open.
+window.BOOST_FARMS_OPEN = false;
+
 // Independent public RPCs for READ traffic. Free public endpoints rate-limit
 // per-IP under heavy browsing (several tabs polling), which stalls reads on
 // every page ("fine at first, spoils after exploring"). makeReadProvider()

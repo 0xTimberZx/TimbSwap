@@ -16,8 +16,9 @@ The full incentive engine runs end-to-end, unattended.
 - **SwapTables** — pari-mutuel roulette on play-chips, seven pools a table, graduated rake,
   monotonic underwrite from a solvency-capped reserve, and a cross-generation rolling jackpot.
   Nine board generations shipped; contracts verified `exact_match` on Sourcify.
-- **Emissions** — single-asset staking, LP farm, boosted farms, all on the epoch waterfall with a
-  99% solvency stop and self-retargeting rates.
+- **Emissions** — single-asset TIMBS staking and the TIMBS/ETH LP farm on the epoch waterfall with a
+  99% solvency stop and self-retargeting rates. **Boosted farms** are deployed but deferred until the
+  airdrop launch campaign ends (the boost leg is not drawn until then); pool creation stays permissionless.
 - **Autonomy** — a GitHub Actions keeper settles segments every ~10 min and runs the reward sweep
   every 6 rounds, with Telegram/X notifications.
 - **Wallets** — extension / in-app wallets, or **Continue with email** (Privy embedded EOA) for
