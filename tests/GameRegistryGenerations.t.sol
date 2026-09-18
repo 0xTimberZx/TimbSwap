@@ -45,7 +45,7 @@ contract GameRegistryGenerationsTest is Test {
     function setUp() public {
         timbs    = new MockTimbsGen();
         // This test contract is the timbPrize — lets us call onGameStarted etc.
-        registry = new GameRegistry(address(timbs), sink, address(this));
+        registry = new GameRegistry(address(timbs), sink, address(this), 2e18, 1e18);
         // Entry costs are dynamic in v5 — no setter; they compute from live state.
         registry.onGameStarted();          // first game: generation stays 1, round 1
 

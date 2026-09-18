@@ -160,8 +160,10 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     //
     //   ETH   = escrow ≤ 1.1 ETH → 0.001 ETH floor; else escrow / 1000
     //           (escrow = totalEthEscrow, the pot's ETH backing).
-    //   TIMBS = 2 + activeTimbEntries whole TIMBS, re-fixed only when the active
-    //           TIMBS-entry count drifts ≥ 2 from the last fix (±2 deadband).
+    //   TIMBS = TIMBS_ENTRY_FLOOR + activeTimbEntries × TIMBS_STEP, re-fixed only
+    //           when the active TIMBS-entry count drifts ≥ 2 from the last fix
+    //           (±2 deadband). Both terms are set at DEPLOY (immutable) — see
+    //           the note on them below.
     //
     // Vault weight per entry is a CONSTANT unit (VAULT_WEIGHT_UNIT) — decoupled
     // from the variable cost, so yield accounting stays uniform per ticket.
@@ -169,9 +171,22 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     uint256 public constant ETH_ENTRY_FLOOR      = 0.001 ether; // min ETH entry cost
     uint256 public constant ETH_ESCROW_THRESHOLD = 1.1 ether;   // ≤ this → floor
     uint256 public constant ETH_SCALE_DIVISOR    = 1000;        // > threshold → escrow/1000
-    uint256 public constant TIMBS_ENTRY_FLOOR    = 2e18;        // 2 TIMBS floor
-    uint256 public constant TIMBS_STEP           = 1e18;        // +1 TIMBS per active entry
     uint256 public constant TIMBS_DEADBAND       = 2;           // re-fix only on ≥2 entry move
+
+    // TIMBS entry pricing — fixed at DEPLOY, never read from the TIMBS/WETH pair
+    // and never owner-settable. Deliberately a constant in the economic sense:
+    // the TIMBS leg is a token-denominated price, so its ETH value drifts with
+    // the market and that drift is accepted rather than tracked.
+    //
+    // They are immutable rather than hard-coded because the right number depends
+    // on the launch price of the deployment. On a testnet where TIMBS is faucet-
+    // dripped at 1/day, a floor of 2 TIMBS is right; at a mainnet launch price of
+    // 1e-6 ETH/TIMBS, 2 TIMBS is ~500x cheaper than the 0.001 ETH ETH-leg floor,
+    // which would push every entry onto the TIMBS leg and starve the ETH escrow
+    // that funds the pot. One source, one value per deployment, no fork.
+    // See dev-docs/EMISSIONS_SCHEDULE.md §7.
+    uint256 public immutable TIMBS_ENTRY_FLOOR;  // TIMBS floor at zero active entries
+    uint256 public immutable TIMBS_STEP;         // + this per active TIMBS entry
     // Constant ETH-denominated vault weight per active ticket. Registered as
     // ETH (address(0)) for BOTH entry tokens so every ticket carries the same
     // yield weight regardless of what it paid — decoupling yield share from the
@@ -310,6 +325,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     error TooManyExtraRounds(uint256 requested, uint256 max);
     error EthTransferFailed();
     error InvalidBps(uint256 bps);
+    error InvalidTimbsPricing(uint256 floorAmount, uint256 step);
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
 
@@ -328,13 +344,20 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     constructor(
         address _timbsToken,
         address _protocolSink,
-        address _timbPrize
+        address _timbPrize,
+        uint256 _timbsEntryFloor,
+        uint256 _timbsStep
     ) Ownable(msg.sender) {
         if (_timbsToken   == address(0)) revert ZeroAddress();
         if (_protocolSink == address(0)) revert ZeroAddress();
+        if (_timbsEntryFloor == 0 || _timbsStep == 0 || _timbsStep > _timbsEntryFloor) {
+            revert InvalidTimbsPricing(_timbsEntryFloor, _timbsStep);
+        }
         timbsToken   = IERC20(_timbsToken);
         protocolSink = _protocolSink;
         timbPrize    = _timbPrize; // allowed address(0) at deploy
+        TIMBS_ENTRY_FLOOR = _timbsEntryFloor;
+        TIMBS_STEP        = _timbsStep;
     }
 
     // ─── String Validation ───────────────────────────────────────────────────
@@ -466,7 +489,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
 
     /// @dev TIMBS cost as a pure function of the live TIMBS-entry count:
     ///      floor + 1 TIMBS per active TIMBS entry (2 TIMBS at zero entries).
-    function _computeTimbsCost(uint256 active) internal pure returns (uint256) {
+    function _computeTimbsCost(uint256 active) internal view returns (uint256) {
         return TIMBS_ENTRY_FLOOR + active * TIMBS_STEP;
     }
 

@@ -104,6 +104,18 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     /// @notice TIMBS distributed so far, lifetime.
     uint256 public timbsDistributed;
 
+    /// @notice Max TIMBS any ONE wallet may take, lifetime. **0 = no per-wallet
+    ///         limit** (the original behaviour).
+    /// @dev    The cooldown paces a wallet but never stops it: over an era of E
+    ///         days a single wallet can claim E/cooldown + 1 times, so a handful
+    ///         of dedicated wallets can absorb the whole `timbsCap`. At the Era-1
+    ///         mainnet numbers (250 days, 1/day, 100 TIMBS, 500,000 cap) that is
+    ///         ~20 wallets. This bounds concentration without touching the
+    ///         cooldown or the ticket gate. See dev-docs/EMISSIONS_SCHEDULE.md §7.
+    uint256 public maxTimbsPerWallet;
+    /// @notice TIMBS dispensed to each wallet so far, lifetime.
+    mapping(address => uint256) public timbsClaimedBy;
+
     // ─── Access ─────────────────────────────────────────────────────────────────
 
     /// @notice May trigger `dispense` (the keeper worker). address(0) disables it;
@@ -122,6 +134,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     event TimbsPausedSet(bool paused);
     event EthCapSet(uint256 cap);
     event TimbsCapSet(uint256 cap);
+    event MaxTimbsPerWalletSet(uint256 cap);
     event ParamsSet(uint256 dripEth, uint256 potEth, uint256 timbsPerClaim, uint256 cooldown);
     event DispatcherSet(address indexed dispatcher);
     event GuardianSet(address indexed guardian);
@@ -139,6 +152,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     error EthCapExceeded(uint256 requested, uint256 remaining);
     error TimbsCapExceeded(uint256 requested, uint256 remaining);
     error InsufficientTimbsBalance(uint256 requested, uint256 held);
+    error WalletTimbsCapExceeded(uint256 requested, uint256 remaining);
     error EthTransferFailed();
 
     // ─── Modifiers ──────────────────────────────────────────────────────────────
@@ -233,12 +247,23 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
             if (timbsOut > remaining) revert TimbsCapExceeded(timbsOut, remaining);
             uint256 held = timbs.balanceOf(address(this));
             if (timbsOut > held) revert InsufficientTimbsBalance(timbsOut, held);
+            if (maxTimbsPerWallet != 0) {
+                uint256 taken = timbsClaimedBy[claimant];
+                uint256 walletRemaining =
+                    maxTimbsPerWallet > taken ? maxTimbsPerWallet - taken : 0;
+                if (timbsOut > walletRemaining) {
+                    revert WalletTimbsCapExceeded(timbsOut, walletRemaining);
+                }
+            }
         }
 
         // ── Effects (before any external call). ──
         lastClaimAt[claimant] = block.timestamp;
         if (doEth)   ethDistributed   += ethOut;
-        if (doTimbs) timbsDistributed += timbsOut;
+        if (doTimbs) {
+            timbsDistributed          += timbsOut;
+            timbsClaimedBy[claimant]  += timbsOut;
+        }
 
         // ── Interactions. ──
         if (doEth) {
@@ -277,7 +302,9 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
             ethDistributed + dripEth + potEth <= ethCap;
         bool timbsOk = !timbsPaused && timbsPerClaim > 0 &&
             timbsDistributed + timbsPerClaim <= timbsCap &&
-            timbs.balanceOf(address(this)) >= timbsPerClaim;
+            timbs.balanceOf(address(this)) >= timbsPerClaim &&
+            (maxTimbsPerWallet == 0 ||
+             timbsClaimedBy[claimant] + timbsPerClaim <= maxTimbsPerWallet);
 
         return ethOk || timbsOk;
     }
@@ -324,6 +351,15 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     }
 
     // ─── Owner: access wiring ───────────────────────────────────────────────────
+
+    /// @notice Set the per-wallet lifetime TIMBS ceiling. 0 disables it.
+    /// @dev    Raising or lowering it is one tx; lowering it below what a wallet
+    ///         has already taken simply leaves that wallet with no headroom, it
+    ///         never claws anything back.
+    function setMaxTimbsPerWallet(uint256 cap) external onlyOwner {
+        maxTimbsPerWallet = cap;
+        emit MaxTimbsPerWalletSet(cap);
+    }
 
     function setDispatcher(address _dispatcher) external onlyOwner {
         dispatcher = _dispatcher;
