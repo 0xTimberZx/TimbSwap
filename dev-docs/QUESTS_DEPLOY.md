@@ -16,22 +16,9 @@ keeper; the next run recomputes every wallet.
 
 ## What earns TP
 
-**Headline levers (Season 1):**
-- **Volume** — eligible **swaps**, attributed to the real trader (`tx.from`, not the
-  router). √-curved so a script can't brute-force the board.
-- **Repeat play** — **rounds entered** (from `getRoundEntrants`), with a
-  **streak multiplier** for consecutive rounds (the strongest lever).
-
-**Supporting (Sybil weight + diversity), wired in v2:**
-- **Stake** (`TimbStaking.Staked`), **LP farm** (`TimbFarm.Staked` +
-  `TimbBoostFarm.Deposited`), **lock** (`TimbLockVault.Locked`) each grant a flat
-  participation TP and set a flag.
-- The **diversity bonus** (×1.15) fires when a wallet did **≥3 distinct** of
-  {swap, play, stake, LP, lock} — the main anti-Sybil weight under low KYC.
-- Wins (`WinningsClaimed`) are worth a little. Full model: `INCENTIVES.md` §4–5.
-
-**By design, TP rewards WALLET ACTIVITY, not unique users.** There is no referral
-lever — see "Descoped" below.
+See **Scoring (v3)** below — flat per-event points with a four-round settlement
+lag, weights in `seasons.weights`. The original √-volume / streak-multiplier
+formula (v1–v2) was replaced on Sep 18 2026 before any public season scored.
 
 ## Deploy (one-time)
 
@@ -81,6 +68,55 @@ The next scorer run begins folding activity from that block/round. Tune
 
 To **end** a season: `update seasons set status='ended', end_block=<block> where slug=...;`
 The scorer stops at `end_block`; the final table is the snapshot for the allowlist.
+
+## Scoring (v3, Sep 18 2026) — PRIVATE, not published on the site
+
+Flat and additive. Weights live in `seasons.weights` (jsonb) and are read by
+`points_recompute()` at every run, so tune them in the SQL editor with no deploy:
+
+| key            | pts | what the scorer counts                                            |
+|----------------|----:|-------------------------------------------------------------------|
+| round_played   | 250 | each settled round a wallet's ticket was in (`getRoundEntrants`)  |
+| ticket_active  | 200 | `TicketActivated`, once per ticket, only if it then played ≥1 round |
+| nudge_swap     |  25 | Pair `Swap` + `ScrollNudged` in the same tx (15 nudge + 10 swap)  |
+| plain_swap     |  10 | Pair `Swap` with no nudge                                         |
+| panel_nudge    |   5 | `ScrollNudged` with no `Swap` in the tx (Advance the Scroll; N events = N) |
+| farm_claim     |  50 | TimbFarm `RewardsClaimed` ≥ 25 TIMBS                              |
+| stake_claim    |  25 | TimbStaking `RewardsClaimed` ≥ 25 TIMBS                           |
+| faucet_claim   |   1 | `faucet_claims` row with status `sent` (Supabase-side cursor)     |
+| win            |   0 | `WinningsClaimed` — kept tunable                                  |
+
+Rules of thumb behind the numbers: rounds are the headline (250/round, and
+re-entering a fresh ticket re-earns the 200, so maximising consecutive rounds is
+the dominant strategy); trading is a supporting signal; faucet is a tie-breaker.
+
+**Settlement lag.** `seasons.lag_rounds` (4 ≈ 24h at 6h rounds). A round folds
+only once it is `lag_rounds` behind the live round, and the block window ends
+where round `(current − lag)` settled (the scorer walks `RoundStarted` back from
+the head). Nobody can watch their score react in real time.
+
+**Eligibility.** `seasons.min_rounds` (2). Below it a wallet's `display_tp` is 0
+and the `quests` function hides it. It appears during its third round.
+
+Tune / inspect:
+```sql
+update seasons set weights = weights || '{"panel_nudge": 3}' where slug = 'season-0';
+select points_recompute(1);                       -- re-apply immediately
+select address, display_tp, rounds_played, tickets_activated, nudge_swaps, plain_swaps,
+       panel_nudges, farm_claims, stake_claims, faucet_claims
+  from points_wallets where season_id = 1 order by display_tp desc limit 20;
+```
+
+Rescore from scratch (e.g. after a weight change you want applied to history):
+```sql
+delete from points_wallets where season_id = 1;
+update seasons set last_scored_block = null, last_processed_round = null,
+       last_faucet_claim_id = 0 where slug = 'season-0';
+```
+then run the "TimbSwap Points Scorer" workflow by hand.
+
+Public copy on `/quests/` says only: Play / Trade / Participate, and that points
+post about a day after the activity. Keep it that way.
 
 ## Manual controls
 
