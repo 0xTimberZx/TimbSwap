@@ -16,7 +16,8 @@ contract MockTIMBS is ERC20 {
  * @notice Exercises the per-round-fixed, both-ways-floating entry costs and the
  *         pricing-meter invariants:
  *           ETH   = escrow <= 1.1 ETH ? 0.001 ETH : escrow / 1000
- *           TIMBS = 2 + activeTimbEntries, re-fixed only outside a +/-2 deadband
+ *           TIMBS = TIMBS_ENTRY_FLOOR + activeTimbEntries * TIMBS_STEP, both set
+ *                   at deploy, re-fixed only outside a +/-2 deadband
  *         plus seat conservation (+1 at submit, -1 at exactly one terminal exit;
  *         concession net-neutral; expiry not terminal) and generation resets.
  *
@@ -38,7 +39,7 @@ contract GameRegistryDynamicPricingTest is Test {
 
     function setUp() public {
         timbs = new MockTIMBS();
-        reg = new GameRegistry(address(timbs), SINK, address(this));
+        reg = new GameRegistry(address(timbs), SINK, address(this), 2e18, 1e18);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
@@ -67,6 +68,55 @@ contract GameRegistryDynamicPricingTest is Test {
     }
 
     // ─── TIMBS pricing ─────────────────────────────────────────────────────────
+
+    // ─── deploy-time TIMBS pricing (immutable floor / step) ──────────────────
+
+    function test_ConstructorStoresPricing() public view {
+        assertEq(reg.TIMBS_ENTRY_FLOOR(), 2e18, "floor stored");
+        assertEq(reg.TIMBS_STEP(), 1e18, "step stored");
+    }
+
+    function test_ConstructorRejectsZeroFloor() public {
+        vm.expectRevert(abi.encodeWithSelector(GameRegistry.InvalidTimbsPricing.selector, 0, 1e18));
+        new GameRegistry(address(timbs), SINK, address(this), 0, 1e18);
+    }
+
+    function test_ConstructorRejectsZeroStep() public {
+        vm.expectRevert(abi.encodeWithSelector(GameRegistry.InvalidTimbsPricing.selector, 2e18, 0));
+        new GameRegistry(address(timbs), SINK, address(this), 2e18, 0);
+    }
+
+    function test_ConstructorRejectsStepAboveFloor() public {
+        vm.expectRevert(abi.encodeWithSelector(GameRegistry.InvalidTimbsPricing.selector, 2e18, 3e18));
+        new GameRegistry(address(timbs), SINK, address(this), 2e18, 3e18);
+    }
+
+    // Mainnet values (500 / 100) at the 1e-6 ETH/TIMBS launch price. The floor is
+    // deliberately BELOW the ETH leg — paying in TIMBS is half price at launch —
+    // and congestion, not the floor, is what closes the gap.
+    function test_MainnetPricing_HalfEthFloorAndCrossover() public {
+        GameRegistry m = new GameRegistry(address(timbs), SINK, address(this), 500e18, 100e18);
+        assertEq(m.entryCostTIMBS(), 500e18, "mainnet floor quote");
+
+        uint256 weiPerTimbs = 1e12; // 1e-6 ETH per whole TIMBS
+
+        // 500 TIMBS = 0.0005 ETH = half an ETH ticket.
+        assertEq(
+            (m.TIMBS_ENTRY_FLOOR() / 1e18) * weiPerTimbs,
+            ETH_FLOOR / 2,
+            "TIMBS floor is half the ETH-leg floor at the launch price"
+        );
+
+        // At five concurrent TIMBS entries the leg costs exactly an ETH ticket;
+        // past that it is the dearer route.
+        uint256 atFive = m.TIMBS_ENTRY_FLOOR() + 5 * m.TIMBS_STEP();
+        assertEq((atFive / 1e18) * weiPerTimbs, ETH_FLOOR, "parity at five concurrent entries");
+        assertGt(
+            m.TIMBS_ENTRY_FLOOR() + 6 * m.TIMBS_STEP(),
+            atFive,
+            "keeps climbing past the crossover"
+        );
+    }
 
     function test_TimbsFloor_FirstEntryIsTwo() public {
         // Quoted before any entry: the floor.

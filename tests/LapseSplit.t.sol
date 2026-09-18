@@ -35,7 +35,7 @@ contract LapseSplitTest is Test {
 
     function setUp() public {
         timbs = new LapseMockTIMBS();
-        reg = new GameRegistry(address(timbs), SINK, address(this)); // timbPrize = this
+        reg = new GameRegistry(address(timbs), SINK, address(this), 2e18, 1e18); // timbPrize = this
     }
 
     function _one(address a) internal pure returns (address[] memory arr) {

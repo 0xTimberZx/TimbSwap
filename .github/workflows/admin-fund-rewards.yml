@@ -1,0 +1,86 @@
+name: Admin — Fund Rewards
+
+# Manual-only owner action: grant TIMBS to TimbFarm and/or TimbStaking outside
+# the epoch waterfall (scripts/fund-rewards.js). For the case where the pools'
+# emission windows lapsed and the waterfall has nothing to pour (z = 0 — no
+# buybacks because the Treasury holds no fee ETH). Always run dry-run first:
+# it prints the pools' state, checks authority and balances, and sends nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      farmTimbs:
+        description: "TIMBS for TimbFarm (TIMBS/ETH LP). 0 = skip"
+        required: false
+        default: "10000"
+      stakeTimbs:
+        description: "TIMBS for TimbStaking (single-asset). 0 = skip"
+        required: false
+        default: "10000"
+      days:
+        description: "Emission period in days (90 matches the keeper)"
+        required: false
+        default: "90"
+      source:
+        description: "Where the TIMBS come from"
+        required: false
+        default: "treasury"
+        type: choice
+        options:
+          - treasury
+          - wallet
+      mode:
+        description: "Run mode"
+        required: false
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - run
+
+concurrency:
+  group: timbswap-admin
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  fund:
+    name: Fund farm / staking rewards
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Fund rewards
+        working-directory: scripts
+        env:
+          ARB_SEPOLIA_RPC:   ${{ secrets.ARB_SEPOLIA_RPC }}
+          # The epoch keeper's key: rewardNotifier / owner on both pools and
+          # the Treasury owner (withdrawToken is onlyOwner). The script
+          # verifies all three on-chain before sending.
+          EPOCH_PRIVATE_KEY: ${{ secrets.EPOCH_PRIVATE_KEY }}
+          FARM_TIMBS:        ${{ github.event.inputs.farmTimbs }}
+          STAKE_TIMBS:       ${{ github.event.inputs.stakeTimbs }}
+          DAYS:              ${{ github.event.inputs.days }}
+          SOURCE:            ${{ github.event.inputs.source }}
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "run" ]; then
+            node fund-rewards.js
+          else
+            node fund-rewards.js --dry-run
+          fi

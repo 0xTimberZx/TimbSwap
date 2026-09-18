@@ -123,7 +123,16 @@ contract DeployGen3Migration is Script {
 
         // 1. Fresh GameRegistry (repo source — permissionless activateRoundEntries).
         //    timbPrize is set after the prize exists (constructor allows 0 here).
-        GameRegistry registry = new GameRegistry(timbsToken, protocolSink, address(0));
+        // Testnet pricing preserved (2 TIMBS floor, +1 per active entry): TIMBS is
+        // faucet-dripped at 1/day here, so mainnet's launch-priced floor would make
+        // the TIMBS entry leg unreachable. Override via env if ever needed.
+        GameRegistry registry = new GameRegistry(
+            timbsToken,
+            protocolSink,
+            address(0),
+            vm.envOr("TIMBS_ENTRY_FLOOR", uint256(2e18)),
+            vm.envOr("TIMBS_STEP", uint256(1e18))
+        );
         console.log("New GameRegistry:   ", address(registry));
 
         // 2. Prize VRF entropy (dedicated instance; setBoard is one-time).

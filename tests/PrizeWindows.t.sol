@@ -80,7 +80,7 @@ contract PrizeWindowsTest is Test {
     function setUp() public {
         timbs    = new MockTIMBS();
         escrow   = new PrizeEscrow();
-        registry = new GameRegistry(address(timbs), sink, address(0));
+        registry = new GameRegistry(address(timbs), sink, address(0), 2e18, 1e18);
         prize    = new TimbPrize(address(escrow), address(registry), address(this));
 
         // H1: wire a dedicated VRFEntropy for the prize game (mirrors the board).

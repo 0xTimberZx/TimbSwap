@@ -15,6 +15,16 @@
         "internalType": "address",
         "name": "_timbPrize",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_timbsEntryFloor",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_timbsStep",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -1231,5 +1241,47 @@
   {
     "stateMutability": "payable",
     "type": "receive"
+  },
+  {
+    "inputs": [],
+    "name": "TIMBS_ENTRY_FLOOR",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "TIMBS_STEP",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "floorAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "step",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidTimbsPricing",
+    "type": "error"
   }
 ]

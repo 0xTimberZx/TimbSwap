@@ -63,6 +63,10 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
  *   GOV_MULTISIG           Safe/multisig that proposes+executes timelock actions
  *   TIMELOCK_MIN_DELAY     optional, seconds; default 172800 (48h)
  *   ENTRY_COST_TIMBS       TIMBSToken constructor param (18 dec)
+ *   TIMBS_ENTRY_FLOOR      GameRegistry TIMBS-leg floor (18 dec), immutable; size
+ *                          against the launch price — testnet 2e18, mainnet 500e18
+ *   TIMBS_STEP             + per active TIMBS entry (18 dec), immutable; must be
+ *                          <= the floor — testnet 1e18, mainnet 100e18
  *   INITIAL_SUPPLY         TIMBS initial mint (18 dec)
  *   REWARD_RATE_PER_SEC    TIMBS staking reward rate (wei/sec)
  *   FARM_REWARD_RATE       TIMBS farm reward rate (wei/sec)
@@ -157,7 +161,16 @@ contract DeployGame is Script {
         eligibleRegistry = new EligibleTokenRegistry(initialTokens);
         console.log("EligibleRegistry:   ", address(eligibleRegistry));
 
-        gameRegistry = new GameRegistry(address(timbs), protocolSink, address(0));
+        // TIMBS entry pricing is fixed at deploy (immutable). Both are REQUIRED:
+        // size them against this deployment's launch price — see env.example
+        // (testnet 2e18 / 1e18; mainnet 500e18 / 100e18 at 1e-6 ETH per TIMBS).
+        gameRegistry = new GameRegistry(
+            address(timbs),
+            protocolSink,
+            address(0),
+            vm.envUint("TIMBS_ENTRY_FLOOR"),
+            vm.envUint("TIMBS_STEP")
+        );
         console.log("GameRegistry:       ", address(gameRegistry));
 
         timbPrize = new TimbPrize(
