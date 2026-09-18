@@ -15,7 +15,8 @@
 //   Participation← stake / LP-farm / boost / lock events (the indexed user IS the
 //                  real actor — no tx.from needed): feed the diversity bonus
 //
-// The TP formula lives in SQL (points_recompute); this keeper only feeds aggregates.
+// The TP formula + weights live in SQL (points_recompute / seasons.weights); this
+// keeper only feeds counters. v3: flat event scoring, folded `lag_rounds` behind live.
 //
 // Env (GitHub Actions secrets — see .github/workflows/points-scorer.yml):
 //   ARB_RPC / ARB_SEPOLIA_RPC   RPC URL (prefer a keyed endpoint for wide getLogs)
@@ -118,93 +119,184 @@ async function main() {
   const PRIZE    = new ethers.Contract(addrFromConfig("TimbPrize"), [
     "function currentRound() view returns (uint256)",
     "event WinningsClaimed(address indexed winner, uint256 indexed round, uint256 amount)",
+    "event RoundStarted(uint256 indexed round, uint256 timestamp)",
+    "event ScrollNudged(uint256 newPosition, uint256 indexed round, uint256 segment)",
   ], provider);
   const REGISTRY = new ethers.Contract(addrFromConfig("GameRegistry"), [
     "function getRoundEntrants(uint256 round) view returns (address[])",
+    "event TicketMinted(uint256 indexed ticketId, address indexed owner, bytes6 string6, uint256 playRound, uint256 lastEligibleRound, uint256 escrowAmount, address escrowToken, uint256 supersedes)",
+    "event TicketActivated(uint256 indexed ticketId, uint256 indexed round)",
   ], provider);
   const PAIR     = new ethers.Contract(addrFromConfig("TimbsEthPair"), [
     "event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)",
   ], provider);
 
+  // ── Settlement lag ──
+  // Nothing is scored until it is `lag_rounds` behind the live round (~24h at 6h
+  // rounds). Rounds r ≤ currentRound − lag are foldable; the block window ends at
+  // the block where round (currentRound − lag + 1) started, i.e. where round
+  // (currentRound − lag) settled. So a player can't watch their score react and
+  // reverse-engineer the (unpublished) weights.
+  const LAG = Math.max(0, Number(s.lag_rounds ?? 4));
+  const currentRound = Number(await PRIZE.currentRound());
+  const lastFoldableRound = currentRound - LAG;
   const chainHead = await provider.getBlockNumber();
-  const toBlock   = s.end_block != null ? Math.min(Number(s.end_block), chainHead) : chainHead;
+  let lagBlock = chainHead;
+  if (LAG > 0) {
+    // RoundStarted is indexed by round, so walk back from the head in wide chunks
+    // and stop at the first hit; the event is at most a few rounds behind.
+    lagBlock = Number(s.start_block) - 1;
+    const filter = PRIZE.filters.RoundStarted(lastFoldableRound + 1);
+    const STEP = 50_000;
+    for (let hi = chainHead; hi >= Number(s.start_block); hi -= STEP) {
+      const lo = Math.max(Number(s.start_block), hi - STEP + 1);
+      const hits = await PRIZE.queryFilter(filter, lo, hi);
+      if (hits.length) { lagBlock = hits[hits.length - 1].blockNumber; break; }
+    }
+  }
+  const toBlock   = Math.min(lagBlock, s.end_block != null ? Number(s.end_block) : lagBlock);
   const fromBlock = (s.last_scored_block != null ? Number(s.last_scored_block) + 1 : Number(s.start_block));
 
-  // ── 1) Repeat play: fold newly settled rounds ──
+  // ── 1) Rounds played: fold settled rounds that have cleared the lag ──
   let roundsAdded = 0;
   let lastRound = s.last_processed_round != null ? Number(s.last_processed_round) : (Number(s.start_round) - 1);
+  const entrantsByRound = new Map(); // round -> Set(lowercased entrants), reused by ticket activation below
   try {
-    const currentRound = Number(await PRIZE.currentRound());
-    const endRound = Math.min(currentRound - 1, lastRound + MAX_ROUNDS_RUN); // settled rounds only; bounded backfill
+    const endRound = Math.min(lastFoldableRound, lastRound + MAX_ROUNDS_RUN);
     for (let r = lastRound + 1; r <= endRound; r++) {
       let entrants = [];
       try { entrants = await REGISTRY.getRoundEntrants(r); } catch (e) {
         console.warn(`[points] getRoundEntrants(${r}) failed: ${e.shortMessage || e.message}`); break;
       }
       const uniq = [...new Set(entrants.map(a => a.toLowerCase()))];
+      entrantsByRound.set(r, new Set(uniq));
       if (uniq.length) await sbRpc("points_apply_round", { p_season: s.id, p_round: r, p_addresses: uniq });
       lastRound = r; roundsAdded++;
     }
   } catch (e) { console.warn("[points] round pass:", e.shortMessage || e.message); }
 
-  // ── 2) Volume + wins + participation flags (same incremental block window) ──
+  // ── 2) Event activity in the lagged block window ──
   let swapsAdded = 0;
   if (toBlock >= fromBlock) {
-    // Volume: Swap events attributed to tx.from (the real trader).
-    try {
-      const evs = await scanEvents(PAIR, PAIR.filters.Swap(), fromBlock, toBlock);
-      const txFromCache = new Map();
-      const perTrader = new Map(); // addr -> { n, fb }
-      for (const ev of evs) {
-        let from = txFromCache.get(ev.transactionHash);
-        if (from === undefined) {
-          try { const tx = await provider.getTransaction(ev.transactionHash); from = tx && tx.from ? tx.from.toLowerCase() : null; }
-          catch { from = null; }
-          txFromCache.set(ev.transactionHash, from);
-        }
-        if (!from) continue;
-        const cur = perTrader.get(from) || { n: 0, fb: ev.blockNumber };
-        cur.n += 1; cur.fb = Math.min(cur.fb, ev.blockNumber);
-        perTrader.set(from, cur);
+    const txFromCache = new Map();
+    const txFrom = async (hash) => {
+      let from = txFromCache.get(hash);
+      if (from === undefined) {
+        try { const tx = await provider.getTransaction(hash); from = tx && tx.from ? tx.from.toLowerCase() : null; }
+        catch { from = null; }
+        txFromCache.set(hash, from);
       }
-      const rows = [...perTrader.entries()].map(([a, v]) => ({ a, n: v.n, fb: v.fb }));
-      if (rows.length) await sbRpc("points_apply_swaps", { p_season: s.id, p_rows: rows });
-      swapsAdded = evs.length;
-    } catch (e) { scanOk = false; console.warn("[points] swap pass:", e.shortMessage || e.message); }
+      return from;
+    };
+    const activity = new Map(); // addr -> { ns, ps, pn, ta, fc, sc, fb }
+    const bump = (addr, key, n, block) => {
+      const a = addr.toLowerCase();
+      const cur = activity.get(a) || { ns: 0, ps: 0, pn: 0, ta: 0, fc: 0, sc: 0, fb: block ?? null };
+      cur[key] += n;
+      if (block != null) cur.fb = cur.fb == null ? block : Math.min(cur.fb, block);
+      activity.set(a, cur);
+    };
 
-    // Wins: WinningsClaimed.
+    // Swaps vs nudges. A swap tx that also emits ScrollNudged is a nudge-swap (25);
+    // a Swap with no nudge is a plain swap (10); ScrollNudged with no Swap in the
+    // same tx is the "Advance the Scroll" panel (5 each, batches emit N events).
+    try {
+      const swaps  = await scanEvents(PAIR,  PAIR.filters.Swap(),          fromBlock, toBlock);
+      const nudges = await scanEvents(PRIZE, PRIZE.filters.ScrollNudged(), fromBlock, toBlock);
+      const nudgesByTx = new Map();
+      for (const ev of nudges) nudgesByTx.set(ev.transactionHash, (nudgesByTx.get(ev.transactionHash) || 0) + 1);
+      const swapTxs = new Set();
+      for (const ev of swaps) {
+        swapTxs.add(ev.transactionHash);
+        const from = await txFrom(ev.transactionHash);
+        if (!from) continue;
+        bump(from, nudgesByTx.has(ev.transactionHash) ? "ns" : "ps", 1, ev.blockNumber);
+      }
+      for (const [hash, n] of nudgesByTx) {
+        if (swapTxs.has(hash)) continue;
+        const from = await txFrom(hash);
+        if (!from) continue;
+        const blk = nudges.find(ev => ev.transactionHash === hash).blockNumber;
+        bump(from, "pn", n, blk);
+      }
+      swapsAdded = swaps.length;
+    } catch (e) { scanOk = false; console.warn("[points] swap/nudge pass:", e.shortMessage || e.message); }
+
+    // Ticket activation: 200 once per ticket, only if that ticket then played the
+    // round it activated for (its owner is among the round's entrants). Owner comes
+    // from TicketMinted; tickets minted before the window are looked up by id.
+    try {
+      const acts = await scanEvents(REGISTRY, REGISTRY.filters.TicketActivated(), fromBlock, toBlock);
+      if (acts.length) {
+        const owners = new Map();
+        for (const ev of await scanEvents(REGISTRY, REGISTRY.filters.TicketMinted(), fromBlock, toBlock)) {
+          owners.set(ev.args.ticketId.toString(), ev.args.owner.toLowerCase());
+        }
+        for (const ev of acts) {
+          const id = ev.args.ticketId.toString(), r = Number(ev.args.round);
+          if (r > lastFoldableRound) continue; // can't happen inside the lagged window; defensive
+          let owner = owners.get(id);
+          if (!owner) {
+            const minted = await REGISTRY.queryFilter(REGISTRY.filters.TicketMinted(ev.args.ticketId), Number(s.start_block) - 2_000_000 > 0 ? Number(s.start_block) - 2_000_000 : 0, ev.blockNumber).catch(() => []);
+            owner = minted.length ? minted[0].args.owner.toLowerCase() : null;
+            if (owner) owners.set(id, owner);
+          }
+          if (!owner) continue;
+          let entrants = entrantsByRound.get(r);
+          if (!entrants) {
+            try { entrants = new Set((await REGISTRY.getRoundEntrants(r)).map(a => a.toLowerCase())); entrantsByRound.set(r, entrants); }
+            catch { entrants = new Set(); }
+          }
+          if (entrants.has(owner)) bump(owner, "ta", 1, ev.blockNumber);
+        }
+      }
+    } catch (e) { scanOk = false; console.warn("[points] ticket pass:", e.shortMessage || e.message); }
+
+    // Farm / staking reward claims ≥ 25 TIMBS.
+    try {
+      const MIN = ethers.parseUnits("25", 18);
+      const farm = optContract("TimbFarm", ["event RewardsClaimed(address indexed user, uint256 timbsAmount)"]);
+      if (farm) for (const ev of await scanEvents(farm, farm.filters.RewardsClaimed(), fromBlock, toBlock))
+        if (ev.args.timbsAmount >= MIN) bump(ev.args.user, "fc", 1, ev.blockNumber);
+      const staking = optContract("TimbStaking", ["event RewardsClaimed(address indexed user, uint256 amount)"]);
+      if (staking) for (const ev of await scanEvents(staking, staking.filters.RewardsClaimed(), fromBlock, toBlock))
+        if (ev.args.amount >= MIN) bump(ev.args.user, "sc", 1, ev.blockNumber);
+    } catch (e) { scanOk = false; console.warn("[points] claims pass:", e.shortMessage || e.message); }
+
+    const rows = [...activity.entries()].map(([a, v]) => ({ a, ...v }));
+    if (rows.length) await sbRpc("points_apply_activity", { p_season: s.id, p_rows: rows });
+
+    // Wins: WinningsClaimed (weight is tunable in seasons.weights, 0 by default).
     try {
       const claims = await scanEvents(PRIZE, PRIZE.filters.WinningsClaimed(), fromBlock, toBlock);
       const perWinner = new Map();
-      for (const ev of claims) {
-        const w = ev.args.winner.toLowerCase();
-        perWinner.set(w, (perWinner.get(w) || 0) + 1);
-      }
+      for (const ev of claims) { const w = ev.args.winner.toLowerCase(); perWinner.set(w, (perWinner.get(w) || 0) + 1); }
       const winRows = [...perWinner.entries()].map(([a, n]) => ({ a, n }));
       if (winRows.length) await sbRpc("points_apply_wins", { p_season: s.id, p_rows: winRows });
     } catch (e) { scanOk = false; console.warn("[points] win pass:", e.shortMessage || e.message); }
 
-    // Participation flags: stake / LP-farm / boost / lock. The indexed user/locker
-    // is the real actor, so no tx.from mapping is needed. Missing modules skip.
+    // Participation flags (diversity display only; unweighted in v3).
     try {
-      const flags = new Map(); // addr -> {stake,lp,lock}
+      const flags = new Map();
       const mark = (addr, key) => { const a = addr.toLowerCase(); const cur = flags.get(a) || {}; cur[key] = true; flags.set(a, cur); };
-
       const staking = optContract("TimbStaking", ["event Staked(address indexed user, uint256 amount)"]);
       if (staking) (await scanEvents(staking, staking.filters.Staked(), fromBlock, toBlock)).forEach(ev => mark(ev.args.user, "stake"));
-
       const farm = optContract("TimbFarm", ["event Staked(address indexed user, uint256 lpAmount)"]);
       if (farm) (await scanEvents(farm, farm.filters.Staked(), fromBlock, toBlock)).forEach(ev => mark(ev.args.user, "lp"));
-
       const boost = optContract("TimbBoostFarm", ["event Deposited(address indexed user, uint256 indexed pid, uint256 lpAmount)"]);
       if (boost) (await scanEvents(boost, boost.filters.Deposited(), fromBlock, toBlock)).forEach(ev => mark(ev.args.user, "lp"));
-
       const lock = optContract("TimbLockVault", ["event Locked(uint256 indexed lockId, address indexed locker, address indexed token, uint256 amount, uint256 unlockAt, bool isTimbs)"]);
       if (lock) (await scanEvents(lock, lock.filters.Locked(), fromBlock, toBlock)).forEach(ev => mark(ev.args.locker, "lock"));
-
-      const rows = [...flags.entries()].map(([a, f]) => ({ a, stake: !!f.stake, lp: !!f.lp, lock: !!f.lock }));
-      if (rows.length) await sbRpc("points_apply_flags", { p_season: s.id, p_rows: rows });
+      const frows = [...flags.entries()].map(([a, f]) => ({ a, stake: !!f.stake, lp: !!f.lp, lock: !!f.lock }));
+      if (frows.length) await sbRpc("points_apply_flags", { p_season: s.id, p_rows: frows });
     } catch (e) { scanOk = false; console.warn("[points] flags pass:", e.shortMessage || e.message); }
+
+    // Faucet drips (Supabase-side), up to the lag block's timestamp.
+    try {
+      const blk = await provider.getBlock(toBlock);
+      const until = new Date(Number(blk.timestamp) * 1000).toISOString();
+      await sbRpc("points_fold_faucet", { p_season: s.id, p_until: until });
+    } catch (e) { console.warn("[points] faucet pass:", e.shortMessage || e.message); }
   }
 
   // ── 3) Recompute display_tp + advance cursors ──
