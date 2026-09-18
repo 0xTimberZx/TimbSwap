@@ -28,6 +28,10 @@ jobs:
       - name: Run points scorer
         working-directory: scripts
         env:
+          # getLogs endpoint: the keyed Sepolia RPC is free-tier (10-block getLogs cap).
+          # Override with a repo variable POINTS_RPC if you move to a paid endpoint.
+          POINTS_RPC:           ${{ vars.POINTS_RPC || 'https://sepolia-rollup.arbitrum.io/rpc' }}
+          POINTS_CHUNK_BLOCKS:  ${{ vars.POINTS_CHUNK_BLOCKS || '5000' }}
           ARB_RPC:              ${{ secrets.ARB_RPC }}
           ARB_SEPOLIA_RPC:      ${{ secrets.ARB_SEPOLIA_RPC }}
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
