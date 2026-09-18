@@ -1,0 +1,104 @@
+name: TimbSwap Faucet Invariants
+
+# Read-only monitor of the faucet claim record (scripts/faucet-invariants.js):
+# does what was dispensed fit inside what the cooldown and the era permit? A
+# breach means the cooldown was bypassed — a different and worse failure than
+# the budget draining — so it alerts and fails the run. No private key: it only
+# reads the chain and commits a compact cursor/tally state back, like the epoch
+# keeper. Claims are paced daily, so every six hours is plenty.
+#
+# Mirror note: the live repo runs this on a six-hour cron. Here it is manual
+# only, like the epoch keeper, so the two checkouts do not double-alert.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-faucet-invariants
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/faucet-invariants-state.json back
+
+jobs:
+  check:
+    name: Check claim record
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Self-test the invariant logic
+        working-directory: scripts
+        run: node faucet-invariants.js --self-test
+
+      - name: Check the live record
+        id: check
+        working-directory: scripts
+        env:
+          # No RPC secret on purpose: the metered endpoint caps eth_getLogs to
+          # tiny ranges and the backfill is millions of blocks wide. The script
+          # scans the canonical public RPC from config.js like the epoch keeper.
+          # FAUCET_RPC (a repo variable) overrides it if that ever changes.
+          FAUCET_RPC:           ${{ vars.FAUCET_RPC }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+          # First-run scan start. Testnet defaults to the deploy block inside the
+          # script; set the variable to the GasFaucet deploy block on mainnet.
+          FAUCET_GENESIS_BLOCK: ${{ vars.FAUCET_GENESIS_BLOCK }}
+          FAUCET_ERA_DAYS:      ${{ vars.FAUCET_ERA_DAYS }}
+          FAUCET_ERA_START:     ${{ vars.FAUCET_ERA_START }}
+          FAUCET_PACE_SLACK:    ${{ vars.FAUCET_PACE_SLACK }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node faucet-invariants.js --report
+          else
+            node faucet-invariants.js
+          fi
+
+      # The state file is the cursor: without it every run rescans from genesis
+      # and re-fetches every claim's block. Commit it back even when the check
+      # failed (a breach must not make the next run forget where it was).
+      - name: Commit state
+        if: always()
+        run: |
+          # A run that died before its first save leaves no file; that is not a
+          # state change (and `git add` on a missing path would fail the step).
+          if [ ! -f scripts/faucet-invariants-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/faucet-invariants-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/faucet-invariants-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "faucet-invariants[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/faucet-invariants-state.json
+          git commit -m "[skip ci] faucet: update invariant-monitor state"
+          # npm install dirties scripts/; --autostash keeps the rebase clean.
+          git pull --rebase --autostash origin main
+          git push origin main
