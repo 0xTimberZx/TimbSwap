@@ -1,0 +1,16 @@
+{
+  "alerted": {
+    "settler.yml": 1789784235,
+    "faucet.yml": 1789784235,
+    "match-notifier.yml": 1789784235,
+    "points-scorer.yml": 1789784235,
+    "reclaim-reminder.yml": 1789784235,
+    "epoch.yml": 1789784235,
+    "faucet-invariants.yml": 1789784235,
+    "settler-liveness.yml": 1789784235,
+    "epoch-recon.yml": 1789784235,
+    "faucet-recon.yml": 1789784235,
+    "points-recon.yml": 1789784235,
+    "dead-man.yml": 1789784235
+  }
+}
