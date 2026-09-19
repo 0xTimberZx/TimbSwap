@@ -12,6 +12,8 @@ const PRIZE_ABI = [
   "function currentSegment() external view returns (uint256)",
   "function currentAccumulatedRewards() external view returns (uint256)",
   "function positionCounter() external view returns (uint256)",
+  // Basis points taken from the pot at every settlement, winner or not.
+  "function protocolCutBps() external view returns (uint256)",
   "function getRoundResult(uint256 round) external view returns (bytes6 winningString, uint256 potAmount, address[] winners, uint256 perWinner, uint256 remainder)",
   "event RoundSettled(uint256 indexed round, bytes6 winningString, uint256 potAmount, uint256 numWinners, uint256 remainderR, uint256 totalEntries, uint256 timestamp)",
   "event WinningsClaimed(address indexed winner, uint256 indexed round, uint256 amount)",
@@ -144,10 +146,11 @@ async function loadLiveMetrics() {
     // replaced ticket's escrow keeps its vault weight through its last
     // eligible round while the pending replacement isn't counted until
     // activation, so tickets and ETH-equivalent weight can diverge.
-    const [entrants, earningWeight, accrued] = await Promise.all([
+    const [entrants, earningWeight, accrued, cutBps] = await Promise.all([
       registry.getRoundEntrants(round).catch(() => []),
       yvault.totalWeight().catch(() => null),
-      yvault.previewAccrued().catch(() => null)
+      yvault.previewAccrued().catch(() => null),
+      prize.protocolCutBps().catch(() => null)
     ]);
 
     // Sort reserves by token direction
@@ -197,15 +200,23 @@ async function loadLiveMetrics() {
     set("m-pot", Number(ethers.utils.formatUnits(pot, 18))
       .toLocaleString("en-US", { maximumFractionDigits: 5 }) + " ETH");
     const potUsd = usd(parseFloat(ethers.utils.formatUnits(pot, 18)));
-    // Sub-line: USD value + the live vault yield accruing into the pot.
+    // Sub-line: USD value + the live vault yield accruing into the pot + the
+    // protocol cut. The pot only ever moves DOWN at settlement, and it does so
+    // by this cut whether or not anyone won — with no winner the rest carries
+    // forward, so a quiet stretch reads as a slow 2 %-per-round decline.
+    // Saying so here is what stops that looking like a leak.
     const accruedStr = accrued ? fmt(accrued, 18, 6) + " ETH" : "—";
-    // Base sub: USD value + live vault yield. Augmented below with the latest
-    // round-end carry (PotCarried) once the block window is resolved.
-    set("m-pot-sub",  (potUsd ? `≈ $${potUsd} · ` : "") + `yield ${accruedStr}`);
+    const cutStr = cutBps != null && !cutBps.isZero()
+      ? ` · ${(cutBps.toNumber() / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}% cut at each settlement`
+      : "";
+    // Base sub: USD value + live vault yield + cut. Augmented below with the
+    // latest round-end carry (PotCarried) once the block window is resolved.
+    set("m-pot-sub",  (potUsd ? `≈ $${potUsd} · ` : "") + `yield ${accruedStr}` + cutStr);
 
     // Total Pot card — ALL physical ETH held by PrizeEscrow (the winnable
     // "Prize Pot" plus the reserve carried behind it), with when it was last
-    // topped up (latest Deposited event) and by how much. Note: the settlement snowball (remainder → next round) moves NO ETH
+    // topped up (latest Deposited event) and by how
+    // much. Note: the settlement snowball (remainder → next round) moves NO ETH
     // and fires NO Deposited event — the pot's ETH already lives here, so
     // "last funded" reflects real deposits (seeds, yield harvest) only.
     set("m-escrow", escrowBal
@@ -234,7 +245,7 @@ async function loadLiveMetrics() {
           const noWin   = lastC.args.numWinners.toString() === "0";
           const rnd     = lastC.args.round.toString();
           const base    = (potUsd ? `≈ $${potUsd} · ` : "") + `yield ${accruedStr}`;
-          set("m-pot-sub", `${base} · carried ${carried} ETH from #${rnd}${noWin ? " (no winner)" : ""}`);
+          set("m-pot-sub", `${base} · carried ${carried} ETH from #${rnd}${noWin ? " (no winner)" : ""}${cutStr}`);
         }
       } catch { /* leave base pot sub */ }
     } catch { set("m-escrow-sub", "last funded —"); }
@@ -364,10 +375,10 @@ function renderRoundsPage() {
     <tr>
       <td>#${r}</td>
       <td class="td-string${res.winners.length > 0 ? " gold" : ""}">${bytes6ToStr(res.winningString)}</td>
-      <td>${fmt(res.potAmount, 18, 4)} ETH</td>
+      <td>${fmt(res.potAmount, 18, 5)} ETH</td>
       <td class="${yieldAmt != null && !yieldAmt.isZero() ? "td-in" : ""}">${yieldAmt != null ? "+" + fmt(yieldAmt, 18, 6) + " ETH" : "—"}</td>
       <td>${res.winners.length}</td>
-      <td>${fmt(res.remainder, 18, 4)} ETH</td>
+      <td>${fmt(res.remainder, 18, 5)} ETH</td>
       <td>${entries ?? "—"}</td>
     </tr>`).join("");
 
