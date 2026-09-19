@@ -1,9 +1,16 @@
 name: TimbSwap Match Notifier
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
 
 on:
   workflow_dispatch:
 
-# Read-only on-chain + idempotent DMs (deduped in Postgres); overlap is harmless.
+# One notifier at a time: a run lingers ~55 min polling for the segment-1 lock
+# (MATCH_LINGER_MINUTES), so overlapping ticks queue. Read-only on-chain and
+# the DMs are deduped in Postgres, so a queued run starting late is harmless.
 concurrency:
   group: timbswap-match-notifier
   cancel-in-progress: false
@@ -12,7 +19,8 @@ jobs:
   notify:
     name: DM holders whose first letter matches segment 1
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Must exceed MATCH_LINGER_MINUTES (default 55).
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v5
@@ -35,4 +43,7 @@ jobs:
           TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_BOT_USERNAME: SettlerTimbBot
           COMPETE_URL:           https://timbswap.xyz/compete
+          MATCH_LINGER_MINUTES:  ${{ vars.MATCH_LINGER_MINUTES }}
+          MATCH_POLL_SECONDS:    ${{ vars.MATCH_POLL_SECONDS }}
+          MATCH_RESCAN_SECONDS:  ${{ vars.MATCH_RESCAN_SECONDS }}
         run: node match-notifier.js

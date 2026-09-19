@@ -20,7 +20,7 @@ export, and a 360-minute idle timeout. Details: [`dev-docs/EMAIL_LOGIN.md`](./de
 | `abi/` | Published ABIs |
 | `assets/`, `vendor/` | Email-wallet sheet (`email-login.js`) and the esbuild bundles it loads (Privy core, WebAuthn, HPKE, QR); rebuilt by `scripts/build-vendor.mjs` |
 | `tests/` | Foundry tests |
-| `scripts/` | Deploy scripts and keepers (settler, epoch, notifiers) |
+| `scripts/` | Deploy scripts, keepers (settler, epoch, faucet, notifiers), the witness fleet (heartbeat, settler liveness, epoch / faucet / points reconciliation, dead-man switch; `dev-docs/KEEPER_FLEET.md`), their shared plumbing in `lib/`, and `seed-pools.js` for the mainnet pools (`dev-docs/MAINNET_LP_SEED.md`) |
 | `workers/` | Cloudflare Worker — first-party `/api/*` (RPC + telemetry) |
 | `supabase/` | Migrations + edge functions |
 | the page dirs | Static frontend (vanilla JS) served on GitHub Pages |

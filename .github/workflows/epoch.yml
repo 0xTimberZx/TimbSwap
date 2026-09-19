@@ -4,6 +4,21 @@ name: TimbSwap Epoch Distributor
 # Slow cadence on purpose: the epoch settles once per 6 rounds, and boost
 # draws are batched — per-claim immediacy is not needed because boost
 # emissions self-target over ~6 rounds.
+#
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six
+# (measured 2026-09-18: this two-hour cron ran at 00:20, 07:24, 12:58, 17:41),
+# so like the settler, the faucet, the notifiers and the heartbeat this job
+# self-chains: run, commit state, sleep EPOCH_LINGER_MINUTES, dispatch the next
+# run. Cron is only the backstop that restarts a broken chain. The chain
+# continues after a run that failed (the linger paces it, so a persistent
+# failure is one red run every two hours that the heartbeat's failing streak
+# reports, rather than silence until a throttled cron tick) but never after a
+# manual dry-run, which is a one-off by definition.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
 
 on:
   workflow_dispatch:
@@ -18,6 +33,7 @@ on:
           - dry-run
 
 # Never two distributors at once — double-settling an epoch double-pays.
+# A run now lingers ~2 h, so queued cron backstops wait and are dropped.
 concurrency:
   group: timbswap-epoch
   cancel-in-progress: false
@@ -29,7 +45,8 @@ jobs:
   distribute:
     name: Distribute epoch rewards
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Must exceed EPOCH_LINGER_MINUTES (default 120) plus the run itself.
+    timeout-minutes: 140
 
     steps:
       - name: Checkout repo
@@ -46,7 +63,12 @@ jobs:
         run: npm install ethers
         working-directory: scripts
 
+      # continue-on-error: a failed distribution must still commit whatever
+      # state it saved, linger, and chain. The job is marked red at the end
+      # from this step's outcome, so nothing about visibility changes.
       - name: Run epoch distributor
+        id: epoch
+        continue-on-error: true
         working-directory: scripts
         env:
           ARB_SEPOLIA_RPC:     ${{ secrets.ARB_SEPOLIA_RPC }}
@@ -54,11 +76,11 @@ jobs:
           # withdrawToken() are onlyOwner. Bigger key than the settler's.
           EPOCH_PRIVATE_KEY:   ${{ secrets.EPOCH_PRIVATE_KEY }}
           EPOCH_GENESIS_BLOCK: ${{ vars.EPOCH_GENESIS_BLOCK }}
-          # Minimum emission window. Raised 4 -> 24 days to stretch the
-          # farm's over-granted balance (~34.9k TIMBS from the #245 retry
-          # loop) thin instead of burning it down in 4 days. Lower it back
-          # to 4 once the surplus has drained.
-          EMIT_FLOOR_DAYS:     "24"
+          # Fixed emission period. notifyRewardAmount re-anchors periodFinish
+          # to now + this on every successful grant and rolls the leftover in,
+          # so the pools hold a steady 90-day window instead of the window the
+          # old adaptive sizing computed. dev-docs/EMISSIONS_SCHEDULE.md §6.
+          EMIT_PERIOD_DAYS:    "90"
           TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -90,3 +112,9 @@ jobs:
           # --autostash tucks that noise away across the rebase.
           git pull --rebase --autostash origin main
           git push origin main
+
+      - name: Mark the run red on a failed distribution
+        if: steps.epoch.outcome == 'failure'
+        run: |
+          echo "The epoch distributor step failed — see its log above."
+          exit 1

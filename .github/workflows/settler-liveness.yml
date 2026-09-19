@@ -1,0 +1,119 @@
+name: TimbSwap Settler Liveness
+
+# Is the prize game where its clock says it should be? (scripts/settler-liveness.js)
+# The settler's self-chain covers scheduling gaps only after a run that
+# succeeded, and the fleet heartbeat sees that a settler run happened, not what
+# it did. This witness reads TimbPrize directly: if the current segment is more
+# than a few minutes past its grid mark it alerts, and says from the VRF
+# module's state whether the segment was never armed, is waiting on Chainlink,
+# needs a re-request, or has its word and nobody is locking it. It also checks
+# the lock state against the segment counter and the previous round's result.
+# No private key; it never calls the contract. Reads go through the public RPC.
+#
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six
+# (measured 2026-09-18), so like the rest of the fleet this job self-chains:
+# check, commit state, sleep SETTLER_LIVENESS_LINGER_MINUTES, dispatch the next
+# run. Cron is only the backstop. The chain continues after a run WITH findings
+# (a stuck game is when the watch matters most) but not after a crash before
+# the assessment.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-settler-liveness
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/settler-liveness-state.json back
+
+jobs:
+  check:
+    name: Check the game clock
+    runs-on: ubuntu-latest
+    # Must exceed SETTLER_LIVENESS_LINGER_MINUTES (default 15) plus the check.
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Self-test the assessment logic
+        working-directory: scripts
+        run: node settler-liveness.js --self-test
+
+      # continue-on-error: a run with findings exits 1 by design, but the state
+      # commit, the linger and the dispatch below must still happen. The job is
+      # marked red again at the end from the `findings` output.
+      - name: Check the live game
+        id: check
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          # Reads only, so the public RPC from config.js; a repo variable
+          # LIVENESS_RPC overrides it. Not the metered secret (KEEPER_FLEET.md rule 6).
+          LIVENESS_RPC:        ${{ vars.LIVENESS_RPC }}
+          SETTLER_OVERDUE_MIN: ${{ vars.SETTLER_OVERDUE_MIN }}
+          SETTLER_REALERT_MIN: ${{ vars.SETTLER_REALERT_MIN }}
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OPS_MODE:   ${{ vars.TELEGRAM_OPS_MODE }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node settler-liveness.js --report
+          else
+            node settler-liveness.js
+          fi
+
+      # The state file holds the last-alerted stamps. Commit it back even when
+      # the check found problems (that is precisely when the stamp matters).
+      - name: Commit state
+        if: always()
+        run: |
+          if [ ! -f scripts/settler-liveness-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/settler-liveness-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/settler-liveness-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "settler-liveness[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/settler-liveness-state.json
+          git commit -m "[skip ci] settler liveness: update alert state"
+          # npm install dirties scripts/; --autostash keeps the rebase clean.
+          git pull --rebase --autostash origin main
+          git push origin main
+
+      - name: Mark the run red on findings
+        if: steps.check.outputs.findings != '0'
+        run: |
+          echo "Liveness findings this run: ${{ steps.check.outputs.findings }} (see the check step)."
+          exit 1

@@ -1,0 +1,122 @@
+name: TimbSwap Points Reconciliation
+
+# Does the leaderboard say what the chain says? (scripts/points-recon.js)
+# The scorer folds activity behind a settlement lag and keeps its cursors in
+# the seasons row; a cursor that skips or replays a window mis-scores everyone
+# and the board still looks plausible. This witness keeps a shadow ledger from
+# the same events by its own path, with its own cursor, and compares every
+# wallet's counters and display score to the board. It reads the season's
+# configuration and the board, never the scorer's cursors, and writes nothing
+# to Supabase. No private key. Reads go through the public RPC (rule 6).
+#
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six
+# (measured 2026-09-18), so like the rest of the fleet this job self-chains:
+# check, commit state, sleep POINTS_RECON_LINGER_MINUTES, dispatch the next
+# run. Cron is only the backstop. The chain continues after a run WITH
+# findings but not after a crash before the assessment.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-points-recon
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/points-recon-state.json back
+
+jobs:
+  check:
+    name: Reconcile the leaderboard
+    runs-on: ubuntu-latest
+    # Must exceed POINTS_RECON_LINGER_MINUTES (default 60) plus the check.
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Self-test the reconciliation logic
+        working-directory: scripts
+        run: node points-recon.js --self-test
+
+      # continue-on-error: a run with findings exits 1 by design, but the state
+      # commit, the linger and the dispatch below must still happen. The job is
+      # marked red again at the end from the `findings` output.
+      - name: Reconcile the live board
+        id: check
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          # Reads only: the same public endpoint the scorer scans, or its
+          # override. Not the metered secret.
+          POINTS_RPC:           ${{ vars.POINTS_RPC || 'https://sepolia-rollup.arbitrum.io/rpc' }}
+          POINTS_RECON_CHUNK:   ${{ vars.POINTS_RECON_CHUNK }}
+          POINTS_GRACE_MIN:     ${{ vars.POINTS_GRACE_MIN }}
+          POINTS_REALERT_MIN:   ${{ vars.POINTS_REALERT_MIN }}
+          # points_wallets and seasons have RLS with no anon policy; the
+          # service key is the only reader, as for the scorer.
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OPS_MODE:    ${{ vars.TELEGRAM_OPS_MODE }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node points-recon.js --report
+          else
+            node points-recon.js
+          fi
+
+      # The state file is the shadow ledger and its cursors. Commit it back
+      # even when the check found problems.
+      - name: Commit state
+        if: always()
+        run: |
+          if [ ! -f scripts/points-recon-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/points-recon-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/points-recon-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "points-recon[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/points-recon-state.json
+          git commit -m "[skip ci] points recon: update shadow ledger"
+          # npm install dirties scripts/; --autostash keeps the rebase clean.
+          git pull --rebase --autostash origin main
+          git push origin main
+
+      - name: Mark the run red on findings
+        if: steps.check.outputs.findings != '0'
+        run: |
+          echo "Reconciliation findings this run: ${{ steps.check.outputs.findings }} (see the check step)."
+          exit 1

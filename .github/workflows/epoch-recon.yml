@@ -1,0 +1,127 @@
+name: TimbSwap Epoch Reconciliation
+
+# Did the epoch keeper grant what the chain says it should have?
+# (scripts/epoch-recon.js). The keeper's cursor lives in epoch-state.json and
+# a wrong cursor once made every settlement look right to the keeper while
+# the pools ran dry. This witness never reads that file: it finds each farm
+# grant on chain, recomputes the waterfall from the buyback and claim events
+# over the window since the previous settlement, and compares. It also checks
+# the pools' periodFinish, an epoch boundary that passed with budget behind it
+# and no settlement, and grants with the wrong period. No private key; it
+# never calls a contract. Reads go through the public RPC (KEEPER_FLEET.md
+# rule 6): the scans are epoch-wide.
+#
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six
+# (measured 2026-09-18), so like the rest of the fleet this job self-chains:
+# check, commit state, sleep EPOCH_RECON_LINGER_MINUTES, dispatch the next run.
+# Cron is only the backstop. The chain continues after a run WITH findings but
+# not after a crash before the assessment.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-epoch-recon
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/epoch-recon-state.json back
+
+jobs:
+  check:
+    name: Reconcile epoch grants
+    runs-on: ubuntu-latest
+    # Must exceed EPOCH_RECON_LINGER_MINUTES (default 120) plus the check.
+    timeout-minutes: 140
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Self-test the reconciliation logic
+        working-directory: scripts
+        run: node epoch-recon.js --self-test
+
+      # continue-on-error: a run with findings exits 1 by design, but the state
+      # commit, the linger and the dispatch below must still happen. The job is
+      # marked red again at the end from the `findings` output.
+      - name: Reconcile the live chain
+        id: check
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          # Reads only, so the public RPC from config.js; a repo variable
+          # RECON_RPC overrides it. Not the metered secret: the scans are wide.
+          RECON_RPC:            ${{ vars.RECON_RPC }}
+          # First-run scan start: its own variable, else the keeper's genesis,
+          # else latest − 3,000,000 inside the script.
+          RECON_GENESIS_BLOCK:  ${{ vars.RECON_GENESIS_BLOCK }}
+          EPOCH_GENESIS_BLOCK:  ${{ vars.EPOCH_GENESIS_BLOCK }}
+          RECON_TOLERANCE_BPS:  ${{ vars.RECON_TOLERANCE_BPS }}
+          RECON_OVERDUE_MIN:    ${{ vars.RECON_OVERDUE_MIN }}
+          RECON_RUN_WINDOW_SEC: ${{ vars.RECON_RUN_WINDOW_SEC }}
+          RECON_REALERT_MIN:    ${{ vars.RECON_REALERT_MIN }}
+          # The keeper's own knobs, same values as epoch.yml.
+          EMIT_PERIOD_DAYS:     "90"
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OPS_MODE:    ${{ vars.TELEGRAM_OPS_MODE }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node epoch-recon.js --report
+          else
+            node epoch-recon.js
+          fi
+
+      # The state file is the scan cursor and the last settlement's window
+      # start. Commit it back even when the check found problems.
+      - name: Commit state
+        if: always()
+        run: |
+          if [ ! -f scripts/epoch-recon-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/epoch-recon-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/epoch-recon-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "epoch-recon[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/epoch-recon-state.json
+          git commit -m "[skip ci] epoch recon: update state"
+          # npm install dirties scripts/; --autostash keeps the rebase clean.
+          git pull --rebase --autostash origin main
+          git push origin main
+
+      - name: Mark the run red on findings
+        if: steps.check.outputs.findings != '0'
+        run: |
+          echo "Reconciliation findings this run: ${{ steps.check.outputs.findings }} (see the check step)."
+          exit 1

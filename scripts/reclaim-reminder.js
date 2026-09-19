@@ -29,6 +29,18 @@
 //   REMIND_LEAD_ROUNDS          default 2  (remind when forfeit is ≤ this many rounds out)
 //   SCAN_BACK_ROUNDS            default 8  (how many recent play-round buckets to scan)
 //   COMPETE_URL                 default https://timbswap.xyz/compete
+//   REMIND_LINGER_MINUTES       default 55; 0 = a single pass and exit
+//   REMIND_POLL_SECONDS         default 60  (how often the round number is checked)
+//   REMIND_RESCAN_SECONDS       default 900 (full pass even if the round has not moved)
+//
+// Pacing: one run LINGERS and self-chains (like the settler, the faucet, and
+// the match notifier) because GitHub fires an hourly cron late and unevenly —
+// the fleet heartbeat measured this job's runs up to three hours apart. A
+// ticket's at-risk status only changes when the round advances, so the loop
+// polls currentRound cheaply every REMIND_POLL_SECONDS and runs the full
+// entrant walk when the round moves, plus every REMIND_RESCAN_SECONDS to catch
+// a holder who opted in mid-round. Reminders therefore land minutes after a
+// rollover instead of up to an hour (or three) later.
 
 const { ethers } = require("ethers");
 const fs   = require("fs");
@@ -113,17 +125,17 @@ function reclaimLink(wallet) {
   return BOT_USER ? `https://t.me/${BOT_USER}` : COMPETE;
 }
 
-async function main() {
-  if (!RPC_URL) throw new Error("Missing ARB_RPC / ARB_SEPOLIA_RPC");
-  if (!SB_URL || !SB_KEY) throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_KEY");
-  if (!TG_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
+// `||`, not `??`: the workflow passes an UNSET repo variable as an empty string,
+// which `??` keeps and Number("") turns into 0 — a zero-minute linger that
+// exits at once and, with a dispatch token present, chains runs back to back.
+// An explicit "0" is a non-empty string, so it still means a single pass.
+const LINGER_MS = Number(process.env.REMIND_LINGER_MINUTES || 55) * 60 * 1000;
+const POLL_MS   = Number(process.env.REMIND_POLL_SECONDS   || 60) * 1000;
+const RESCAN_MS = Number(process.env.REMIND_RESCAN_SECONDS || 900) * 1000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const registry = new ethers.Contract(REGISTRY_ADDR, REGISTRY_ABI, provider);
-
-  const gen = await registry.generation();
-  const cr  = await registry.currentRound();
-  if (cr === 0n) { console.log("[reminder] game not started — nothing to do."); return; }
+/** One full pass: walk the recent round buckets and DM the at-risk subscribers. */
+async function pass(registry, gen, cr) {
 
   // Gather candidate wallets from the recent play-round buckets. A ticket that
   // plays round r has forfeitRound r+4 (or r+6 if it won late), so the buckets
@@ -186,6 +198,53 @@ async function main() {
 
   console.log(`[reminder] gen ${gen} round ${cr}: ${wallets.size} candidates, ${atRisk} at-risk, ${sent} reminded.`);
   if (sent > 0) await opsNotify(`🕒 Sent ${sent} reclaim reminder(s) (round ${cr}).`);
+}
+
+async function main() {
+  if (!RPC_URL) throw new Error("Missing ARB_RPC / ARB_SEPOLIA_RPC");
+  if (!SB_URL || !SB_KEY) throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_KEY");
+  if (!TG_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
+
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const registry = new ethers.Contract(REGISTRY_ADDR, REGISTRY_ABI, provider);
+
+  const startedAt = Date.now();
+  let polls = 0, passes = 0, failures = 0, lastError = null;
+  let lastKey = null, lastPassAt = 0;   // gen:round of the last full pass, and when
+
+  for (;;) {
+    try {
+      const gen = await registry.generation();
+      const cr  = await registry.currentRound();
+      polls++;
+      if (cr === 0n) {
+        console.log("[reminder] game not started — nothing to do.");
+      } else {
+        const key = `${gen}:${cr}`;
+        const since = Date.now() - lastPassAt;
+        if (key !== lastKey || since >= RESCAN_MS) {
+          await pass(registry, gen, cr);
+          passes++;
+          lastKey = key; lastPassAt = Date.now();
+        } else {
+          console.log(`[reminder] round ${cr}: walked ${Math.round(since / 1000)}s ago, next full pass in ${Math.round((RESCAN_MS - since) / 1000)}s or at rollover`);
+        }
+      }
+    } catch (err) {
+      failures++;
+      lastError = err?.shortMessage || err?.message || String(err);
+      console.error(`[reminder] poll failed: ${lastError}`);
+      if (failures === 1) await opsNotify(`💥 Reclaim-reminder poll failed (lingering on)\n${lastError}`);
+    }
+
+    if (Date.now() - startedAt + POLL_MS > LINGER_MS) break;
+    await sleep(POLL_MS);
+  }
+
+  console.log(`[reminder] linger done: ${polls} poll(s), ${passes} full pass(es), ${failures} failure(s).`);
+  // Every poll failed: exit non-zero so the workflow does NOT self-chain and the
+  // cron backstop takes over — a broken RPC must not perpetuate itself.
+  if (polls === 0 && failures > 0) throw new Error(`all polls failed: ${lastError}`);
 }
 
 main().catch(async (err) => {

@@ -1,0 +1,117 @@
+name: TimbSwap Dead-Man Switch
+
+# The ping an outside service expects, sent only while the heartbeat is alive
+# (scripts/dead-man.js). The heartbeat cannot see its own absence or GitHub
+# Actions stopping altogether; both look like nothing from inside. This job
+# reads the heartbeat's runs with the heartbeat's own rules and, if it is
+# alive, pings DEADMAN_PING_URL (a Healthchecks.io check, a Cronitor or Uptime
+# Kuma push URL: anything that alerts when an expected call stops). If Actions
+# stops, no ping arrives. If the heartbeat dies, the ping is withheld. The
+# heartbeat watches this job back; neither dispatches the other.
+#
+# Pacing: self-chains at DEADMAN_LINGER_MINUTES (default 30) with the :19/:49
+# cron as backstop, offset from the heartbeat's :09/:39. The chain continues
+# after a run with findings but not after a crash before the assessment.
+#
+# Wiring: create a check at the outside service with a period of 30 minutes
+# and a grace of 30, and put its ping URL in the DEADMAN_PING_URL secret
+# (Healthchecks also accepts <ping url>/fail as DEADMAN_FAIL_URL). Until the
+# secret exists this job reports `unset` so an unwired switch is never
+# mistaken for a working one.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-dead-man
+  cancel-in-progress: false
+
+permissions:
+  actions: read     # list the heartbeat's runs
+  contents: write   # commits scripts/dead-man-state.json back
+
+jobs:
+  ping:
+    name: Ping while the heartbeat is alive
+    runs-on: ubuntu-latest
+    # Must exceed DEADMAN_LINGER_MINUTES (default 30) plus the check.
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Self-test the decision logic
+        working-directory: scripts
+        run: node dead-man.js --self-test
+
+      # continue-on-error: a run with findings exits 1 by design, but the state
+      # commit, the linger and the dispatch below must still happen.
+      - name: Check the heartbeat and ping
+        id: check
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          GITHUB_TOKEN:          ${{ secrets.GITHUB_TOKEN }}
+          DEADMAN_PING_URL:      ${{ secrets.DEADMAN_PING_URL }}
+          DEADMAN_FAIL_URL:      ${{ secrets.DEADMAN_FAIL_URL }}
+          DEADMAN_SLACK:         ${{ vars.DEADMAN_SLACK }}
+          DEADMAN_GRACE_MIN:     ${{ vars.DEADMAN_GRACE_MIN }}
+          DEADMAN_FAIL_STREAK:   ${{ vars.DEADMAN_FAIL_STREAK }}
+          DEADMAN_RUNAWAY_COUNT: ${{ vars.DEADMAN_RUNAWAY_COUNT }}
+          DEADMAN_REALERT_MIN:   ${{ vars.DEADMAN_REALERT_MIN }}
+          TELEGRAM_BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OPS_MODE:     ${{ vars.TELEGRAM_OPS_MODE }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node dead-man.js --report
+          else
+            node dead-man.js
+          fi
+
+      - name: Commit state
+        if: always()
+        run: |
+          if [ ! -f scripts/dead-man-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/dead-man-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/dead-man-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "dead-man[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/dead-man-state.json
+          git commit -m "[skip ci] dead-man: update alert state"
+          git pull --rebase --autostash origin main
+          git push origin main
+
+      - name: Mark the run red on findings
+        if: steps.check.outputs.findings != '0'
+        run: |
+          echo "Dead-man findings this run: ${{ steps.check.outputs.findings }} (see the check step)."
+          exit 1

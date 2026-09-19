@@ -34,8 +34,11 @@
 // needs EPOCH_GENESIS_BLOCK to bound the first event scan.
 
 const { ethers } = require("ethers");
-const fs   = require("fs");
 const path = require("path");
+const { addrFromConfig, rpcFromConfig } = require("./lib/config");
+const { sumEvents } = require("./lib/logs");
+const { loadState, saveState } = require("./lib/state");
+const { makeTelegram } = require("./lib/telegram");
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -89,71 +92,23 @@ const BUYBACK_SLIP_BPS_ENV  = process.env.BUYBACK_SLIPPAGE_BPS ? BigInt(process.
 const BUYBACK_MAX_ETH_ENV   = process.env.BUYBACK_MAX_ETH      ? ethers.parseEther(process.env.BUYBACK_MAX_ETH) : null;
 const ARB_ONE_CHAIN_ID = 42161n;
 
-// Addresses from config.js — same single source of truth as the settler.
-function addrFromConfig(key, { optional = false } = {}) {
-  const src = fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8");
-  const m = src.match(new RegExp("\\b" + key + '\\s*:\\s*"(0x[0-9a-fA-F]{40})"'));
-  if (!m) {
-    if (optional) return null;
-    throw new Error(`Address "${key}" not found in config.js — refusing to start epoch keeper`);
-  }
-  return ethers.getAddress(m[1]);
-}
-
-// Canonical public RPC from config.js — used for ALL reads and event scans.
-// Metered providers (QuickNode/Alchemy free tiers) cap eth_getLogs to tiny
-// block ranges (observed live: 10 blocks), which makes epoch-wide scans
-// impossible; the canonical endpoint serves large ranges — the explore page
-// already scans it from browsers. The ARB_SEPOLIA_RPC secret is only used
-// to SEND transactions (falls back to the canonical RPC if unset).
-//
-// Reading it out of config.js by regex is brittle by nature: this broke silently
-// once already when the multi-RPC refactor turned `const RPC_URL = "https://…"`
-// into `const RPC_URL = PUBLIC_RPCS[0]`. The pattern needed a quoted literal,
-// matched nothing, and the keeper threw on startup — every scheduled run failed
-// before doing any work. So try the literal first, then fall back to the first
-// entry of the PUBLIC_RPCS array, then to a hardcoded canonical endpoint. The
-// keeper must not be one refactor away from dead.
-const CANONICAL_RPC = "https://sepolia-rollup.arbitrum.io/rpc";
-
-function rpcFromConfig() {
-  let src = "";
-  try {
-    src = fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8");
-  } catch (e) {
-    console.warn(`config.js unreadable (${e.message}) — using canonical RPC`);
-    return CANONICAL_RPC;
-  }
-
-  // 1. A directly-assigned string literal (the pre-refactor shape).
-  const lit = src.match(/\bRPC_URL\s*=\s*"(https?:\/\/[^"]+)"/);
-  if (lit) return lit[1];
-
-  // 2. The first entry of the PUBLIC_RPCS array, which is what RPC_URL now
-  //    aliases. Deliberately PUBLIC and not DEDICATED_RPC: the keyed endpoint is
-  //    the frontend's browser quota, and epoch scans are wide eth_getLogs ranges
-  //    that would burn it. The canonical endpoint serves large ranges.
-  const arr = src.match(/\bPUBLIC_RPCS\s*=\s*\[([\s\S]*?)\]/);
-  if (arr) {
-    const first = arr[1].match(/"(https?:\/\/[^"]+)"/);
-    if (first) return first[1];
-  }
-
-  // 3. Nothing parsed. Warn loudly but RUN — a keeper that refuses to start is
-  //    worse than one on a known-good default, because a stalled epoch silently
-  //    stops emissions (and the re-grant incident showed how expensive a stuck
-  //    keeper gets).
-  console.warn("RPC_URL/PUBLIC_RPCS not parseable from config.js — using canonical RPC");
-  return CANONICAL_RPC;
-}
-
+// Addresses and the public RPC come from lib/config.js — the same single
+// source of truth as the settler and every witness. The address reader fails
+// loud on a missing key, a malformed address or the zero address. The RPC
+// reader is the canonical PUBLIC endpoint, deliberately: metered providers cap
+// eth_getLogs to tiny ranges (observed live: 10 blocks) and epoch scans are
+// wide; it tolerates config.js's previous shape and falls back to a known
+// default rather than refusing to start, because a stalled epoch silently
+// stops emissions. The ARB_SEPOLIA_RPC secret is only used to SEND.
 const TIMBPRIZE_ADDR   = addrFromConfig("TimbPrize");
 const TIMBSTAKING_ADDR = addrFromConfig("TimbStaking");
 const TIMBFARM_ADDR    = addrFromConfig("TimbFarm");
 const TREASURY_ADDR    = addrFromConfig("TimbTreasury");
 const TIMBS_ADDR       = addrFromConfig("TIMBSToken");
-// Boost farm ships after this keeper — treat "not in config yet" as disabled.
-const BOOSTFARM_ADDR   = addrFromConfig("TimbBoostFarm", { optional: true });
+// Boost farm ships after this keeper — treat "not in config yet" (or the zero
+// placeholder) as disabled rather than refusing to start.
+let BOOSTFARM_ADDR = null;
+try { BOOSTFARM_ADDR = addrFromConfig("TimbBoostFarm"); } catch (_e) { /* not wired */ }
 
 // ─── ABIs (minimal) ──────────────────────────────────────────────────────────
 
@@ -189,12 +144,12 @@ const ERC20_ABI = [
   "function balanceOf(address) external view returns (uint256)",
 ];
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ─── State (lib/state.js) ────────────────────────────────────────────────────
+// The file is the epoch cursor, so it is never keyed to a deployment and never
+// discarded: a game redeploy is handled by the reset detection in main().
+// The first run needs EPOCH_GENESIS_BLOCK to bound the first scan.
 
-function loadState() {
-  if (fs.existsSync(STATE_PATH)) {
-    return JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
-  }
+function freshState() {
   const genesis = process.env.EPOCH_GENESIS_BLOCK;
   if (!genesis) {
     throw new Error(
@@ -211,37 +166,17 @@ function loadState() {
   };
 }
 
-function saveState(state) {
-  fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + "\n");
-}
+// ─── Event scans: lib/logs.js sumEvents, chunked at LOG_CHUNK ────────────────
+// (provider, iface, eventName, address, from, to, pick) — the provider's own
+// message is surfaced when a chunk fails.
+const sumChunked = (provider, address, iface, eventName, from, to, pick) =>
+  sumEvents(provider, iface, eventName, address, from, to, pick, { chunk: LOG_CHUNK });
 
-// ─── Event scans (chunked getLogs) ───────────────────────────────────────────
-
-async function sumEvents(provider, address, iface, eventName, fromBlock, toBlock, pick) {
-  let total = 0n;
-  const topic = iface.getEvent(eventName).topicHash;
-  for (let from = fromBlock; from <= toBlock; from += LOG_CHUNK) {
-    const to = Math.min(from + LOG_CHUNK - 1, toBlock);
-    const logs = await provider.getLogs({ address, topics: [topic], fromBlock: from, toBlock: to });
-    for (const log of logs) {
-      total += pick(iface.parseLog(log).args);
-    }
-  }
-  return total;
-}
-
-// ─── Telegram (ops-only, best-effort) ────────────────────────────────────────
-
-async function tg(text) {
-  if (!TG_TOKEN || !TG_CHAT_ID) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: TG_CHAT_ID, text, disable_web_page_preview: true }),
-    });
-  } catch (e) { console.error("telegram failed (non-fatal):", e.message); }
-}
+// ─── Telegram (ops-only, best-effort; lib/telegram.js) ───────────────────────
+// Plain text, previews off, no ops-mode switch: the keeper's messages are
+// grants and failures, and it never honoured the switch before either.
+const telegram = makeTelegram({ token: TG_TOKEN, chatId: TG_CHAT_ID, tag: "epoch" });
+const tg = (text) => telegram.send(text);
 
 const fmt = (wei) => ethers.formatEther(wei);
 
@@ -266,7 +201,7 @@ async function main() {
   const claimsIface   = new ethers.Interface(CLAIM_EVENT_ABI);
   const treasuryIface = new ethers.Interface(TREASURY_ABI);
 
-  const state    = loadState();
+  const state    = loadState(STATE_PATH, freshState, { label: "epoch state" });
   const nowBlock = await provider.getBlockNumber();
   const round    = Number(await prize.currentRound());
   const epochOf  = (r) => Math.floor((r - 1) / ROUNDS_PER_EPOCH); // rounds 1-6 = epoch 0
@@ -362,15 +297,15 @@ async function main() {
   if (due) {
     const fromBlock = state.lastEpochBlock + 1;
 
-    const y = await sumEvents(provider, TIMBFARM_ADDR, claimsIface, "RewardsClaimed",
+    const y = await sumChunked(provider, TIMBFARM_ADDR, claimsIface, "RewardsClaimed",
       fromBlock, nowBlock, (a) => a.amount);
-    const w = await sumEvents(provider, TIMBSTAKING_ADDR, claimsIface, "RewardsClaimed",
+    const w = await sumChunked(provider, TIMBSTAKING_ADDR, claimsIface, "RewardsClaimed",
       fromBlock, nowBlock, (a) => a.amount);
     // z = the buyback "waterfall slice" retained in the Treasury this epoch —
     // the amount the Treasury explicitly earmarks for farm/staking/boost. The
     // contract emits it directly (received − burn − reserve); the reserve slice
     // stays in the balance but is deliberately NOT counted here so it stacks.
-    const z = await sumEvents(provider, TREASURY_ADDR, treasuryIface, "BuybackExecuted",
+    const z = await sumChunked(provider, TREASURY_ADDR, treasuryIface, "BuybackExecuted",
       fromBlock, nowBlock, (a) => a.timbsToWaterfall);
 
     // Waterfall — farm → staking → boost, one shared budget, never exceeds z.
@@ -446,7 +381,7 @@ async function main() {
     state.boostCursorBlock = nowBlock;
     state.boostBudget      = boostBudget.toString();
     state.boostDrawn       = "0";
-    saveState(state);
+    saveState(STATE_PATH, state);
 
     await tg(
       `⚙️ Epoch settled @ round ${round}\n` +
@@ -462,7 +397,7 @@ async function main() {
   if (boost) {
     const budget = BigInt(state.boostBudget) - BigInt(state.boostDrawn);
     if (budget > 0n && nowBlock > state.boostCursorBlock) {
-      const claims = await sumEvents(provider, TIMBFARM_ADDR, claimsIface, "RewardsClaimed",
+      const claims = await sumChunked(provider, TIMBFARM_ADDR, claimsIface, "RewardsClaimed",
         state.boostCursorBlock + 1, nowBlock, (a) => a.amount);
       let draw = (claims * BigInt(BOOST_DRAW_BPS)) / 10_000n;
       if (draw > budget) draw = budget; // truncate at the cap, then stop until next cycle
@@ -481,7 +416,7 @@ async function main() {
         console.log("no new farm claims — no boost draw");
       }
       state.boostCursorBlock = nowBlock;
-      saveState(state);
+      saveState(STATE_PATH, state);
     } else {
       console.log(budget <= 0n ? "boost budget exhausted — waiting for next epoch" : "no new blocks for boost scan");
     }
@@ -490,7 +425,10 @@ async function main() {
   }
 }
 
-main().catch(async (err) => {
+module.exports = { main };
+
+// Only run when executed directly, so a dry run can be driven by a test.
+if (require.main === module) main().catch(async (err) => {
   console.error("EPOCH KEEPER FAILED:", err);
   await tg(`🔴 Epoch keeper failed: ${err.message}`);
   process.exit(1);

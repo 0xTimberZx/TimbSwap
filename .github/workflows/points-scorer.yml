@@ -1,10 +1,25 @@
 name: TimbSwap Points Scorer
 
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six
+# (measured 2026-09-18: this hourly cron ran twice all day), so like the
+# settler, the faucet, the notifiers, the heartbeat and the epoch keeper this
+# job self-chains: run, sleep POINTS_LINGER_MINUTES, dispatch the next run.
+# Cron is only the backstop that restarts a broken chain. The chain continues
+# after a failed run: a failed scan leaves the cursor where it was and the
+# script exits non-zero so the window is retried, and an hourly retry is the
+# point — the heartbeat's failing streak reports a persistent one.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
+
 on:
   workflow_dispatch:
 
 # Incremental + idempotent (per-season cursors in Postgres); overlap is harmless
-# but pointless, so don't stack runs.
+# but pointless, so don't stack runs. A run now lingers ~1 h, so queued cron
+# backstops wait and are dropped.
 concurrency:
   group: timbswap-points-scorer
   cancel-in-progress: false
@@ -13,7 +28,8 @@ jobs:
   score:
     name: Fold new activity into Timber Points
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Must exceed POINTS_LINGER_MINUTES (default 60) plus the run itself.
+    timeout-minutes: 75
 
     steps:
       - uses: actions/checkout@v5
@@ -25,7 +41,12 @@ jobs:
         run: npm install ethers
         working-directory: scripts
 
+      # continue-on-error: a failed scan must still linger and chain so the
+      # window is retried in an hour. The job is marked red at the end from
+      # this step's outcome, so nothing about visibility changes.
       - name: Run points scorer
+        id: score
+        continue-on-error: true
         working-directory: scripts
         env:
           # getLogs endpoint: the keyed Sepolia RPC is free-tier (10-block getLogs cap).
@@ -39,3 +60,9 @@ jobs:
           TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node points-scorer.js
+
+      - name: Mark the run red on a failed scan
+        if: steps.score.outcome == 'failure'
+        run: |
+          echo "The points scorer step failed — see its log above; the cursor was not advanced and the window retries next run."
+          exit 1
