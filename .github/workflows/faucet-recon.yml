@@ -1,0 +1,121 @@
+name: TimbSwap Faucet Reconciliation
+
+# Do the faucet's three records agree about who was paid?
+# (scripts/faucet-recon.js). A claim leaves a `sent` row in Supabase with its
+# transaction hash, a Dispensed event in that transaction, and the contract's
+# lastClaimAt for the wallet. The invariants monitor reconciles events against
+# the contract; this witness adds the database leg and pairs the three, so a
+# disagreement says which leg lied. It reads all three, writes none, holds no
+# key. Reads go through the public RPC (KEEPER_FLEET.md rule 6).
+#
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six
+# (measured 2026-09-18), so like the rest of the fleet this job self-chains:
+# check, commit state, sleep FAUCET_RECON_LINGER_MINUTES, dispatch the next
+# run. Cron is only the backstop. The chain continues after a run WITH
+# findings but not after a crash before the assessment.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-faucet-recon
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/faucet-recon-state.json back
+
+jobs:
+  check:
+    name: Reconcile faucet records
+    runs-on: ubuntu-latest
+    # Must exceed FAUCET_RECON_LINGER_MINUTES (default 60) plus the check.
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Self-test the reconciliation logic
+        working-directory: scripts
+        run: node faucet-recon.js --self-test
+
+      # continue-on-error: a run with findings exits 1 by design, but the state
+      # commit, the linger and the dispatch below must still happen. The job is
+      # marked red again at the end from the `findings` output.
+      - name: Reconcile the live records
+        id: check
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          # Reads only: the public RPC from config.js, or the FAUCET_RPC
+          # variable the invariants monitor also uses. Not the metered secret.
+          FAUCET_RPC:           ${{ vars.FAUCET_RPC }}
+          FAUCET_GENESIS_BLOCK: ${{ vars.FAUCET_GENESIS_BLOCK }}
+          # faucet_claims has RLS with no anon policy; the service key is the
+          # only reader, as for the worker, the notifier and the scorer.
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RECON_LAG_MIN:        ${{ vars.FAUCET_RECON_LAG_MIN }}
+          RECON_REALERT_MIN:    ${{ vars.FAUCET_RECON_REALERT_MIN }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OPS_MODE:    ${{ vars.TELEGRAM_OPS_MODE }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node faucet-recon.js --report
+          else
+            node faucet-recon.js
+          fi
+
+      # The state file is the two cursors and the unmatched items still inside
+      # the lag. Commit it back even when the check found problems.
+      - name: Commit state
+        if: always()
+        run: |
+          if [ ! -f scripts/faucet-recon-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/faucet-recon-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/faucet-recon-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "faucet-recon[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/faucet-recon-state.json
+          git commit -m "[skip ci] faucet recon: update state"
+          # npm install dirties scripts/; --autostash keeps the rebase clean.
+          git pull --rebase --autostash origin main
+          git push origin main
+
+      - name: Mark the run red on findings
+        if: steps.check.outputs.findings != '0'
+        run: |
+          echo "Reconciliation findings this run: ${{ steps.check.outputs.findings }} (see the check step)."
+          exit 1

@@ -7,8 +7,10 @@ name: TimbSwap Faucet Invariants
 # reads the chain and commits a compact cursor/tally state back, like the epoch
 # keeper. Claims are paced daily, so every six hours is plenty.
 #
-# Mirror note: the live repo runs this on a six-hour cron. Here it is manual
-# only, like the epoch keeper, so the two checkouts do not double-alert.
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
 
 on:
   workflow_dispatch:

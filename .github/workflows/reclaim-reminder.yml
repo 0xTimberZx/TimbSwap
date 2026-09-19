@@ -1,10 +1,16 @@
 name: TimbSwap Reclaim Reminder
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
 
 on:
   workflow_dispatch:
 
-# Read-only on-chain + idempotent DMs (deduped in Postgres), so overlap is
-# harmless — but one at a time keeps the logs and DB writes clean.
+# One reminder at a time: a run lingers ~55 min watching the round number
+# (REMIND_LINGER_MINUTES), so overlapping ticks queue. Read-only on-chain and
+# the DMs are deduped in Postgres, so a queued run starting late is harmless.
 concurrency:
   group: timbswap-reclaim-reminder
   cancel-in-progress: false
@@ -13,7 +19,8 @@ jobs:
   remind:
     name: DM holders before their refund lapses
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Must exceed REMIND_LINGER_MINUTES (default 55).
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v5
@@ -38,4 +45,7 @@ jobs:
           REMIND_LEAD_ROUNDS:    ${{ vars.REMIND_LEAD_ROUNDS }}
           SCAN_BACK_ROUNDS:      ${{ vars.RECLAIM_SCAN_BACK_ROUNDS }}
           COMPETE_URL:           https://timbswap.xyz/compete
+          REMIND_LINGER_MINUTES: ${{ vars.REMIND_LINGER_MINUTES }}
+          REMIND_POLL_SECONDS:   ${{ vars.REMIND_POLL_SECONDS }}
+          REMIND_RESCAN_SECONDS: ${{ vars.REMIND_RESCAN_SECONDS }}
         run: node reclaim-reminder.js

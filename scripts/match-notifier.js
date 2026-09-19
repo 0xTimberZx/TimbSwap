@@ -16,6 +16,15 @@
 //      (wallet, generation, round, segment 1), DM and record it. The matcher set
 //      is fixed the instant segment 1 locks, so this is one DM per ticket-round.
 //
+// Pacing: one run LINGERS, polling the chain every MATCH_POLL_SECONDS until
+// MATCH_LINGER_MINUTES is spent, then exits so the workflow can dispatch the
+// next run (self-chaining, like the settler and the faucet). GitHub fires a
+// 15-minute cron at a fraction of the asked rate — the fleet heartbeat measured
+// this job's runs two to five hours apart — so cron is the backstop, not the
+// clock. A round that has already been scanned is re-scanned only every
+// MATCH_RESCAN_SECONDS, which still catches a holder who opts in mid-round
+// without hammering the RPC once the first pass has DMed everyone.
+//
 // Env:
 //   ARB_RPC / ARB_SEPOLIA_RPC   RPC (mainnet Arb One at launch)
 //   SUPABASE_URL                https://<project>.supabase.co
@@ -24,6 +33,9 @@
 //   TELEGRAM_CHAT_ID            ops alerts (optional)
 //   TELEGRAM_BOT_USERNAME       for the in-DM link (optional)
 //   COMPETE_URL                 default https://timbswap.xyz/compete
+//   MATCH_LINGER_MINUTES        default 55; 0 = a single pass and exit
+//   MATCH_POLL_SECONDS          default 60
+//   MATCH_RESCAN_SECONDS        default 300 (re-scan a round already handled)
 
 const { ethers } = require("ethers");
 const fs   = require("fs");
@@ -121,16 +133,22 @@ function firstCharOfString6(b6) {
   return code > 0 ? String.fromCharCode(code) : "";
 }
 
-async function main() {
-  if (!RPC_URL) throw new Error("Missing ARB_RPC / ARB_SEPOLIA_RPC");
-  if (!SB_URL || !SB_KEY) throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_KEY");
-  if (!TG_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
+// `||`, not `??`: the workflow passes an UNSET repo variable as an empty string,
+// which `??` keeps and Number("") turns into 0 — a zero-minute linger that
+// exits at once and, with a dispatch token present, chains runs back to back.
+// An explicit "0" is a non-empty string, so it still means a single pass.
+const LINGER_MS  = Number(process.env.MATCH_LINGER_MINUTES || 55) * 60 * 1000;
+const POLL_MS    = Number(process.env.MATCH_POLL_SECONDS   || 60) * 1000;
+const RESCAN_MS  = Number(process.env.MATCH_RESCAN_SECONDS || 300) * 1000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const registry = new ethers.Contract(REGISTRY_ADDR, REGISTRY_ABI, provider);
-  const prize    = new ethers.Contract(PRIZE_ADDR, PRIZE_ABI, provider);
-
-  if (!(await prize.gameStarted())) { console.log("[match] game not started — nothing to do."); return; }
+/**
+ * One pass over the current round. Returns a short status string for the log,
+ * and "scanned" when it walked the entrants (so the linger loop can slow the
+ * re-scan of a round it has already handled).
+ */
+async function pass(registry, prize) {
+  if (!(await prize.gameStarted())) return "game not started";
 
   const round = await prize.currentRound();
   const seg   = await prize.currentSegment();
@@ -138,19 +156,17 @@ async function main() {
   // Segment 1 must be LOCKED. It locks as the round advances past it; its matcher
   // set is then fixed for the round. Once we're well past it, the early polls have
   // already caught everyone, so skip the re-scan (dedupe still protects us).
-  if (!(await prize.segmentDigitLocked(MATCH_SEGMENT))) {
-    console.log(`[match] round ${round}: segment 1 not locked yet.`); return;
-  }
-  if (seg > 4n) { console.log(`[match] round ${round}: past the notify window (segment ${seg}).`); return; }
+  if (!(await prize.segmentDigitLocked(MATCH_SEGMENT))) return `round ${round}: segment 1 not locked yet`;
+  if (seg > 4n) return `round ${round}: past the notify window (segment ${seg})`;
 
   const c1byte = await prize.segmentLockedChar(MATCH_SEGMENT);
   const c1 = charOfByte1(c1byte);
-  if (!c1) { console.log(`[match] round ${round}: locked char empty — skipping.`); return; }
+  if (!c1) return `round ${round}: locked char empty`;
 
   const gen = await registry.generation();
   let entrants = [];
   try { entrants = await registry.getRoundEntrants(round); } catch (e) {
-    console.warn(`[match] getRoundEntrants(${round}) failed: ${e?.shortMessage || e?.message}`); return;
+    return `getRoundEntrants(${round}) failed: ${e?.shortMessage || e?.message}`;
   }
 
   const seen = new Set();
@@ -194,6 +210,55 @@ async function main() {
 
   console.log(`[match] gen ${gen} round ${round}: seg1='${c1}', ${matched} matching ticket(s), ${sent} notified.`);
   if (sent > 0) await opsNotify(`🎯 Sent ${sent} segment-1 match DM(s) (round ${round}, letter ${c1}).`);
+  return `scanned ${gen}:${round}`;
+}
+
+async function main() {
+  if (!RPC_URL) throw new Error("Missing ARB_RPC / ARB_SEPOLIA_RPC");
+  if (!SB_URL || !SB_KEY) throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_KEY");
+  if (!TG_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
+
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const registry = new ethers.Contract(REGISTRY_ADDR, REGISTRY_ABI, provider);
+  const prize    = new ethers.Contract(PRIZE_ADDR, PRIZE_ABI, provider);
+
+  const startedAt = Date.now();
+  let passes = 0, failures = 0, lastError = null;
+  let scannedKey = null, scannedAt = 0;   // the gen:round already walked, and when
+
+  for (;;) {
+    // Skip the expensive walk of a round handled recently; segment-1 lock and
+    // round changes are still watched every poll because `pass` reads them
+    // before deciding, and a NEW round produces a new key.
+    let result;
+    try {
+      const sinceScan = Date.now() - scannedAt;
+      if (scannedKey && sinceScan < RESCAN_MS) {
+        const round = await prize.currentRound();
+        const gen   = await registry.generation();
+        if (`${gen}:${round}` === scannedKey) result = `round ${round}: handled ${Math.round(sinceScan / 1000)}s ago, re-scan in ${Math.round((RESCAN_MS - sinceScan) / 1000)}s`;
+      }
+      if (result === undefined) {
+        result = await pass(registry, prize);
+        if (result.startsWith("scanned ")) { scannedKey = result.slice(8); scannedAt = Date.now(); }
+      }
+      passes++;
+      console.log(`[match] ${result}`);
+    } catch (err) {
+      failures++;
+      lastError = err?.shortMessage || err?.message || String(err);
+      console.error(`[match] pass failed: ${lastError}`);
+      if (failures === 1) await opsNotify(`💥 Match-notifier pass failed (lingering on)\n${lastError}`);
+    }
+
+    if (Date.now() - startedAt + POLL_MS > LINGER_MS) break;
+    await sleep(POLL_MS);
+  }
+
+  console.log(`[match] linger done: ${passes} pass(es), ${failures} failure(s).`);
+  // Every pass failed: exit non-zero so the workflow does NOT self-chain and the
+  // cron backstop takes over — a broken RPC must not perpetuate itself.
+  if (passes === 0 && failures > 0) throw new Error(`all passes failed: ${lastError}`);
 }
 
 main().catch(async (err) => {

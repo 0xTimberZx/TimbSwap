@@ -48,8 +48,11 @@
 // Flags: --self-test (synthetic cases, no network)  --report (Telegram summary even when healthy)
 
 const { ethers } = require("ethers");
-const fs   = require("fs");
 const path = require("path");
+const { addrFromConfig, rpcFromConfig } = require("./lib/config");
+const { scanEvents, blockTimestamps } = require("./lib/logs");
+const { loadState, saveState } = require("./lib/state");
+const { makeTelegram } = require("./lib/telegram");
 
 const SELF_TEST = process.argv.includes("--self-test");
 const REPORT    = process.argv.includes("--report");
@@ -68,24 +71,8 @@ const GENESIS_DEFAULT_BY_CHAIN = { 421614: 309_038_324 };
 const TG_TOKEN   = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// ─── config.js readers (same fallbacks as epoch.js) ─────────────────────────
-
-const CANONICAL_RPC = "https://sepolia-rollup.arbitrum.io/rpc";
-function configSrc() { return fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8"); }
-function addrFromConfig(key) {
-  const m = configSrc().match(new RegExp("\\b" + key + '\\s*:\\s*"(0x[0-9a-fA-F]{40})"'));
-  if (!m) throw new Error(`Address "${key}" not found in config.js`);
-  const a = ethers.getAddress(m[1]);
-  if (a === ethers.ZeroAddress) throw new Error(`"${key}" is the zero address in config.js`);
-  return a;
-}
-function rpcFromConfig() {
-  let src = ""; try { src = configSrc(); } catch (_e) { return CANONICAL_RPC; }
-  const lit = src.match(/\bRPC_URL\s*=\s*"(https?:\/\/[^"]+)"/); if (lit) return lit[1];
-  const arr = src.match(/\bPUBLIC_RPCS\s*=\s*\[([\s\S]*?)\]/);
-  if (arr) { const f = arr[1].match(/"(https?:\/\/[^"]+)"/); if (f) return f[1]; }
-  return CANONICAL_RPC;
-}
+// config.js readers: lib/config.js (addrFromConfig refuses the zero address;
+// rpcFromConfig is the canonical PUBLIC endpoint with the same fallbacks).
 
 // ─── ABI ────────────────────────────────────────────────────────────────────
 
@@ -187,7 +174,7 @@ function concentration(state, n = 5) {
   return { total, top, topShare: total === 0n ? 0 : Number(topSum * 10_000n / total) / 10_000 };
 }
 
-module.exports = { freshState, applyEvents, checkCounts, checkAggregate, checkTally, checkPacing, concentration };
+module.exports = { freshState, applyEvents, checkCounts, checkAggregate, checkTally, checkPacing, concentration, main };
 
 // ─── Self-test ──────────────────────────────────────────────────────────────
 
@@ -258,46 +245,17 @@ if (SELF_TEST) selfTest();
 
 // ─── Live run ───────────────────────────────────────────────────────────────
 
-async function tg(text) {
-  if (!TG_TOKEN || !TG_CHAT_ID) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: TG_CHAT_ID, text, disable_web_page_preview: true }),
-    });
-  } catch (e) { console.error("telegram failed (non-fatal):", e.message); }
-}
+// Telegram: plain text, previews off, best-effort (lib/telegram.js). No
+// ops-mode switch, as before: this monitor's messages are breaches and pacing.
+const telegram = makeTelegram({ token: TG_TOKEN, chatId: TG_CHAT_ID, tag: "faucet-invariants" });
+const tg = (text) => telegram.send(text);
 
-function loadState(chainId, faucet) {
-  if (fs.existsSync(STATE_PATH)) {
-    const s = JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
-    if (s.chainId === chainId && s.faucet.toLowerCase() === faucet.toLowerCase()) return s;
-    console.log(`state is for chain ${s.chainId} / ${s.faucet} — starting fresh for ${chainId} / ${faucet}`);
-  }
-  return freshState(chainId, faucet);
-}
-function saveState(s) { fs.writeFileSync(STATE_PATH, JSON.stringify(s, null, 2) + "\n"); }
-
+// Events in chain order with block timestamps: lib/logs.js, chunked at
+// LOG_CHUNK, one getBlock per distinct block.
 async function fetchNewEvents(provider, faucetAddr, iface, fromBlock, toBlock) {
-  const topic = iface.getEvent("Dispensed").topicHash;
-  const raw = [];
-  for (let from = fromBlock; from <= toBlock; from += LOG_CHUNK) {
-    const to = Math.min(from + LOG_CHUNK - 1, toBlock);
-    const logs = await provider.getLogs({ address: faucetAddr, topics: [topic], fromBlock: from, toBlock: to });
-    for (const log of logs) {
-      const a = iface.parseLog(log).args;
-      raw.push({ wallet: ethers.getAddress(a.claimant), timbs: BigInt(a.timbsOut), block: log.blockNumber, logIndex: log.index });
-    }
-  }
-  // Timestamps: one getBlock per DISTINCT block, a few at a time.
-  const blocks = [...new Set(raw.map((r) => r.block))];
-  const tsOf = {};
-  for (let i = 0; i < blocks.length; i += 10) {
-    const slice = blocks.slice(i, i + 10);
-    const got = await Promise.all(slice.map((b) => provider.getBlock(b)));
-    got.forEach((blk, k) => { tsOf[slice[k]] = blk.timestamp; });
-  }
-  raw.sort((x, y) => x.block - y.block || x.logIndex - y.logIndex);
+  const evs = await scanEvents(provider, iface, "Dispensed", faucetAddr, fromBlock, toBlock, { chunk: LOG_CHUNK });
+  const raw = evs.map(({ args, log }) => ({ wallet: ethers.getAddress(args.claimant), timbs: BigInt(args.timbsOut), block: log.blockNumber, logIndex: log.index }));
+  const tsOf = await blockTimestamps(provider, raw.map((r) => r.block));
   return raw.map((r) => ({ ...r, ts: tsOf[r.block] }));
 }
 
@@ -315,7 +273,11 @@ async function main() {
   ]);
   const cooldown = Number(cooldownBn);
 
-  const state = loadState(chainId, faucetAddr);
+  // The record is keyed to chain and faucet; a redeploy starts it over.
+  const state = loadState(STATE_PATH, () => freshState(chainId, faucetAddr), {
+    matches: (s) => s.chainId === chainId && String(s.faucet).toLowerCase() === faucetAddr.toLowerCase(),
+    label: "invariants state",
+  });
   let fromBlock;
   if (state.cursorBlock !== null) fromBlock = state.cursorBlock + 1;
   else if (process.env.FAUCET_GENESIS_BLOCK) fromBlock = Number(process.env.FAUCET_GENESIS_BLOCK);
@@ -336,7 +298,7 @@ async function main() {
   const breaches = [];
   breaches.push(...applyEvents(state, events, cooldown));
   state.cursorBlock = latest;
-  saveState(state);
+  saveState(STATE_PATH, state);
 
   const eraStart = process.env.FAUCET_ERA_START ? Number(process.env.FAUCET_ERA_START) : state.eraStart;
   breaches.push(...checkCounts(state, cooldown));
@@ -382,7 +344,8 @@ async function main() {
   console.log("\ninvariants OK");
 }
 
-if (!SELF_TEST) main().catch((e) => {
+// Only run the live path when executed directly, so a test can drive main().
+if (!SELF_TEST && require.main === module) main().catch((e) => {
   // ethers wraps provider errors ("could not coalesce error"); surface the RPC's
   // own message and the method so a range cap or a bad endpoint is readable.
   const inner = e?.error?.message || e?.info?.error?.message;

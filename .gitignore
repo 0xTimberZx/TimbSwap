@@ -9,7 +9,7 @@ out/
 broadcast/
 
 # ─── Dependencies ─────────────────────────────────────────────────────────────
-lib/
+/lib/
 
 # ─── IDE ──────────────────────────────────────────────────────────────────────
 .vscode/
@@ -49,3 +49,5 @@ dev-docs/*
 
 # ─── Node (dev-only tooling for vendored bundles; see scripts/build-vendor.mjs) ─
 node_modules/
+!dev-docs/KEEPER_FLEET.md
+!dev-docs/MAINNET_LP_SEED.md

@@ -1,0 +1,118 @@
+name: TimbSwap Fleet Heartbeat
+
+# Is every scheduled keeper still running? (scripts/fleet-heartbeat.js)
+# A keeper can report its own errors but not its own absence — a throttled
+# cron, a run that hit its timeout, or a keeper failing fast on every tick all
+# look like silence. This witness reads the Actions API for each scheduled
+# workflow and alerts when its last success is older than its cadence allows.
+# It holds no private key and needs no npm install: only the repo's own token.
+#
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six
+# (measured 2026-09-18 across every cron-only job), so like the settler, the
+# faucet, the notifier and the reminder this job self-chains: check, commit
+# state, sleep FLEET_LINGER_MINUTES, dispatch the next run. Cron is only the
+# backstop that restarts a broken chain. The chain continues after a run WITH
+# findings (a red fleet is when the watch matters most) but not after a crash
+# before the assessment, so a missing token cannot loop.
+#
+# Blind spot, by construction: if GitHub Actions stops entirely, this job
+# stops with the rest, and it cannot see its own absence. dead-man.yml covers
+# both from outside: it pings an external switch only while this job is alive.
+#
+# Mirror note: the live repo runs this on a cron backstop and self-chains
+# (linger, then dispatch its own next run). Here it is manual only, like
+# every keeper in this checkout, so the two checkouts do not double-alert
+# and a single dispatch never starts a chain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-fleet-heartbeat
+  cancel-in-progress: false
+
+permissions:
+  actions: read     # list workflow runs
+  contents: write   # commits scripts/fleet-heartbeat-state.json back
+
+jobs:
+  check:
+    name: Check keeper liveness
+    runs-on: ubuntu-latest
+    # Must exceed FLEET_LINGER_MINUTES (default 30) plus the check itself.
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Self-test the assessment logic
+        working-directory: scripts
+        run: node fleet-heartbeat.js --self-test
+
+      # continue-on-error: a run with findings exits 1 by design, but the state
+      # commit, the linger and the dispatch below must still happen. The job is
+      # marked red again at the end from the `findings` output.
+      - name: Check the fleet
+        id: check
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OPS_MODE:  ${{ vars.TELEGRAM_OPS_MODE }}
+          FLEET_SLACK:        ${{ vars.FLEET_SLACK }}
+          FLEET_GRACE_MIN:    ${{ vars.FLEET_GRACE_MIN }}
+          FLEET_FAIL_STREAK:  ${{ vars.FLEET_FAIL_STREAK }}
+          FLEET_RUNAWAY_COUNT: ${{ vars.FLEET_RUNAWAY_COUNT }}
+          FLEET_REALERT_MIN:  ${{ vars.FLEET_REALERT_MIN }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node fleet-heartbeat.js --report
+          else
+            node fleet-heartbeat.js
+          fi
+
+      # The state file holds the last-alerted stamps. Commit it back even when
+      # the check found problems (that is precisely when the stamp matters).
+      - name: Commit state
+        if: always()
+        run: |
+          if [ ! -f scripts/fleet-heartbeat-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/fleet-heartbeat-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/fleet-heartbeat-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "fleet-heartbeat[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/fleet-heartbeat-state.json
+          git commit -m "[skip ci] heartbeat: update alert state"
+          git pull --rebase --autostash origin main
+          git push origin main
+
+      - name: Mark the run red on findings
+        if: steps.check.outputs.findings != '0'
+        run: |
+          echo "Fleet findings this run: ${{ steps.check.outputs.findings }} (see the check step)."
+          exit 1

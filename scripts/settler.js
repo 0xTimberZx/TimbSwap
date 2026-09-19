@@ -35,9 +35,9 @@
 // scheduled runs queue instead of double-settling).
 
 const { ethers } = require("ethers");
-const fs   = require("fs");
-const path = require("path");
 const { postRoundToX } = require("./xposter");
+const { addrFromConfig } = require("./lib/config");
+const { makeTelegram, ALERT_GLYPH } = require("./lib/telegram");
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -46,19 +46,16 @@ const PRIVATE_KEY   = process.env.SETTLER_PRIVATE_KEY;
 const TG_TOKEN      = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT_ID    = process.env.TELEGRAM_CHAT_ID;        // ops: every message, incl. failures
 const TG_CHAT_ID_PUBLIC = process.env.TELEGRAM_CHAT_ID_PUBLIC; // community group: round rollovers only
+// Ops-stream volume (repo VARIABLE, not a secret): "all" (default) sends every
+// arm/lock/settle beat; "errors" sends only ❌ ⚠️ 💥 ♻️ alerts; "off" silences the
+// ops DM entirely. The public community stream is never affected.
+const TG_OPS_MODE   = (process.env.TELEGRAM_OPS_MODE || "all").toLowerCase();
 // Contract addresses come straight from config.js — the single source of
 // truth the frontend already uses — so a redeploy only ever needs config.js
 // edited and the settler follows automatically (no more drifting hardcodes).
-// config.js isn't Node-requireable (it touches window/document at load), so we
-// read it as text and pull the address out of its ADDRESSES map. Fails LOUD if
-// a key is missing/malformed rather than silently settling the wrong contract.
-function addrFromConfig(key) {
-  const src = fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8");
-  const m = src.match(new RegExp("\\b" + key + '\\s*:\\s*"(0x[0-9a-fA-F]{40})"'));
-  if (!m) throw new Error(`Address "${key}" not found in config.js — refusing to start settler`);
-  return ethers.getAddress(m[1]); // checksum-normalize (ethers v6); throws on a bad address
-}
-
+// The reader lives in lib/config.js (shared by every keeper and witness); it
+// fails LOUD on a missing key, a malformed address or the zero address rather
+// than silently settling the wrong contract.
 const TIMBPRIZE_ADDR    = addrFromConfig("TimbPrize");
 const GAMEREGISTRY_ADDR = addrFromConfig("GameRegistry");
 
@@ -145,47 +142,30 @@ async function alertIfDelayed(prize, round, segment) {
   }
 }
 
-// ─── Telegram ─────────────────────────────────────────────────────────────────
-
-async function sendTelegram(chatId, text) {
-  const url = `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
-  const post = (body) => fetch(url, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  try {
-    let res = await post({ chat_id: chatId, text, parse_mode: "Markdown" });
-    if (!res.ok) {
-      // Markdown parsing chokes on error dumps ( _ * [ ] etc. from an RPC error
-      // JSON), which previously dropped the alert entirely — so a FATAL failure
-      // (e.g. an RPC 403) went unnoticed. Resend as plain text so critical
-      // alerts are never silently lost.
-      const err = await res.text();
-      console.error("[notify] Telegram Markdown send failed, retrying plain text:", err);
-      res = await post({ chat_id: chatId, text });
-      if (!res.ok) console.error("[notify] Telegram plain-text send error:", await res.text());
-    }
-  } catch (e) {
-    console.error("[notify] Failed to send Telegram message:", e.message);
-  }
-}
+// ─── Telegram (lib/telegram.js: Markdown with a plain-text retry, best-effort) ──
 
 // Ops stream — every settle, delay alert, and failure goes here (private DM).
+// The ops-mode switch applies to the message itself, before the header is
+// added: "errors" lets through anything that opens with an alert glyph, and
+// routine beats (🎲 armed, 🔒 locked, ✅ settled) stay in the log.
+const opsTg = makeTelegram({ token: TG_TOKEN, chatId: TG_CHAT_ID, mode: TG_OPS_MODE, tag: "settler" });
 async function notify(msg) {
   if (!TG_TOKEN || !TG_CHAT_ID) {
     console.log("[notify] No Telegram config:", msg);
     return;
   }
-  await sendTelegram(TG_CHAT_ID, `🔄 *TimbSwap Settler*\n${msg}`);
+  if (opsTg.mode === "errors" && !ALERT_GLYPH.test(msg)) return;
+  await opsTg.send(`🔄 *TimbSwap Settler*\n${msg}`, { markdown: true });
 }
 
 // Community stream — only clean, exciting beats (round rollovers), sent to
 // the public group AFTER the tx confirms. Optional: silently skipped when
-// TELEGRAM_CHAT_ID_PUBLIC isn't configured. Never carries ops/error detail.
+// TELEGRAM_CHAT_ID_PUBLIC isn't configured. Never carries ops/error detail,
+// never affected by the ops-mode switch, and keeps link previews on.
+const publicTg = makeTelegram({ token: TG_TOKEN, chatId: TG_CHAT_ID_PUBLIC, mode: "all", tag: "settler-public", preview: true });
 async function notifyPublic(msg) {
-  if (!TG_TOKEN || !TG_CHAT_ID_PUBLIC) return;
-  await sendTelegram(TG_CHAT_ID_PUBLIC, msg);
+  if (!publicTg.enabled) return;
+  await publicTg.send(msg, { markdown: true });
 }
 
 // Hard cap on settle calls per run — a ~340-min run covers up to 6 live
@@ -574,7 +554,11 @@ async function main() {
   }
 }
 
-main().catch(async (err) => {
+module.exports = { notify, notifyPublic, main };
+
+// Only run when executed directly, so the notify helpers can be exercised by
+// a test without starting the keeper.
+if (require.main === module) main().catch(async (err) => {
   console.error("[settler] Fatal error:", err.message);
   await notify(`💥 Settler fatal error\n${err.message}`);
   process.exit(1);
