@@ -1,0 +1,53 @@
+name: seed-pools
+
+# Gate for the mainnet pool-seeding tool (scripts/seed-pools.js). Every other
+# script whose logic decides something — the heartbeat, the dead-man switch,
+# the three reconcilers, the faucet invariants — runs its --self-test inside
+# its own scheduled workflow. seed-pools has no scheduled workflow, because it
+# is a hand-run tool, so nothing was checking it: the one script that spends
+# real money on Arbitrum One was the one without a gate.
+#
+# Its --self-test is pure math on fixed prices (no network, no key), and the
+# math is exactly what must not break — a wrong amount or a missed deviation
+# check sets a new pool at the wrong price and an arbitrage bot takes the
+# difference. PR-gated by path, plus main itself so a squash-merge cannot land
+# a regression unseen.
+on:
+  pull_request:
+    paths:
+      - "scripts/seed-pools.js"
+      - ".github/workflows/seed-pools.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/seed-pools.js"
+      - ".github/workflows/seed-pools.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: seeding math self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # seed-pools.js requires ethers at load time even though --self-test
+      # never touches the network.
+      - name: Install dependencies
+        run: npm install ethers
+        working-directory: scripts
+
+      - name: Self-test the seeding math
+        run: node seed-pools.js --self-test
+        working-directory: scripts
