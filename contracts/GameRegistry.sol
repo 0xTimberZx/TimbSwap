@@ -341,6 +341,9 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
 
     // ─── Constructor ─────────────────────────────────────────────────────────
 
+    /// @param _timbsEntryFloor TIMBS cost of an entry at zero active TIMBS entries.
+    /// @param _timbsStep        Added per active TIMBS entry. Must be ≤ the floor,
+    ///        so the congestion premium can never outrun the base price per seat.
     constructor(
         address _timbsToken,
         address _protocolSink,

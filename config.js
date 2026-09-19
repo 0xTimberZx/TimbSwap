@@ -60,10 +60,15 @@ function siteUrl(path) {
   else fix();
 })();
 
-// Faucet UI mirror of the mainnet-TIMB airdrop leg. Set true ONLY once the
+// Faucet UI mirror of the mainnet-TIMB airdrop leg. True ONLY while the
 // airdrop-dispatch function is live and AIRDROP_ENABLED is set on the faucet-claim
 // edge function — this just shows/hides the "+ real TIMB" explainer on the faucet
 // page; the edge function's own flag is what actually enqueues payouts.
+// Deployed 2026-09-15: TimbAirdropDistributor 0x955e5800245164EC4DCd1da9062115bBdA132c83
+// (Arbitrum One), 1 TIMB per eligible claim, 10,000 TIMB total cap, round 1.
+// ON HOLD until the public announcement: the distributor is paused (guardian),
+// AIRDROP_ENABLED is off on faucet-claim, and this flag hides the explainer.
+// Re-enable all three together (unpause → secret → this flag) when announcing.
 window.AIRDROP_ENABLED = false;
 
 // Boosted farms (TimbBoostFarm — extra pairs on the waterfall's boost tier)
