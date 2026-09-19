@@ -5,10 +5,12 @@ with no wallet extension (most phones) can still connect, mint a ticket and
 claim from the faucet. Nothing on-chain changes: the embedded wallet is an EOA
 and every contract keys on `msg.sender` as before.
 
-Status: **built; ON for the dev mirror** (`window.PRIVY_APP_ID` set in
-`config.js`). An empty value hides the option completely and leaves every page
-behaving exactly as before, which is how the live site stays until its own
-Privy app exists and the mirror pass below is done.
+Status: **ON — live site** (`window.PRIVY_APP_ID` set in `config.js` to the
+"TimbSwapArb" Privy app, allowed origin `https://timbswap.xyz`). Setting it to
+`""` hides the option completely and leaves every page behaving exactly as
+before — that is the kill switch. The dev mirror (TimbSwap repo) runs its own
+Privy app and passed the checklist below first (phone browser without an
+extension, Brave with its built-in wallet).
 
 ## How it fits the existing connect flow
 
@@ -199,7 +201,8 @@ never needed by the frontend and must not be put anywhere in this repo.
    React modal / funding UI, which this site does not use.)
 6. Copy the **App ID** (App settings → Basics) into `config.js` →
    `window.PRIVY_APP_ID`. Dev mirror: `cmu3mq0in04v90bjyc1y38iij`
-   ("TimbSwap Dev", development mode).
+   ("TimbSwap Dev", development mode). Live site: `cmu3ofl2r01h90clecz8wtrhc`
+   ("TimbSwapArb").
 7. **MFA:** Authentication → MFA (the wallet / "Multi-factor authentication"
    section) → enable it for the app and make sure the **Authenticator app
    (TOTP)** method is allowed, and tick **Passkey** as well. Passkey
@@ -253,8 +256,7 @@ esbuild build re-minifies the other one into a no-op diff.
       authenticator" → wrong code says "didn't match" in place → right code
       sends. Cancel in the prompt behaves like Reject (no error sheet). Wallet
       dropdown shows **Wallet security** (email sessions only) with On/Off,
-      remove asks for a code (live site: the SwapTables chip shows the shield icon).
-
+      remove asks for a code; SwapTables chip shows the shield icon.
 - [ ] **Passkey:** Wallet security → Set up a passkey → device prompt →
       "Passkey On"; a ticket mint asks "Use passkey" (or, with the
       authenticator also on, shows the code field plus "Use passkey
@@ -265,10 +267,11 @@ esbuild build re-minifies the other one into a no-op diff.
       acknowledgement → code arrives by email → masked key with Show and Copy
       (TEE wallet) or Privy's copy button (older wallet); MetaMask → Import
       account → the same address. Done wipes the key from the page.
+
 ## Not in this drop
 
-- The three `tables/*` pages (SwapTables) use their own provider code with
-  direct `window.ethereum` calls and ethers v6 — same treatment, separate PR.
+- The three `tables/*` pages — done in the live repo (`tables/wallet.js`);
+  SwapTables is not carried in this repo.
 - Recovery password UI — **struck.** It is for Privy's older split-key
   wallets: a user passcode that encrypts the recovery share so Privy alone
   cannot rebuild the wallet (new device → password; lost password + lost
@@ -282,6 +285,5 @@ esbuild build re-minifies the other one into a no-op diff.
   on the game contracts; folding approve + enter into one confirmation is not
   worth that. Sponsorship and session keys were the other reasons to want one,
   and both are off by decision.
-- Gas sponsorship: built and closed unmerged by decision (TestSwap #432 / #58) —
+- Gas sponsorship: built and closed unmerged by decision (TestSwap #432) —
   participants hold their own gas.
-- The live site (`TestSwap`): port after the mirror pass above.

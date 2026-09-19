@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*.local
+.env.mainnet
 
 # ─── Foundry ──────────────────────────────────────────────────────────────────
 cache/
@@ -9,6 +10,7 @@ out/
 broadcast/
 
 # ─── Dependencies ─────────────────────────────────────────────────────────────
+# Root-anchored: the Foundry submodules live at /lib; scripts/lib is source.
 /lib/
 
 # ─── IDE ──────────────────────────────────────────────────────────────────────
