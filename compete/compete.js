@@ -331,9 +331,13 @@ async function pollRoundState() {
       contractRO(ADDRESSES.GameRegistry, GAME_REGISTRY_ABI).getRoundEntrants(currentRoundNum).catch(() => null),
     ]);
 
-    // Escrow backing — only when it exceeds the accounted (winnable) pot, e.g.
-    // a direct seed not registered via fundPot().
-    if (escrowBal && escrowBal.gt(s.pot)) potSegs.push(`backed by ${fmt(escrowBal)} ETH`);
+    // "backed by" = the escrow RESERVE beyond the winnable pot (escrowBal − pot).
+    // The pot's ETH already lives inside the escrow, so showing the full balance
+    // would double-count the pot. Reporting the reserve makes Pot + backed by
+    // === escrowBal, matching the analytics "Total Pot" card exactly. Shown only
+    // when a reserve exists (escrowBal > pot): a direct seed or the round-end
+    // snowball carried behind the pot.
+    if (escrowBal && escrowBal.gt(s.pot)) potSegs.push(`backed by ${fmt(escrowBal.sub(s.pot))} ETH`);
     document.getElementById("sub-pot").textContent = potSegs.join(" · ");
 
     // FLOW GROUP (right of the "|" divider): live yield rate + round entries.

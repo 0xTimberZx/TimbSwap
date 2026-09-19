@@ -203,9 +203,9 @@ async function loadLiveMetrics() {
     // round-end carry (PotCarried) once the block window is resolved.
     set("m-pot-sub",  (potUsd ? `≈ $${potUsd} · ` : "") + `yield ${accruedStr}`);
 
-    // Pot Backing card — physical ETH held by PrizeEscrow that secures the
-    // pot, with when it was last topped up (latest Deposited event) and by how
-    // much. Note: the settlement snowball (remainder → next round) moves NO ETH
+    // Total Pot card — ALL physical ETH held by PrizeEscrow (the winnable
+    // "Prize Pot" plus the reserve carried behind it), with when it was last
+    // topped up (latest Deposited event) and by how much. Note: the settlement snowball (remainder → next round) moves NO ETH
     // and fires NO Deposited event — the pot's ETH already lives here, so
     // "last funded" reflects real deposits (seeds, yield harvest) only.
     set("m-escrow", escrowBal
