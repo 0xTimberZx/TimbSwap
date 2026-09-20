@@ -277,7 +277,10 @@ const PRIZE_ABI = [
 ];
 const REGISTRY_ABI = [
   "function getRoundEntrants(uint256 round) view returns (address[])",
-  "event TicketMinted(uint256 indexed ticketId, address indexed owner, bytes6 string6, uint256 playRound, uint256 lastEligibleRound, uint256 escrowAmount, address escrowToken, uint256 supersedes)",
+  // The owner of record, read from the public `tickets` mapping. Rebuilding it
+  // from TicketMinted does not work: a ticket is minted during round N and
+  // activated when round N+1 opens, so the mint sits in an earlier window.
+  "function tickets(uint256) view returns (uint256 id, address owner, bytes6 string6, uint256 playRound, uint256 lastEligibleRound, uint256 escrowAmount, address escrowToken, uint8 status, uint256 supersedes, uint256 supersededBy, uint256 createdAt, uint256 forfeitRound, uint256 generation)",
   "event TicketActivated(uint256 indexed ticketId, uint256 indexed round)",
 ];
 const PAIR_ABI  = ["event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)"];
@@ -369,16 +372,14 @@ async function main() {
       const acts = await sc(I.registry, "TicketActivated", addr.registry);
       if (acts.length) {
         const owners = new Map();
-        for (const { args } of await sc(I.registry, "TicketMinted", addr.registry)) owners.set(args.ticketId.toString(), String(args.owner).toLowerCase());
-        const mintTopic = I.registry.getEvent("TicketMinted").topicHash;
         for (const { args, log } of acts) {
           const id = args.ticketId.toString(), r = Number(args.round);
           if (r > lastFoldable) continue;
           let owner = owners.get(id);
-          if (!owner) {
-            const minted = await provider.getLogs({ address: addr.registry, topics: [mintTopic, ethers.zeroPadValue(ethers.toBeHex(args.ticketId), 32)], fromBlock: Math.max(0, startBlock - 2_000_000), toBlock: log.blockNumber }).catch(() => []);
-            owner = minted.length ? String(I.registry.parseLog(minted[0]).args.owner).toLowerCase() : null;
-            if (owner) owners.set(id, owner);
+          if (owner === undefined) {
+            try { owner = String((await registry.tickets(args.ticketId)).owner).toLowerCase(); }
+            catch { owner = null; }
+            owners.set(id, owner);
           }
           if (!owner) continue;
           let ent; try { ent = await entrants(r); } catch { ent = new Set(); }

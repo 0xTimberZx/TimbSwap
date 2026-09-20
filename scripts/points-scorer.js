@@ -124,7 +124,11 @@ async function main() {
   ], provider);
   const REGISTRY = new ethers.Contract(addrFromConfig("GameRegistry"), [
     "function getRoundEntrants(uint256 round) view returns (address[])",
-    "event TicketMinted(uint256 indexed ticketId, address indexed owner, bytes6 string6, uint256 playRound, uint256 lastEligibleRound, uint256 escrowAmount, address escrowToken, uint256 supersedes)",
+    // Public `tickets` mapping getter — the owner of record, read from state.
+    // Reconstructing it from TicketMinted does not work: a ticket is minted
+    // during round N and activated when round N+1 opens, so the mint almost
+    // always sits in an earlier scan window than the activation.
+    "function tickets(uint256) view returns (uint256 id, address owner, bytes6 string6, uint256 playRound, uint256 lastEligibleRound, uint256 escrowAmount, address escrowToken, uint8 status, uint256 supersedes, uint256 supersededBy, uint256 createdAt, uint256 forfeitRound, uint256 generation)",
     "event TicketActivated(uint256 indexed ticketId, uint256 indexed round)",
   ], provider);
   const PAIR     = new ethers.Contract(addrFromConfig("TimbsEthPair"), [
@@ -223,32 +227,30 @@ async function main() {
     } catch (e) { scanOk = false; console.warn("[points] swap/nudge pass:", e.shortMessage || e.message); }
 
     // Ticket activation: 200 once per ticket, only if that ticket then played the
-    // round it activated for (its owner is among the round's entrants). Owner comes
-    // from TicketMinted; tickets minted before the window are looked up by id.
+    // round it activated for (its owner is among the round's entrants). The owner
+    // is read from the registry's `tickets` mapping rather than rebuilt from
+    // TicketMinted: activation fires when the round opens, one round after the
+    // mint, so the two events are almost never in the same scan window.
     try {
       const acts = await scanEvents(REGISTRY, REGISTRY.filters.TicketActivated(), fromBlock, toBlock);
-      if (acts.length) {
-        const owners = new Map();
-        for (const ev of await scanEvents(REGISTRY, REGISTRY.filters.TicketMinted(), fromBlock, toBlock)) {
-          owners.set(ev.args.ticketId.toString(), ev.args.owner.toLowerCase());
+      const owners = new Map();
+      for (const ev of acts) {
+        const id = ev.args.ticketId.toString(), r = Number(ev.args.round);
+        if (r > lastFoldableRound) continue; // can't happen inside the lagged window; defensive
+        let owner = owners.get(id);
+        if (owner === undefined) {
+          try { owner = (await REGISTRY.tickets(ev.args.ticketId)).owner.toLowerCase(); }
+          catch (e) { owner = null; console.warn(`[points] tickets(${id}) failed: ${e.shortMessage || e.message}`); }
+          owners.set(id, owner);
         }
-        for (const ev of acts) {
-          const id = ev.args.ticketId.toString(), r = Number(ev.args.round);
-          if (r > lastFoldableRound) continue; // can't happen inside the lagged window; defensive
-          let owner = owners.get(id);
-          if (!owner) {
-            const minted = await REGISTRY.queryFilter(REGISTRY.filters.TicketMinted(ev.args.ticketId), Number(s.start_block) - 2_000_000 > 0 ? Number(s.start_block) - 2_000_000 : 0, ev.blockNumber).catch(() => []);
-            owner = minted.length ? minted[0].args.owner.toLowerCase() : null;
-            if (owner) owners.set(id, owner);
-          }
-          if (!owner) continue;
-          let entrants = entrantsByRound.get(r);
-          if (!entrants) {
-            try { entrants = new Set((await REGISTRY.getRoundEntrants(r)).map(a => a.toLowerCase())); entrantsByRound.set(r, entrants); }
-            catch { entrants = new Set(); }
-          }
-          if (entrants.has(owner)) bump(owner, "ta", 1, ev.blockNumber);
+        if (!owner) continue;
+        let entrants = entrantsByRound.get(r);
+        if (!entrants) {
+          try { entrants = new Set((await REGISTRY.getRoundEntrants(r)).map(a => a.toLowerCase())); entrantsByRound.set(r, entrants); }
+          catch { entrants = new Set(); }
         }
+        if (entrants.has(owner)) bump(owner, "ta", 1, ev.blockNumber);
+        else console.warn(`[points] ticket ${id} activated for round ${r} but its owner is not an entrant — no award`);
       }
     } catch (e) { scanOk = false; console.warn("[points] ticket pass:", e.shortMessage || e.message); }
 
