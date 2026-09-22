@@ -81,6 +81,7 @@ Flat and additive. Weights live in `seasons.weights` (jsonb) and are read by
 | nudge_swap     |  25 | Pair `Swap` + `ScrollNudged` in the same tx (15 nudge + 10 swap)  |
 | plain_swap     |  10 | Pair `Swap` with no nudge                                         |
 | panel_nudge    |   5 | `ScrollNudged` with no `Swap` in the tx (Advance the Scroll; N events = N) |
+| segment_cap    |  30 | ceiling on the three rows above, per wallet per segment (see below) |
 | farm_claim     |  50 | TimbFarm `RewardsClaimed` ≥ 25 TIMBS                              |
 | stake_claim    |  25 | TimbStaking `RewardsClaimed` ≥ 25 TIMBS                           |
 | faucet_claim   |   1 | `faucet_claims` row with status `sent` (Supabase-side cursor)     |
@@ -89,6 +90,23 @@ Flat and additive. Weights live in `seasons.weights` (jsonb) and are read by
 Rules of thumb behind the numbers: rounds are the headline (250/round, and
 re-entering a fresh ticket re-earns the 200, so maximising consecutive rounds is
 the dominant strategy); trading is a supporting signal; faucet is a tie-breaker.
+
+**Per-segment cap.** `nudge_swap`, `plain_swap` and `panel_nudge` share ONE
+budget per wallet per segment, `segment_cap` (30). Two nudge-swaps in one segment
+score 30, not 50; the same two in different segments score 50. A Max(10) panel
+batch scores 30, not 50. Without it the gas-only panel path was the cheapest way
+to farm the board: 50 a segment is 300 a round, more than a round is worth.
+
+The cap needs each event's segment, which SQL cannot see, so the keeper prices
+meter events (bucketing them by `SegmentAdvanced` boundaries), caps each segment,
+and banks the result in `points_wallets.meter_tp`. `points_recompute` adds that
+straight in. `nudge_swaps` / `plain_swaps` / `panel_nudges` stay as raw counters
+for display and for the reconciler to check.
+
+**So those four weights are NOT retroactive.** Changing `nudge_swap`,
+`plain_swap`, `panel_nudge` or `segment_cap` affects future folds only; to apply
+a new value to history, rescore (below). Every other weight is still counters x
+weights in SQL and stays fully retroactive.
 
 **Settlement lag.** `seasons.lag_rounds` (4 ≈ 24h at 6h rounds). A round folds
 only once it is `lag_rounds` behind the live round, and the block window ends
@@ -102,8 +120,8 @@ Tune / inspect:
 ```sql
 update seasons set weights = weights || '{"panel_nudge": 3}' where slug = 'season-0';
 select points_recompute(1);                       -- re-apply immediately
-select address, display_tp, rounds_played, tickets_activated, nudge_swaps, plain_swaps,
-       panel_nudges, farm_claims, stake_claims, faucet_claims
+select address, display_tp, meter_tp, rounds_played, tickets_activated, nudge_swaps,
+       plain_swaps, panel_nudges, farm_claims, stake_claims, faucet_claims
   from points_wallets where season_id = 1 order by display_tp desc limit 20;
 ```
 

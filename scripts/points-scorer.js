@@ -121,6 +121,7 @@ async function main() {
     "event WinningsClaimed(address indexed winner, uint256 indexed round, uint256 amount)",
     "event RoundStarted(uint256 indexed round, uint256 timestamp)",
     "event ScrollNudged(uint256 newPosition, uint256 indexed round, uint256 segment)",
+    "event SegmentAdvanced(uint256 indexed round, uint256 segment, uint256 timestamp)",
   ], provider);
   const REGISTRY = new ethers.Contract(addrFromConfig("GameRegistry"), [
     "function getRoundEntrants(uint256 round) view returns (address[])",
@@ -141,6 +142,15 @@ async function main() {
   // the block where round (currentRound − lag + 1) started, i.e. where round
   // (currentRound − lag) settled. So a player can't watch their score react and
   // reverse-engineer the (unpublished) weights.
+  // Meter pricing lives in seasons.weights but is applied HERE, because the
+  // per-segment cap needs each event's segment. Retuning these four therefore
+  // affects future folds only; a rescore is needed to apply them to history.
+  const W = s.weights || {};
+  const W_NUDGE_SWAP  = Number(W.nudge_swap  ?? 25);
+  const W_PLAIN_SWAP  = Number(W.plain_swap  ?? 10);
+  const W_PANEL_NUDGE = Number(W.panel_nudge ??  5);
+  const SEGMENT_CAP   = Number(W.segment_cap ?? 30);
+  const SEGMENT_LOOKBACK = Number(process.env.POINTS_SEGMENT_LOOKBACK || 40000);
   const LAG = Math.max(0, Number(s.lag_rounds ?? 4));
   const currentRound = Number(await PRIZE.currentRound());
   const lastFoldableRound = currentRound - LAG;
@@ -195,18 +205,52 @@ async function main() {
     const activity = new Map(); // addr -> { ns, ps, pn, ta, fc, sc, fb }
     const bump = (addr, key, n, block) => {
       const a = addr.toLowerCase();
-      const cur = activity.get(a) || { ns: 0, ps: 0, pn: 0, ta: 0, fc: 0, sc: 0, fb: block ?? null };
+      const cur = activity.get(a) || { ns: 0, ps: 0, pn: 0, ta: 0, fc: 0, sc: 0, mt: 0, fb: block ?? null };
       cur[key] += n;
       if (block != null) cur.fb = cur.fb == null ? block : Math.min(cur.fb, block);
       activity.set(a, cur);
     };
 
-    // Swaps vs nudges. A swap tx that also emits ScrollNudged is a nudge-swap (25);
-    // a Swap with no nudge is a plain swap (10); ScrollNudged with no Swap in the
-    // same tx is the "Advance the Scroll" panel (5 each, batches emit N events).
+    // Meter activity: a Swap tx that also emits ScrollNudged is a nudge-swap, a
+    // Swap with no nudge is a plain swap, and ScrollNudged with no Swap in the tx
+    // is the "Advance the Scroll" panel (a batch emits one event per nudge).
+    //
+    // All three share ONE budget per wallet per segment, capped at
+    // weights.segment_cap. Uncapped, the gas-only panel path was the cheapest
+    // way to farm: 5 points x the UI's Max(10) is 50 a segment and 300 a round,
+    // more than a round is worth. The cap needs each event's segment, which SQL
+    // cannot see, so the pricing happens here and the capped total is banked in
+    // points_wallets.meter_tp.
     try {
       const swaps  = await scanEvents(PAIR,  PAIR.filters.Swap(),          fromBlock, toBlock);
       const nudges = await scanEvents(PRIZE, PRIZE.filters.ScrollNudged(), fromBlock, toBlock);
+
+      // Segment boundaries. SegmentAdvanced fires on a segment's first block, and
+      // the one that opened the window's first segment sits just before the
+      // window (it shares the block with the previous run's RoundStarted), so
+      // look back far enough to seed it.
+      const segFrom = Math.max(Number(s.start_block), fromBlock - SEGMENT_LOOKBACK);
+      const bounds = (await scanEvents(PRIZE, PRIZE.filters.SegmentAdvanced(), segFrom, toBlock))
+        .map(ev => ({ block: ev.blockNumber, key: `${ev.args.round}:${ev.args.segment}` }))
+        .sort((a, b) => a.block - b.block);
+      const segmentAt = (block) => {
+        let lo = 0, hi = bounds.length - 1, key = "unsegmented";
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (bounds[mid].block <= block) { key = bounds[mid].key; lo = mid + 1; } else { hi = mid - 1; }
+        }
+        return key;
+      };
+
+      const meter = new Map(); // addr -> Map(segmentKey -> uncapped points)
+      const price = (addr, block, pts) => {
+        const a = addr.toLowerCase();
+        const m = meter.get(a) ?? new Map();
+        const k = segmentAt(block);
+        m.set(k, (m.get(k) || 0) + pts);
+        meter.set(a, m);
+      };
+
       const nudgesByTx = new Map();
       for (const ev of nudges) nudgesByTx.set(ev.transactionHash, (nudgesByTx.get(ev.transactionHash) || 0) + 1);
       const swapTxs = new Set();
@@ -214,7 +258,9 @@ async function main() {
         swapTxs.add(ev.transactionHash);
         const from = await txFrom(ev.transactionHash);
         if (!from) continue;
-        bump(from, nudgesByTx.has(ev.transactionHash) ? "ns" : "ps", 1, ev.blockNumber);
+        const isNudge = nudgesByTx.has(ev.transactionHash);
+        bump(from, isNudge ? "ns" : "ps", 1, ev.blockNumber);
+        price(from, ev.blockNumber, isNudge ? W_NUDGE_SWAP : W_PLAIN_SWAP);
       }
       for (const [hash, n] of nudgesByTx) {
         if (swapTxs.has(hash)) continue;
@@ -222,7 +268,16 @@ async function main() {
         if (!from) continue;
         const blk = nudges.find(ev => ev.transactionHash === hash).blockNumber;
         bump(from, "pn", n, blk);
+        price(from, blk, n * W_PANEL_NUDGE);
       }
+
+      let capped = 0;
+      for (const [a, m] of meter) {
+        let pts = 0;
+        for (const v of m.values()) { pts += Math.min(v, SEGMENT_CAP); if (v > SEGMENT_CAP) capped++; }
+        if (pts > 0) bump(a, "mt", pts, null);
+      }
+      if (capped) console.log(`[points] segment cap (${SEGMENT_CAP}) applied to ${capped} wallet-segment(s).`);
       swapsAdded = swaps.length;
     } catch (e) { scanOk = false; console.warn("[points] swap/nudge pass:", e.shortMessage || e.message); }
 

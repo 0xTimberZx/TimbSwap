@@ -75,6 +75,7 @@ const OPTS = {
   maxRounds:  Number(process.env.POINTS_MAX_ROUNDS || 200),
   realertMin: Number(process.env.POINTS_REALERT_MIN || 360),
   maxDetail:  10,
+  segmentLookback: Number(process.env.POINTS_SEGMENT_LOOKBACK || 40_000),
 };
 const CLAIM_MIN = 25n * 10n ** 18n;
 
@@ -82,38 +83,64 @@ const CLAIM_MIN = 25n * 10n ** 18n;
 const COUNTERS = [
   ["rp", "rounds_played",     "round_played"],
   ["ta", "tickets_activated", "ticket_active"],
-  ["ns", "nudge_swaps",       "nudge_swap"],
-  ["ps", "plain_swaps",       "plain_swap"],
-  ["pn", "panel_nudges",      "panel_nudge"],
+  // Counted and compared, but not priced here: meter points are capped per
+  // segment at fold time and banked in meter_tp (see expectedTp).
+  ["ns", "nudge_swaps",       null],
+  ["ps", "plain_swaps",       null],
+  ["pn", "panel_nudges",      null],
   ["fc", "farm_claims",       "farm_claim"],
   ["sc", "stake_claims",      "stake_claim"],
   ["fa", "faucet_claims",     "faucet_claim"],
   ["w",  "wins",              "win"],
 ];
-const DEFAULT_WEIGHTS = { round_played: 250, ticket_active: 200, nudge_swap: 25, plain_swap: 10, panel_nudge: 5, farm_claim: 50, stake_claim: 25, faucet_claim: 1, win: 0 };
+const DEFAULT_WEIGHTS = { round_played: 250, ticket_active: 200, nudge_swap: 25, plain_swap: 10, panel_nudge: 5, segment_cap: 30, farm_claim: 50, stake_claim: 25, faucet_claim: 1, win: 0 };
 
 // ─── Pure logic (exported for --self-test) ──────────────────────────────────
 
-const blank = () => ({ rp: 0, ta: 0, ns: 0, ps: 0, pn: 0, fc: 0, sc: 0, w: 0 });
+const blank = () => ({ rp: 0, ta: 0, ns: 0, ps: 0, pn: 0, fc: 0, sc: 0, w: 0, mt: 0 });
 const bump = (ledger, addr, key, n = 1) => { const a = addr.toLowerCase(); (ledger[a] ??= blank())[key] += n; };
 
 /**
  * Swaps and nudges the scorer's way. swaps: [{ tx }], nudges: [{ tx }],
  * fromOf: { tx → from|null }. Mutates ledger.
  */
-function foldSwapsAndNudges(ledger, swaps, nudges, fromOf) {
+function foldSwapsAndNudges(ledger, swaps, nudges, fromOf, segmentAt = () => "all", weights = {}) {
+  const W = (k) => Number(weights?.[k] ?? DEFAULT_WEIGHTS[k]);
+  const cap = W("segment_cap");
+  const meter = new Map(); // addr -> Map(segmentKey -> uncapped points)
+  const price = (addr, block, pts) => {
+    const a = addr.toLowerCase();
+    const m = meter.get(a) ?? new Map();
+    const k = segmentAt(block);
+    m.set(k, (m.get(k) || 0) + pts);
+    meter.set(a, m);
+  };
+
   const nudgesByTx = new Map();
   for (const n of nudges) nudgesByTx.set(n.tx, (nudgesByTx.get(n.tx) || 0) + 1);
   const swapTxs = new Set();
-  for (const s of swaps) {
-    swapTxs.add(s.tx);
-    const from = fromOf[s.tx];
-    if (from) bump(ledger, from, nudgesByTx.has(s.tx) ? "ns" : "ps");
+  for (const sw of swaps) {
+    swapTxs.add(sw.tx);
+    const from = fromOf[sw.tx];
+    if (!from) continue;
+    const isNudge = nudgesByTx.has(sw.tx);
+    bump(ledger, from, isNudge ? "ns" : "ps");
+    price(from, sw.block, isNudge ? W("nudge_swap") : W("plain_swap"));
   }
   for (const [tx, n] of nudgesByTx) {
     if (swapTxs.has(tx)) continue;
     const from = fromOf[tx];
-    if (from) bump(ledger, from, "pn", n);
+    if (!from) continue;
+    const blk = nudges.find((x) => x.tx === tx)?.block;
+    bump(ledger, from, "pn", n);
+    price(from, blk, n * W("panel_nudge"));
+  }
+
+  // One budget per wallet per segment, shared by all three paths.
+  for (const [a, m] of meter) {
+    let pts = 0;
+    for (const v of m.values()) pts += Math.min(v, cap);
+    if (pts > 0) bump(ledger, a, "mt", pts);
   }
 }
 
@@ -121,8 +148,10 @@ function foldSwapsAndNudges(ledger, swaps, nudges, fromOf) {
 function expectedTp(row, weights, minRounds) {
   if (row.sybil_flag != null) return 0;
   if ((row.rounds_played || 0) < (minRounds || 0)) return 0;
-  let tp = 0;
-  for (const [, col, wk] of COUNTERS) tp += (row[col] || 0) * Number(weights?.[wk] ?? DEFAULT_WEIGHTS[wk]);
+  // meter_tp is already priced and capped per segment by the keeper; every other
+  // counter is still counter x weight.
+  let tp = Number(row.meter_tp || 0);
+  for (const [, col, wk] of COUNTERS) { if (!wk) continue; tp += (row[col] || 0) * Number(weights?.[wk] ?? DEFAULT_WEIGHTS[wk]); }
   return Math.round(tp * 100) / 100;
 }
 
@@ -205,37 +234,58 @@ function selfTest() {
   const kinds = (r) => r.findings.map((f) => f.kind);
 
   // Swap and nudge attribution.
-  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1" }], [{ tx: "t1" }], { t1: A });
-    eq("swap with nudge is a nudge-swap", l[A], { ...blank(), ns: 1 }); }
-  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1" }], [], { t1: A });
-    eq("swap without nudge is plain", l[A], { ...blank(), ps: 1 }); }
-  { const l = {}; foldSwapsAndNudges(l, [], [{ tx: "t1" }, { tx: "t1" }, { tx: "t1" }], { t1: A });
-    eq("nudges without swap are panel nudges, N per tx", l[A], { ...blank(), pn: 3 }); }
-  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1" }, { tx: "t1" }], [{ tx: "t1" }], { t1: A });
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }], [{ tx: "t1", block: 1 }], { t1: A });
+    eq("swap with nudge is a nudge-swap", l[A], { ...blank(), ns: 1, mt: 25 }); }
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }], [], { t1: A });
+    eq("swap without nudge is plain", l[A], { ...blank(), ps: 1, mt: 10 }); }
+  { const l = {}; foldSwapsAndNudges(l, [], [{ tx: "t1", block: 1 }, { tx: "t1", block: 1 }, { tx: "t1", block: 1 }], { t1: A });
+    eq("nudges without swap are panel nudges, N per tx", l[A], { ...blank(), pn: 3, mt: 15 }); }
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }, { tx: "t1", block: 1 }], [{ tx: "t1", block: 1 }], { t1: A });
     eq("two swap events in one tx count twice", l[A].ns, 2); }
-  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1" }], [], { t1: null });
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }], [], { t1: null });
     eq("unattributable tx is skipped", l, {}); }
-  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1" }], [{ tx: "t2" }], { t1: A, t2: B });
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }], [{ tx: "t2", block: 1 }], { t1: A, t2: B });
     eq("attribution is by tx.from", [l[A].ps, l[B].pn], [1, 1]); }
+
+  // Per-segment cap: one 30-point budget per wallet per segment, shared by
+  // nudge-swaps, plain swaps and panel nudges. seg() buckets by block.
+  const seg = (b) => `r:${Math.floor(b / 100)}`;
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "a", block: 1 }, { tx: "b", block: 2 }], [{ tx: "a", block: 1 }, { tx: "b", block: 2 }], { a: A, b: A }, seg);
+    eq("two nudge-swaps in one segment cap at 30", l[A].mt, 30); }
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "a", block: 1 }, { tx: "b", block: 150 }], [{ tx: "a", block: 1 }, { tx: "b", block: 150 }], { a: A, b: A }, seg);
+    eq("the same two in different segments do not", l[A].mt, 50); }
+  { const l = {}; foldSwapsAndNudges(l, [], [{ tx: "a", block: 1 }, { tx: "a", block: 1 }, { tx: "a", block: 1 },
+                                             { tx: "a", block: 1 }, { tx: "a", block: 1 }, { tx: "a", block: 1 },
+                                             { tx: "a", block: 1 }, { tx: "a", block: 1 }, { tx: "a", block: 1 },
+                                             { tx: "a", block: 1 }], { a: A }, seg);
+    eq("a Max(10) panel batch caps at 30, not 50", l[A].mt, 30); }
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "a", block: 1 }], [], { a: A }, seg);
+    eq("under the cap is untouched", l[A].mt, 10); }
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "a", block: 1 }, { tx: "b", block: 2 }], [{ tx: "a", block: 1 }, { tx: "b", block: 2 }], { a: A, b: B }, seg);
+    eq("the budget is per wallet, not per segment overall", [l[A].mt, l[B].mt], [25, 25]); }
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "a", block: 1 }, { tx: "b", block: 2 }], [{ tx: "a", block: 1 }, { tx: "b", block: 2 }], { a: A, b: A }, seg, { segment_cap: 100 });
+    eq("the cap comes from season weights", l[A].mt, 50); }
 
   // display_tp.
   const W = DEFAULT_WEIGHTS;
-  eq("tp sums counters by weight",  expectedTp({ rounds_played: 2, nudge_swaps: 3, faucet_claims: 4 }, W, 2), 579);
-  eq("tp zero under min_rounds",    expectedTp({ rounds_played: 1, nudge_swaps: 3 }, W, 2), 0);
+  eq("tp sums counters by weight",  expectedTp({ rounds_played: 2, meter_tp: 75, faucet_claims: 4 }, W, 2), 579);
+  eq("tp zero under min_rounds",    expectedTp({ rounds_played: 1, meter_tp: 75 }, W, 2), 0);
   eq("tp zero with sybil flag",     expectedTp({ rounds_played: 5, sybil_flag: "x" }, W, 2), 0);
   eq("tp honours season weights",   expectedTp({ rounds_played: 1 }, { round_played: 7 }, 0), 7);
-  eq("tp missing weight defaults",  expectedTp({ plain_swaps: 1 }, { round_played: 7 }, 0), 10);
+  eq("tp missing weight defaults",  expectedTp({ faucet_claims: 3 }, { round_played: 7 }, 0), 3);
+  eq("tp takes meter points as given", expectedTp({ rounds_played: 2, meter_tp: 30 }, W, 2), 530);
+  eq("tp does not price raw meter counters", expectedTp({ rounds_played: 2, nudge_swaps: 9, meter_tp: 0 }, W, 2), 500);
 
   // Compare.
-  const row = (over = {}) => ({ address: A, rounds_played: 2, tickets_activated: 0, nudge_swaps: 1, plain_swaps: 0, panel_nudges: 0, farm_claims: 0, stake_claims: 0, faucet_claims: 1, wins: 0, display_tp: 526, sybil_flag: null, ...over });
-  const led = () => ({ [A]: { ...blank(), rp: 2, ns: 1 } });
+  const row = (over = {}) => ({ address: A, rounds_played: 2, tickets_activated: 0, nudge_swaps: 1, plain_swaps: 0, panel_nudges: 0, farm_claims: 0, stake_claims: 0, faucet_claims: 1, wins: 0, meter_tp: 25, display_tp: 526, sybil_flag: null, ...over });
+  const led = () => ({ [A]: { ...blank(), rp: 2, ns: 1, mt: 25 } });
   { const p = {}; const r = compare(led(), { [A]: 1 }, [row()], W, 2, p, T, opts);
     eq("exact match is clean", [kinds(r), r.compared, r.matched], [[], 1, 1]); }
-  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 2, display_tp: 551 })], W, 2, p, T, opts);
+  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 2, meter_tp: 50, display_tp: 551 })], W, 2, p, T, opts);
     eq("board above chain is over", kinds(r), ["over"]); }
-  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 0, display_tp: 501 })], W, 2, p, T, opts);
+  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 0, meter_tp: 0, display_tp: 501 })], W, 2, p, T, opts);
     eq("board below chain waits inside grace", [kinds(r), Object.keys(p)], [[], [`${A}:nudge_swaps`]]); }
-  { const p = { [`${A}:nudge_swaps`]: T - 181 * 60 }; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 0, display_tp: 501 })], W, 2, p, T, opts);
+  { const p = { [`${A}:nudge_swaps`]: T - 181 * 60 }; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 0, meter_tp: 0, display_tp: 501 })], W, 2, p, T, opts);
     eq("board below chain past grace is under", kinds(r), ["under"]); }
   { const p = { [`${A}:nudge_swaps`]: T - 181 * 60 }; compare(led(), { [A]: 1 }, [row()], W, 2, p, T, opts);
     eq("caught-up under is forgotten", Object.keys(p), []); }
@@ -274,6 +324,7 @@ const PRIZE_ABI = [
   "event WinningsClaimed(address indexed winner, uint256 indexed round, uint256 amount)",
   "event RoundStarted(uint256 indexed round, uint256 timestamp)",
   "event ScrollNudged(uint256 newPosition, uint256 indexed round, uint256 segment)",
+  "event SegmentAdvanced(uint256 indexed round, uint256 segment, uint256 timestamp)",
 ];
 const REGISTRY_ABI = [
   "function getRoundEntrants(uint256 round) view returns (address[])",
@@ -362,11 +413,28 @@ async function main() {
       const fromCache = new Map();
       const txFrom = async (h) => { if (!fromCache.has(h)) { try { const t = await provider.getTransaction(h); fromCache.set(h, t?.from ? t.from.toLowerCase() : null); } catch { fromCache.set(h, null); } } return fromCache.get(h); };
 
-      const swaps  = (await sc(I.pair, "Swap", addr.pair)).map(({ log }) => ({ tx: log.transactionHash }));
-      const nudges = (await sc(I.prize, "ScrollNudged", addr.prize)).map(({ log }) => ({ tx: log.transactionHash }));
+      const swaps  = (await sc(I.pair, "Swap", addr.pair)).map(({ log }) => ({ tx: log.transactionHash, block: log.blockNumber }));
+      const nudges = (await sc(I.prize, "ScrollNudged", addr.prize)).map(({ log }) => ({ tx: log.transactionHash, block: log.blockNumber }));
       const fromOf = {};
       for (const tx of new Set([...swaps, ...nudges].map((e) => e.tx))) fromOf[tx] = await txFrom(tx);
-      foldSwapsAndNudges(state.ledger, swaps, nudges, fromOf);
+
+      // Segment boundaries for the per-segment cap. SegmentAdvanced fires on a
+      // segment's first block; the one that opened this window's first segment
+      // sits just before it, so look back far enough to seed it.
+      const segFrom = Math.max(startBlock, fromBlock - OPTS.segmentLookback);
+      const bounds = (await scanEvents(provider, I.prize, "SegmentAdvanced", addr.prize, segFrom, toBlock, { chunk: OPTS.chunk }))
+        .map(({ args, log }) => ({ block: log.blockNumber, key: `${args.round}:${args.segment}` }))
+        .sort((a, b) => a.block - b.block);
+      const segmentAt = (block) => {
+        let lo = 0, hi = bounds.length - 1, key = "unsegmented";
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (bounds[mid].block <= block) { key = bounds[mid].key; lo = mid + 1; } else { hi = mid - 1; }
+        }
+        return key;
+      };
+
+      foldSwapsAndNudges(state.ledger, swaps, nudges, fromOf, segmentAt, s.weights);
       swapsSeen = swaps.length;
 
       const acts = await sc(I.registry, "TicketActivated", addr.registry);
@@ -402,7 +470,7 @@ async function main() {
     }
 
     // 4. The board.
-    const rows = await sbAll(`points_wallets?select=address,rounds_played,tickets_activated,nudge_swaps,plain_swaps,panel_nudges,farm_claims,stake_claims,faucet_claims,wins,display_tp,sybil_flag&season_id=eq.${s.id}`);
+    const rows = await sbAll(`points_wallets?select=address,rounds_played,tickets_activated,nudge_swaps,plain_swaps,panel_nudges,farm_claims,stake_claims,faucet_claims,wins,meter_tp,display_tp,sybil_flag&season_id=eq.${s.id}`);
     const c = compare(state.ledger, faucetOf, rows, s.weights, Number(s.min_rounds ?? 0), state.pendingUnder, nowSec);
     findings = c.findings;
     summary = `${c.compared} wallets compared, ${c.matched} match · +${roundsAdded} rounds, ${swapsSeen} swaps this run · ${Object.keys(state.pendingUnder).length} under-count(s) inside grace`;
