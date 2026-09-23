@@ -1,13 +1,22 @@
 // competition.js — USDT Prize Month: live prize-wallet verification + receipts.
 //
+// STATUS (2026-09-23): Prize Month is DEFERRED. It now runs after the bug
+// bounty, alongside the soft beta mainnet launch (V2 pools + analytics). The
+// page is back to its pre-announcement state until dates are set.
+//
+// The wallet holding USDT on Arbitrum One today is the BUG BOUNTY wallet, not
+// the prize wallet. Do not put it here: this page tells visitors the balance
+// it shows is what pays competition winners, and the bounty pays from its own
+// commitment. Prize Month gets its own wallet when it is scheduled.
+//
 // ── Fill these in to go live (everything else is automatic) ──────────────────
 // PRIZE_WALLET: the Arbitrum One address holding the prize USDT. Once set, the
 // page shows it, links Arbiscan, and reads its live USDT balance client-side.
 // COMP_DATES: shown in the hero status pill, e.g. "JUL 14 – JUL 20 · ends Sunday 23:59 UTC".
 // RECEIPTS: append one entry per payout — it renders with an Arbiscan link.
-const PRIZE_WALLET = "0x6dc9380d32Bd7CaA16Cc079073fb54D644C6138C"; // Arbitrum One prize wallet — published before entries open (Sep 25)
-const COMP_DATES   = "SEP 25 – OCT 25 · ends Sunday 23:59 UTC"; // Fri Sep 25 → Sun Oct 25, 2026 (30 days)
-const PRIZE_POOL   = "$25 grand · 5 × $5 raffle";
+const PRIZE_WALLET = "";              // set when Prize Month is scheduled — NOT the bounty wallet
+const COMP_DATES   = "";              // empty → "Dates announced on X & Telegram"
+const PRIZE_POOL   = "Announced with the dates";
 const RECEIPTS     = [
   // { label: "Grand prize — $25 to 0x1234…abcd", tx: "0x…" },
 ];
