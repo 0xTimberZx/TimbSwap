@@ -1,13 +1,13 @@
 name: TimbSwap Bounty Post
 
-# Posts the bug bounty to X once every 24 hours.
+# Posts the bug bounty to X on a fixed cadence (default 48h).
 #
 # Pacing: GitHub delivers this repo's cron at roughly one tick in four to six,
-# so a daily "0 14 * * *" schedule would really post every few days. This runs
-# HOURLY and the script decides whether 24h have elapsed, from a committed
-# state file. Several fires a day is plenty to catch the window, and the job
-# is seconds long, so it does not hold a concurrency slot like the lingering
-# keepers do.
+# so no cron expression can be trusted to mean "every N hours". This runs
+# HOURLY and the script decides whether BOUNTY_MIN_HOURS (default 48) have
+# elapsed, from a committed state file. Several fires a day is plenty to catch
+# the window, and the job is seconds long, so it does not hold a concurrency
+# slot like the lingering keepers do.
 #
 # The script no-ops without X credentials, so this is safe to merge before the
 # secrets exist.

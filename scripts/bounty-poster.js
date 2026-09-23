@@ -1,17 +1,17 @@
-// bounty-poster.js — posts the bug bounty to X once per day.
+// bounty-poster.js — posts the bug bounty to X on a fixed cadence (default 48h).
 //
 // Why this isn't just a cron with one fixed string:
 //
 //   1. X REJECTS DUPLICATE POSTS. Sending byte-identical text returns
 //      403 "You are not allowed to create a Tweet with duplicate content",
-//      so a literally-standard daily post would fail every day after the
-//      first. VARIANTS below rotate, and the pool balance line changes on
-//      its own as the wallet is funded.
+//      so a single fixed post would fail every time after the first.
+//      VARIANTS below rotate, and the pool balance line changes on its own
+//      as the wallet is funded.
 //   2. GITHUB CRON IS UNRELIABLE HERE. This repo measured roughly one tick
-//      delivered in four to six. A "0 14 * * *" daily schedule would really
-//      post every few days. So the workflow runs hourly and THIS script
-//      decides whether 24h have elapsed, using a committed state file. Cron
-//      becomes a best-effort heartbeat instead of the clock.
+//      delivered in four to six, so no cron expression can be trusted to
+//      mean "every N hours". The workflow runs hourly and THIS script decides
+//      whether BOUNTY_MIN_HOURS have elapsed, from a committed state file.
+//      Cron is a best-effort heartbeat; the state file is the clock.
 //
 // State: scripts/bounty-poster-state.json — { lastPostedAt, lastVariant, posts }.
 // The workflow commits it back, exactly like the reconcilers do.
@@ -20,7 +20,11 @@
 //   X_API_KEY / X_API_SECRET / X_ACCESS_TOKEN / X_ACCESS_TOKEN_SECRET
 //                        required; absent ⇒ no-op (never an error).
 //   BOUNTY_POST_MODE     "off" disables without removing secrets.
-//   BOUNTY_MIN_HOURS     default 24. Minimum gap between posts.
+//   BOUNTY_MIN_HOURS     default 48. Minimum gap between posts. 48 rather than
+//                        24 on purpose: with a small following, a daily bounty
+//                        post on an otherwise quiet account reads as a bot
+//                        talking to itself. Seven variants at 48h is a two-week
+//                        cycle before anything repeats.
 //   BOUNTY_CARD          optional path to a PNG to attach.
 //   BOUNTY_WALLET        pool wallet, for the balance read.
 //   ARB_ONE_RPC          Arbitrum One RPC for the balance read.
@@ -32,7 +36,7 @@ const { tweet, uploadMedia, xConfigured } = require("./xposter.js");
 
 const STATE_PATH  = path.join(__dirname, "bounty-poster-state.json");
 const MODE        = (process.env.BOUNTY_POST_MODE || "on").toLowerCase();
-const MIN_HOURS   = Number(process.env.BOUNTY_MIN_HOURS || 24);
+const MIN_HOURS   = Number(process.env.BOUNTY_MIN_HOURS || 48);
 const CARD        = process.env.BOUNTY_CARD || "";
 const WALLET      = process.env.BOUNTY_WALLET || "0x6dc9380d32Bd7CaA16Cc079073fb54D644C6138C";
 const ARB_ONE_RPC = process.env.ARB_ONE_RPC || "https://arb1.arbitrum.io/rpc";
@@ -199,10 +203,15 @@ function selfTest() {
   ok("rotation advances", ((0 + 1) % VARIANTS.length) === 1);
   ok("rotation wraps", ((VARIANTS.length - 1 + 1) % VARIANTS.length) === 0);
 
-  // The 24h gate.
+  // The cadence gate, asserted against MIN_HOURS rather than a literal, so
+  // these stay true if BOUNTY_MIN_HOURS is overridden.
+  ok("default cadence is 48h", Number(process.env.BOUNTY_MIN_HOURS || 48) === MIN_HOURS);
   ok("no state ⇒ due", hoursSince(null) === Infinity);
-  ok("just posted ⇒ not due", hoursSince(new Date().toISOString()) < 24);
-  ok("25h ago ⇒ due", hoursSince(new Date(Date.now() - 25 * 3600e3).toISOString()) >= 24);
+  ok("just posted ⇒ not due", hoursSince(new Date().toISOString()) < MIN_HOURS);
+  ok("a minute short ⇒ not due",
+     hoursSince(new Date(Date.now() - (MIN_HOURS * 3600e3 - 60e3)).toISOString()) < MIN_HOURS);
+  ok("a minute over ⇒ due",
+     hoursSince(new Date(Date.now() - (MIN_HOURS * 3600e3 + 60e3)).toISOString()) >= MIN_HOURS);
   ok("garbage timestamp ⇒ due", hoursSince("not-a-date") === Infinity);
 
   console.log(`${pass} passed, ${fail} failed`);
