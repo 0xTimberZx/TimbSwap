@@ -1,0 +1,85 @@
+name: TimbSwap Bounty Post
+
+# Posts the bug bounty to X once every 24 hours.
+#
+# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six,
+# so a daily "0 14 * * *" schedule would really post every few days. This runs
+# HOURLY and the script decides whether 24h have elapsed, from a committed
+# state file. Several fires a day is plenty to catch the window, and the job
+# is seconds long, so it does not hold a concurrency slot like the lingering
+# keepers do.
+#
+# The script no-ops without X credentials, so this is safe to merge before the
+# secrets exist.
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the post without sending it"
+        required: false
+        default: "no"
+        type: choice
+        options: ["no", "yes"]
+
+concurrency:
+  group: timbswap-bounty-post
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/bounty-poster-state.json back
+
+jobs:
+  post:
+    name: Post the bounty to X
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Self-test the poster
+        working-directory: scripts
+        run: node bounty-poster.js --self-test
+
+      - name: Post
+        id: post
+        env:
+          X_API_KEY:             ${{ secrets.X_API_KEY }}
+          X_API_SECRET:          ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN:        ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          BOUNTY_POST_MODE:      ${{ vars.BOUNTY_POST_MODE }}
+          BOUNTY_MIN_HOURS:      ${{ vars.BOUNTY_MIN_HOURS }}
+          BOUNTY_WALLET:         ${{ vars.BOUNTY_WALLET }}
+          ARB_ONE_RPC:           ${{ vars.ARB_ONE_RPC }}
+          BOUNTY_CARD:           ${{ vars.BOUNTY_CARD }}
+          BOUNTY_DRY_RUN:        ${{ github.event.inputs.dry_run == 'yes' && '1' || '' }}
+        working-directory: scripts
+        run: node bounty-poster.js
+
+      # Only the state file — a post that happened must never be forgotten,
+      # or the next run would post again inside the 24h window.
+      - name: Commit state
+        if: always() && github.ref == 'refs/heads/main'
+        run: |
+          if ! git status --porcelain scripts/bounty-poster-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "bounty-poster[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/bounty-poster-state.json
+          git commit -m "[skip ci] bounty poster: update state"
+          git pull --rebase --autostash origin main
+          git push origin main
