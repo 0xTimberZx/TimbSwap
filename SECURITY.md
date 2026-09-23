@@ -96,10 +96,17 @@ cost a user funds are in.
 ## Severity & rewards
 
 Severity is **impact-based** (roughly funds-at-risk × likelihood). Rewards are
-paid in **ETH or USDC**. Amounts below are the **capped-beta starting bands**.
-During the capped beta **no single payout exceeds $500** (the program cap); the
-bands and the cap rise after the independent audit as the value-at-risk ceiling
-is lifted.
+paid in **USDT on Arbitrum One**, from a single bounty wallet whose live balance
+is published on the [Protocol page](https://timbswap.xyz/gov/#bounty) — you can
+read it on-chain before deciding whether the program is worth your time. Amounts
+below are the **capped-beta starting bands**. During the capped beta **no single
+payout exceeds $500** (the program cap); the bands and the cap rise after the
+independent audit as the value-at-risk ceiling is lifted.
+
+The **testnet phase runs first** and settles **pari-mutuel**: each tier holds a
+share of the pool, and that share is split among all accepted reports in the
+tier, so a band below is what a report pays when it is the only accepted report
+in its tier. The Protocol page carries the testnet terms in full.
 
 | Tier | Class | What lands here | Reward (capped beta) |
 |---|---|---|---|

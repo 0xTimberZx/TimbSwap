@@ -83,6 +83,15 @@
     .pb-scope-card ul { margin: 0; padding-left: 18px; }
     .pb-scope-card li { font-size: 13.5px; color: var(--text-2); line-height: 1.5; margin-bottom: 7px; }
     @media (max-width: 640px) { .pb-scope { grid-template-columns: 1fr; } }
+
+    /* Bounty pool verification — same pattern as the campaigns page: read live, client-side. */
+    .pb-verify { background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; margin: 16px 0; }
+    .pb-verify-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .pbv-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 4px; }
+    .pbv-val { font-family: var(--mono); font-size: 15px; color: var(--text); word-break: break-all; }
+    .pbv-val.gold { color: #e0a52e; font-size: 20px; font-weight: 700; }
+    .pbv-val a { color: var(--green); }
+    @media (max-width: 640px) { .pb-verify-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -234,7 +243,7 @@
       <p class="pb-lead">Break it before mainnet does — and get paid for telling us. Hunt the TimbSwap contracts on Arbitrum Sepolia testnet, where nothing is at real risk, and earn rewards for responsibly disclosed vulnerabilities that harden the protocol ahead of its audit and launch.</p>
 
       <div class="pb-stats">
-        <div class="pb-stat"><div class="v">up to $500</div><div class="l">top reward — testnet hardening pool</div></div>
+        <div class="pb-stat"><div class="v">up to $500</div><div class="l">top-tier cap — the pool's live funding is shown below</div></div>
         <div class="pb-stat"><div class="v">72 hours</div><div class="l">to first acknowledgement</div></div>
         <div class="pb-stat"><div class="v">Pari-mutuel</div><div class="l">USDT, shared per tier — first valid reporter of each issue is eligible</div></div>
         <div class="pb-stat"><div class="v">Safe harbor</div><div class="l">good-faith research is authorized</div></div>
@@ -245,6 +254,33 @@
         <a href="https://github.com/0xTimberZx/TimbSwap/blob/main/SECURITY.md" target="_blank" rel="noopener" class="btn-secondary">Full policy &amp; severity detail ↗︎</a>
       </div>
       <p class="pb-note">Note: the linked <code>SECURITY.md</code> describes the post-audit <strong>mainnet</strong> program (real value at risk, larger reward bands). This tab covers the <strong>testnet</strong> phase that runs first — same tiers and process, testnet targets.</p>
+
+      <div class="pb-section">
+        <h2>Verify the pool</h2>
+        <p>The bounty pays from one wallet on <strong>Arbitrum One</strong>, and you can check what is in it
+          without trusting us. The balance below is read live from the chain <em>in your own browser</em> — not
+          from our servers.</p>
+        <div class="pb-verify">
+          <div class="pb-verify-grid">
+            <div>
+              <div class="pbv-label">Bounty wallet (Arbitrum One)</div>
+              <div class="pbv-val" id="bb-wallet">Published when the pool is funded</div>
+            </div>
+            <div>
+              <div class="pbv-label">USDT in the wallet right now</div>
+              <div class="pbv-val gold" id="bb-balance">&mdash;</div>
+            </div>
+            <div>
+              <div class="pbv-label">Top-tier cap</div>
+              <div class="pbv-val">$500 per report</div>
+            </div>
+          </div>
+          <p class="pb-note">The wallet is funded progressively as the program runs, so the balance above is what
+            is committed <em>today</em>, not a promise of the cap. Accepted reports are paid from this wallet and
+            nowhere else, and every payout is published with its transaction hash. Watch the transfers on
+            <a id="bb-arbiscan" href="https://arbiscan.io" target="_blank" rel="noopener">Arbiscan &#8599;&#xFE0E;</a>.</p>
+        </div>
+      </div>
 
       <div class="pb-section">
         <h2>Overview</h2>
@@ -368,6 +404,7 @@
 
   <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
   <script src="gov.js?v=20260904c"></script>
+  <script src="bounty.js?v=20260923a"></script>
   <script>
     function toggleMobileNav() {
       document.getElementById("mobile-nav").classList.toggle("open");
