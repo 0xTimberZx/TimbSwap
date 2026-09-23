@@ -2,19 +2,20 @@ name: TimbSwap Bounty Post
 
 # Posts the bug bounty to X on a fixed cadence (default 48h).
 #
-# Pacing: GitHub delivers this repo's cron at roughly one tick in four to six,
-# so no cron expression can be trusted to mean "every N hours". This runs
-# HOURLY and the script decides whether BOUNTY_MIN_HOURS (default 48) have
-# elapsed, from a committed state file. Several fires a day is plenty to catch
-# the window, and the job is seconds long, so it does not hold a concurrency
-# slot like the lingering keepers do.
+# Mirror note: the live repo runs this hourly on cron and lets the script's
+# BOUNTY_MIN_HOURS gate decide when to post. Here it is MANUAL ONLY, like
+# every keeper in this checkout. That matters more for this one than for the
+# alerting keepers: both checkouts hold the same X_* secrets and post as the
+# same account, so a cron here would either double-post or - because X rejects
+# duplicate content - fail one of the two every cycle and paint the tab red.
+#
+# Dispatch it here only to exercise the script (prefer dry_run: yes). The
+# scheduled poster lives in the live repo.
 #
 # The script no-ops without X credentials, so this is safe to merge before the
 # secrets exist.
 
 on:
-  schedule:
-    - cron: "23 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
