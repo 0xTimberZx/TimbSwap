@@ -36,7 +36,7 @@
     }
   </script>
   <link rel="stylesheet" href="../style.css?v=20260902a" />
-  <link rel="stylesheet" href="explore.css?v=20260729a" />
+  <link rel="stylesheet" href="explore.css?v=20260923a" />
 </head>
 <body>
 
@@ -117,7 +117,7 @@
     <div class="explore-head">
       <div>
         <h1 class="page-h1">V2 Pools</h1>
-        <p class="page-sub">Exchange info — pools, liquidity, and trade activity across TimbSwap. Read live from chain; no wallet needed.</p>
+        <p class="page-sub">Exchange info — pools and liquidity across TimbSwap, read live from chain. Pool data needs no wallet; per-trade and per-provider activity is shown to connected wallets.</p>
       </div>
     </div>
 
@@ -172,6 +172,23 @@
       </div>
     </div>
 
+    <!-- ─── Activity (connected wallets only) ───────────────────────────── -->
+    <!-- Per-trade and per-provider rows name individual addresses. Aggregate
+         pool data above stays open to everyone; this part asks for a wallet. -->
+    <div id="activity-locked" class="activity-locked" hidden>
+      <div class="section-label">RECENT ACTIVITY</div>
+      <div class="data-card">
+        <div class="activity-locked-body">
+          <div class="activity-locked-title">Connect a wallet to see trade &amp; liquidity activity</div>
+          <p class="activity-locked-sub">Pool reserves, TVL and volume above are open to everyone. Individual
+            swaps and liquidity moves — including the addresses behind them — are shown to connected wallets.</p>
+          <button class="btn-primary" onclick="handleConnect()">Connect Wallet</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="activity-sections">
+
     <!-- ─── Recent Trades ───────────────────────────────────────────────── -->
     <div class="section-label">RECENT TRADES</div>
     <div class="data-card">
@@ -222,6 +239,8 @@
       </div>
     </div>
 
+    </div><!-- /activity-sections -->
+
   </div>
 
   <footer class="footer">
@@ -238,7 +257,7 @@
   </footer>
 
   <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
-  <script src="explore.js?v=20260904c"></script>
+  <script src="explore.js?v=20260923a"></script>
   <script>
     function toggleMobileNav() {
       document.getElementById("mobile-nav").classList.toggle("open");
