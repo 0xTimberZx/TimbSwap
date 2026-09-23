@@ -300,4 +300,6 @@ async function postRoundToX(result) {
   return id;
 }
 
-module.exports = { postRoundToX, renderRoundCard };
+// `tweet` and `uploadMedia` are exported so other posters (bounty-poster.js)
+// reuse this module's OAuth signing rather than re-implementing it.
+module.exports = { postRoundToX, renderRoundCard, tweet, uploadMedia, xConfigured };
