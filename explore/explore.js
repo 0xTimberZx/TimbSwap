@@ -403,6 +403,7 @@ async function loadActivity() {
 }
 
 function renderTrades(rows) {
+  if (!applyActivityGate()) return; // gated: leave the rows unrendered
   const tbody = document.getElementById("trades-tbody");
   const q = (document.getElementById("pool-search")?.value || "").trim().toLowerCase();
   const filtered = rows.filter(r => !q || r.pair.toLowerCase().includes(q));
@@ -425,6 +426,7 @@ function renderTrades(rows) {
 }
 
 function renderLiquidity(rows) {
+  if (!applyActivityGate()) return; // gated: leave the rows unrendered
   const tbody = document.getElementById("liq-tbody");
   const q = (document.getElementById("pool-search")?.value || "").trim().toLowerCase();
   const filtered = rows.filter(r => !q || r.pair.toLowerCase().includes(q));
@@ -446,6 +448,23 @@ function renderLiquidity(rows) {
   }
 }
 
+// ─── Activity gate ─────────────────────────────────────────────────────────────
+// Per-trade and per-provider rows name individual addresses, so they are shown
+// to connected wallets only. Everything above them — reserves, TVL, 24h volume,
+// the pool count and the 7-day trade count — is aggregate and stays open.
+//
+// This is a presentation choice, not access control: the underlying events are
+// public on Arbitrum Sepolia and anyone can read them straight off the chain.
+// Don't put anything here that actually needs to be secret.
+function applyActivityGate() {
+  const connected = !!(typeof userAddress !== "undefined" && userAddress);
+  const sections  = document.getElementById("activity-sections");
+  const locked    = document.getElementById("activity-locked");
+  if (sections) sections.hidden = !connected;
+  if (locked)   locked.hidden   = connected;
+  return connected;
+}
+
 // Re-filter every already-loaded table as the user types — pure client-side,
 // no re-fetch (rows are cached in _pools / _lastTrades / _lastLiq).
 function onPoolSearch() {
@@ -454,7 +473,7 @@ function onPoolSearch() {
   renderLiquidity(_lastLiq);
 }
 
-// ─── Wallet (optional — nav parity only; the page has no gated content) ─────────
+// ─── Wallet (optional for pool data; required for the activity tables) ─────────
 
 async function handleConnect() {
   const ok = await connectWallet();
@@ -464,6 +483,9 @@ async function handleConnect() {
   document.getElementById("wallet-info").classList.remove("hidden");
   document.getElementById("network-badge").classList.remove("hidden");
   document.getElementById("wallet-addr").textContent = fmtAddr(userAddress);
+  applyActivityGate();
+  renderTrades(_lastTrades);
+  renderLiquidity(_lastLiq);
   listenForAccountChanges((newAddr) => {
     if (!newAddr) { handleDisconnect(); return; }
     document.getElementById("wallet-addr").textContent = fmtAddr(newAddr);
@@ -476,6 +498,11 @@ function handleDisconnect() {
   document.getElementById("connect-btn").classList.remove("hidden");
   document.getElementById("wallet-info").classList.add("hidden");
   document.getElementById("network-badge").classList.add("hidden");
+  const t = document.getElementById("trades-tbody");
+  const l = document.getElementById("liq-tbody");
+  if (t) t.innerHTML = "";
+  if (l) l.innerHTML = "";
+  applyActivityGate();
 }
 
 // ─── Init ───────────────────────────────────────────────────────────────────────
@@ -483,8 +510,11 @@ function handleDisconnect() {
 (async () => {
   DebugHub.logCheckpoint("Explore:Page Loaded", "pass");
 
-  // Wallet is optional here — reflect a saved connection if present, but the
-  // whole page works disconnected (no game state on this surface).
+  // Gate first, so a disconnected visitor never sees the activity tables paint.
+  applyActivityGate();
+
+  // Reflect a saved connection if present. Pool data works disconnected; the
+  // activity tables below are gated on a wallet (see applyActivityGate).
   try {
     const addr = await autoReconnect();
     if (addr) {
@@ -496,6 +526,7 @@ function handleDisconnect() {
       DebugHub.startSession(addr);
     }
   } catch {}
+  applyActivityGate();
 
   await loadPools();
   await loadActivity();

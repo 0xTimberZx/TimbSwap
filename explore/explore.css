@@ -164,3 +164,13 @@
   .metrics-grid { grid-template-columns: 1fr; }
   .explore-page { padding: 28px 16px 60px; }
 }
+
+/* ─── Activity gate ─────────────────────────────────────────────────────────
+   Per-trade and per-provider rows name individual addresses, so they are shown
+   to connected wallets only. The pool tables above stay open to everyone. */
+.activity-locked-body { padding: 34px 24px; text-align: center; }
+.activity-locked-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.activity-locked-sub {
+  font-size: 13.5px; color: var(--text-2); line-height: 1.6;
+  max-width: 52ch; margin: 0 auto 18px;
+}
