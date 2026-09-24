@@ -162,9 +162,15 @@ async function scanInbound(from, to) {
     let logs;
     try {
       logs = await rpc("eth_getLogs", [{
+        // `address` pins the real USDT contract. This is load-bearing, not
+        // tidiness: a published bounty wallet attracts address-poisoning spam
+        // — worthless lookalike tokens sent from lookalike addresses — and
+        // without this filter those would be summed as funding.
         address:   USDT_ARB_ONE,
         fromBlock: "0x" + start.toString(16),
         toBlock:   "0x" + end.toString(16),
+        // topics[1] is `from`, topics[2] is `to`. The wallet goes in the `to`
+        // slot so payouts OUT are never counted as funding in.
         topics:    [TRANSFER_TOPIC, null, topicWallet]
       }]);
     } catch (e) {
