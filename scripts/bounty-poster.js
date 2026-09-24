@@ -58,7 +58,7 @@ const USDT_ARB_ONE = "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"; // canonical,
 // balance reads, and dropped entirely when it doesn't — never a stale number.
 const VARIANTS = [
   (pool) =>
-`Paying real USDT to break my unaudited testnet contracts, before there's anyone's money on them to lose.
+`Real USDT for breaking unaudited testnet contracts — before there is anyone's money on them to lose.
 
 5 severity tiers, $500 cap per report.${pool}
 
@@ -67,14 +67,14 @@ timbswap.xyz/gov/#bounty`,
   (pool) =>
 `Most bounties ask you to race an exploit on a contract holding strangers' savings.
 
-Mine is on testnet. Severity still priced by what the bug WOULD do with real funds. Paid in USDT on Arbitrum One.${pool}
+TimbSwap's are on testnet. Severity still priced by what the bug WOULD do with real funds. Paid in USDT on Arbitrum One.${pool}
 
 timbswap.xyz/gov/#bounty`,
 
   (pool) =>
-`The TimbSwap bounty pool wallet is public, and the page reads its balance off-chain in your own browser.${pool}
+`The TimbSwap bounty pool wallet is public, and the page reads its balance straight from the chain in your own browser.${pool}
 
-I'd rather you check a real number than take a headline on faith.
+Check a real number instead of taking a headline on faith.
 
 timbswap.xyz/gov/#bounty`,
 
@@ -93,7 +93,7 @@ Pari-mutuel: each tier's share splits across every accepted report in it. First 
 Scope and tiers → timbswap.xyz/gov/#bounty`,
 
   (pool) =>
-`If you've been meaning to read someone's contracts properly, read mine.
+`If you've been meaning to read someone's contracts properly, read these.
 
 Arbitrum Sepolia, unaudited, open source. Real USDT for anything you break.${pool}
 
@@ -285,6 +285,15 @@ function selfTest() {
     ok(`variant ${i} fits with pool line`, v(longPool).length <= 280);
     ok(`variant ${i} fits without pool line`, v("").length <= 280);
     ok(`variant ${i} links the bounty page`, v("").includes("timbswap.xyz/gov/#bounty"));
+  });
+
+  // Public copy speaks as TimbSwap, never as a person. This guard is why:
+  // the variants read like a founder wrote them, and it is easy to slip back
+  // into "my contracts" when adding one.
+  const FIRST_PERSON = /\b(I|I'm|I'd|I've|I'll|me|my|mine|myself|we|we're|we've|our|ours|us)\b/i;
+  VARIANTS.forEach((v, i) => {
+    const m = v("").match(FIRST_PERSON);
+    ok(`variant ${i} has no first person${m ? ` (found "${m[0]}")` : ""}`, !m);
   });
 
   // No two variants are identical — X would reject the repeat.
