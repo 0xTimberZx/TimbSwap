@@ -116,8 +116,9 @@ function hoursSince(iso) {
   return (Date.now() - t) / 3_600_000;
 }
 
-// Live USDT balance of the pool wallet. Returns "" on any failure — the post
-// goes out without a number rather than with a number we could not verify.
+// Live USDT balance of the pool wallet, as a whole number. Returns "" on any
+// failure — the post goes out without a number rather than with one we could
+// not verify.
 async function poolLine() {
   if (!WALLET) return "";
   try {
@@ -132,8 +133,10 @@ async function poolLine() {
     if (!body?.result || body.error) return "";
     const usdt = Number(BigInt(body.result)) / 1e6;
     if (!Number.isFinite(usdt) || usdt <= 0) return "";
-    return `\n\nPool right now: ${usdt.toLocaleString("en-US", {
-      minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT — verify it yourself.`;
+    // Whole USDT, rounded DOWN. Flooring can only ever understate the pot;
+    // rounding could print 26 for 25.6, and a bounty post must never quote
+    // more money than the wallet holds.
+    return `\n\nBounty Pot To Date: ${Math.floor(usdt).toLocaleString("en-US")} USDT`;
   } catch {
     return "";
   }
@@ -188,7 +191,7 @@ function selfTest() {
   const ok = (name, cond) => { cond ? pass++ : (fail++, console.error("FAIL:", name)); };
 
   // Every variant fits X's limit, with and without the pool line.
-  const longPool = "\n\nPool right now: 12,345.67 USDT — verify it yourself.";
+  const longPool = "\n\nBounty Pot To Date: 12,345 USDT";
   VARIANTS.forEach((v, i) => {
     ok(`variant ${i} fits with pool line`, v(longPool).length <= 280);
     ok(`variant ${i} fits without pool line`, v("").length <= 280);
