@@ -24,6 +24,12 @@ on:
         default: "no"
         type: choice
         options: ["no", "yes"]
+      verify_auth:
+        description: "Probe write scope only (uploads a 1x1 image, posts nothing)"
+        required: false
+        default: "no"
+        type: choice
+        options: ["no", "yes"]
 
 concurrency:
   group: timbswap-bounty-post
@@ -69,7 +75,12 @@ jobs:
           BOUNTY_CARD:           ${{ vars.BOUNTY_CARD }}
           BOUNTY_DRY_RUN:        ${{ github.event.inputs.dry_run == 'yes' && '1' || '' }}
         working-directory: scripts
-        run: node bounty-poster.js
+        run: |
+          if [ "${{ github.event.inputs.verify_auth }}" = "yes" ]; then
+            node bounty-poster.js --verify-auth
+          else
+            node bounty-poster.js
+          fi
 
       # Only the state file — a post that happened must never be forgotten,
       # or the next run would post again inside the 24h window.

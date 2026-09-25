@@ -34,6 +34,11 @@
 //   BOUNTY_FUNDING_CHUNK default 50000. getLogs range per request.
 //   ARB_ONE_RPC          Arbitrum One RPC for the funding scan.
 //   BOUNTY_DRY_RUN       "1" prints the post and exits without sending.
+//   --verify-auth        uploads a 1x1 PNG and attaches it to nothing. Media
+//                        upload needs WRITE scope, so this proves the token can
+//                        post without posting anything. Exit 0 = write OK,
+//                        exit 2 = token is read-only (the oauth1-permissions
+//                        403), exit 1 = anything else.
 
 const fs   = require("fs");
 const path = require("path");
@@ -274,6 +279,33 @@ async function main() {
   console.log(`[bounty] Posted variant ${idx} → tweet ${id}`);
 }
 
+// ── Write-scope probe ──────────────────────────────────────────────────────────
+// X returns 403 oauth1-permissions for any write when the access token was
+// minted while the app was read-only - and a token keeps the scope it was
+// minted with, so fixing the app setting alone does nothing until the token is
+// regenerated. This makes that visible on demand instead of at the next post.
+async function verifyAuth() {
+  if (!xConfigured()) { console.log("[bounty] No X credentials configured."); process.exit(1); }
+  // Smallest valid PNG: 1x1 transparent.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64");
+  try {
+    const id = await uploadMedia(png);
+    console.log(`[bounty] WRITE OK - media upload accepted (media_id ${id}). Token can post.`);
+    process.exit(0);
+  } catch (e) {
+    const msg = String(e?.message || e);
+    if (/oauth1-permissions|403/.test(msg)) {
+      console.error("[bounty] READ-ONLY TOKEN - X refused a write:", msg);
+      console.error("[bounty] Fix: app -> User authentication settings -> Read and Write, then REGENERATE the Access Token and Secret and update the two secrets. The API key/secret can stay.");
+      process.exit(2);
+    }
+    console.error("[bounty] probe failed for another reason:", msg);
+    process.exit(1);
+  }
+}
+
 // ── Self-test ──────────────────────────────────────────────────────────────────
 function selfTest() {
   let pass = 0, fail = 0;
@@ -335,4 +367,5 @@ function selfTest() {
 }
 
 if (process.argv.includes("--self-test")) selfTest();
+else if (process.argv.includes("--verify-auth")) verifyAuth();
 else main().catch((e) => { console.error(e); process.exit(1); });
