@@ -36,9 +36,10 @@
 //   BOUNTY_DRY_RUN       "1" prints the post and exits without sending.
 //   --verify-auth        uploads a 1x1 PNG and attaches it to nothing. Media
 //                        upload needs WRITE scope, so this proves the token can
-//                        post without posting anything. Exit 0 = write OK,
-//                        exit 2 = token is read-only (the oauth1-permissions
-//                        403), exit 1 = anything else.
+//                        post without posting anything. Exit 0 = write OK;
+//                        2 = read-only token (explicit oauth1-permissions);
+//                        3 = media endpoint refused with no scope error (not a
+//                        token problem); 4 = bad credentials (401); 1 = other.
 
 const fs   = require("fs");
 const path = require("path");
@@ -296,10 +297,23 @@ async function verifyAuth() {
     process.exit(0);
   } catch (e) {
     const msg = String(e?.message || e);
-    if (/oauth1-permissions|403/.test(msg)) {
-      console.error("[bounty] READ-ONLY TOKEN - X refused a write:", msg);
-      console.error("[bounty] Fix: app -> User authentication settings -> Read and Write, then REGENERATE the Access Token and Secret and update the two secrets. The API key/secret can stay.");
+    // Only X's explicit scope error proves a read-only token. A bare 403 with
+    // an empty body from the v1.1 media endpoint is a different failure - that
+    // endpoint is being retired - and must not be reported as a scope problem,
+    // or the fix chases the wrong thing.
+    if (/oauth1-permissions/.test(msg)) {
+      console.error("[bounty] READ-ONLY TOKEN - X refused a write on scope grounds:", msg);
+      console.error("[bounty] Fix: app -> User authentication settings -> Read and Write -> Save, then REGENERATE the Access Token and Secret and update the two secrets. The API key/secret can stay.");
       process.exit(2);
+    }
+    if (/^media upload 403/.test(msg)) {
+      console.error("[bounty] MEDIA ENDPOINT REFUSED (403, no scope error):", msg);
+      console.error("[bounty] Token scope is NOT the cause here. Likely the v1.1 media endpoint itself. Text-only posts may still work - the next real post will show. Exit 3.");
+      process.exit(3);
+    }
+    if (/401/.test(msg)) {
+      console.error("[bounty] BAD CREDENTIALS (401) - the four X_* values do not form a valid pair:", msg);
+      process.exit(4);
     }
     console.error("[bounty] probe failed for another reason:", msg);
     process.exit(1);
