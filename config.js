@@ -994,21 +994,35 @@ async function getGasParams() {
   // for maxPriorityFeePerGas (Arbitrum's tip is ~0) or even maxFeePerGas.
   // Calling .mul() on null threw "null is not an object" for EVERY write —
   // swap, advance, entry — before the wallet was ever asked to sign. Tolerate
-  // the gaps: prefer EIP-1559 when a maxFeePerGas is reported (priority 0 is
-  // valid on Arbitrum), fall back to legacy gasPrice, and finally let the
-  // wallet fill fees itself rather than crash.
+  // the gaps, and never crash: fall through to letting the wallet fill fees.
+  //
+  // Fee cap: derive it from eth_gasPrice, NOT from ethers v5's maxFeePerGas.
+  // ethers v5 builds maxFeePerGas as 2×baseFee + a hard-coded 1.5 gwei tip;
+  // on Arbitrum (base fee ~0.1 gwei, tips ignored) that is ~1.7 gwei, ×1.3
+  // here ≈ 2.2 gwei — twenty times what the tx actually pays. The cap matters
+  // because eth_estimateGas bounds its search at balance ÷ maxFeePerGas: a
+  // 0.0034 ETH wallet was capped at ~1.5M gas and a 12-extra-round entry
+  // (which needs more than that) failed with "gas required exceeds
+  // allowance" even though at the real price it costs ~0.0002 ETH. Arbitrum's
+  // eth_gasPrice returns the current L2 base fee; 2× of that is ample
+  // headroom against a spike (an under-capped tx is rejected by the
+  // sequencer, not stuck) and only the base fee is ever charged.
   let feeData;
   try { feeData = await provider.getFeeData(); }
   catch { return {}; }
 
+  const has = (v) => !!(v && v.mul && !v.isZero());
+  if (has(feeData.gasPrice)) {
+    return { maxFeePerGas: feeData.gasPrice.mul(2), maxPriorityFeePerGas: ethers.constants.Zero };
+  }
+  // No eth_gasPrice from this node: fall back to ethers' EIP-1559 numbers
+  // (inflated, but a working tx beats none), then to nothing.
   const bump = (v) => (v && v.mul) ? v.mul(130).div(100) : null;
   const maxFee = bump(feeData.maxFeePerGas);
   if (maxFee) {
     const prio = bump(feeData.maxPriorityFeePerGas);
     return { maxFeePerGas: maxFee, maxPriorityFeePerGas: prio || ethers.constants.Zero };
   }
-  const gasPrice = bump(feeData.gasPrice);
-  if (gasPrice) return { gasPrice };
   return {}; // nothing usable → wallet estimates its own fees
 }
 
