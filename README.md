@@ -44,3 +44,13 @@ forge test
 
 Deploy scripts are under `scripts/` (Foundry). Provide the required env vars
 (see `env.example`) via your secrets manager — never commit real keys.
+
+## Contact
+
+| Address | For |
+|---------|-----|
+| `devhub@timbswap.xyz` | Bug reports outside GitHub, bounty payout coordination, integration questions, abuse reports. See [SECURITY.md](./SECURITY.md) for the disclosure process. |
+| `marketing@timbswap.xyz` | Partnerships, listings, press, and sponsorship. |
+| `hello@timbswap.xyz` | Player support and anything else. |
+
+Public channels: [@timbswap](https://x.com/timbswap) on X and [t.me/timbswapann](https://t.me/timbswapann) on Telegram.
