@@ -8,6 +8,8 @@ disclosed vulnerabilities.
 > **Report privately — do not open a public issue or exploit on mainnet.**
 > Primary channel: **GitHub → this repo → Security → "Report a vulnerability"**
 > (private advisory). Backup: **devhub@timbswap.xyz**.
+> `devhub@` is for security reports only. Player support goes to `hello@timbswap.xyz`,
+> partnerships and press to `marketing@timbswap.xyz`.
 
 ---
 
