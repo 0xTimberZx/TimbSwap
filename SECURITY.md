@@ -7,7 +7,7 @@ disclosed vulnerabilities.
 
 > **Report privately — do not open a public issue or exploit on mainnet.**
 > Primary channel: **GitHub → this repo → Security → "Report a vulnerability"**
-> (private advisory). Backup: `<security contact — e.g. security@timbswap.xyz>`.
+> (private advisory). Backup: **devhub@timbswap.xyz**.
 
 ---
 
