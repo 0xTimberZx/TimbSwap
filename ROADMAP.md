@@ -19,7 +19,7 @@ The full incentive engine runs end-to-end, unattended.
 - **Emissions** — single-asset TIMBS staking and the TIMBS/ETH LP farm on the epoch waterfall with a
   99% solvency stop and self-retargeting rates. **Boosted farms** are deployed but deferred until the
   airdrop launch campaign ends (the boost leg is not drawn until then); pool creation stays permissionless.
-- **Autonomy** — a GitHub Actions keeper settles segments every ~10 min and runs the reward sweep
+- **Autonomy** — an unattended keeper settles segments every ~10 min and runs the reward sweep
   every 6 rounds, with Telegram/X notifications.
 - **Wallets** — extension / in-app wallets, or **Continue with email** (Privy embedded EOA) for
   players without one: confirmation sheet on every action, authenticator-app and passkey MFA,
