@@ -28,6 +28,13 @@ jobs:
   settle:
     name: Settle segment
     runs-on: ubuntu-latest
+    # Host gate: the fleet moved to Railway on 2026-09-25 (scripts/RAILWAY.md)
+    # after GitHub disabled Actions on the account. The cron triggers stay so
+    # this host can be switched back on, but they must never run alongside
+    # the Railway services (two settlers share one key and one nonce stream).
+    # Default is OFF: this job runs only when the repo variable KEEPERS_HOST
+    # is set to 'actions'. Set it to move the fleet back; unset it to leave.
+    if: vars.KEEPERS_HOST == 'actions'
     # Must exceed the settler's linger budget (SETTLER_LINGER_MINUTES, 340).
     # GitHub-hosted runners hard-cap a job at 360 minutes.
     timeout-minutes: 350

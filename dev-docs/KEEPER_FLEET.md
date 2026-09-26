@@ -1,10 +1,18 @@
 # Keeper fleet — checks and balances without coupling
 
-The automation runs as GitHub Actions cron jobs: no server, no daemon, each
+The automation was built as GitHub Actions cron jobs: no server, no daemon, each
 job a fresh checkout that reads `config.js`, does one thing, and exits. This
 document is the operating model for that fleet: what each job is, how they
 watch each other, and the rules that let them cross-check without any of them
 depending on another to succeed.
+
+> **Hosting (2026-09-25).** GitHub disabled Actions on the account, and the
+> writers and notifiers now run on Railway under `scripts/keeper-loop.js`
+> (see `scripts/RAILWAY.md`). The workflows below are kept intact, but every
+> scheduled keeper job is gated on the repo variable `KEEPERS_HOST`: it runs
+> only when that variable is `actions`. With the variable unset the crons fire
+> and skip, so a re-enabled Actions account cannot start a second settler on
+> the same key next to the Railway one. Pick one host per keeper, never both.
 
 ## 1. The fleet
 
