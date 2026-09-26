@@ -23,9 +23,14 @@
 //   WAITLIST_FROM               optional; sender, default "TimbSwap <hello@timbswap.xyz>"
 //                               (the domain must be verified in Resend with SPF/DKIM)
 //   WAITLIST_UNSUB_MAILTO       optional; unsubscribe inbox, default "hello@timbswap.xyz"
+//   TURNSTILE_SECRET            Cloudflare Turnstile secret key (shared with faucet-claim).
+//                               When set, every NEW signup must carry a valid token;
+//                               unset skips the check (set window.TURNSTILE_SITE_KEY in
+//                               config.js and deploy the site BEFORE setting this).
 //
 // Deploy: supabase functions deploy waitlist --no-verify-jwt
-// (public like telegram-webhook; the Worker + the SQL rate-limit are the guard.)
+// (public like telegram-webhook; Turnstile, the disposable-domain block, the Worker
+// and the SQL rate-limit are the guard.)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -49,6 +54,51 @@ function cleanSecret(name: string): string {
 const RESEND_KEY   = cleanSecret("RESEND_API_KEY");
 const MAIL_FROM    = Deno.env.get("WAITLIST_FROM") ?? "TimbSwap <hello@timbswap.xyz>";
 const UNSUB_MAILTO = Deno.env.get("WAITLIST_UNSUB_MAILTO") ?? "hello@timbswap.xyz";
+const TS_SECRET    = cleanSecret("TURNSTILE_SECRET");
+
+// Throwaway-inbox services. A signup from one of these is either a bot or a
+// person who does not want the email, and every accepted signup costs a
+// confirmation send against our domain's reputation. Rejected before storage.
+const DISPOSABLE = new Set([
+  "dispostable.com", "mailinator.com", "guerrillamail.com", "guerrillamail.net",
+  "guerrillamailblock.com", "sharklasers.com", "grr.la", "10minutemail.com",
+  "10minutemail.net", "temp-mail.org", "tempmail.com", "tempmail.net", "tempmailo.com",
+  "temp-mail.io", "tmpmail.org", "tmpmail.net", "yopmail.com", "yopmail.net",
+  "trashmail.com", "trashmail.de", "getnada.com", "nada.email", "maildrop.cc",
+  "throwawaymail.com", "mailnesia.com", "mintemail.com", "fakeinbox.com",
+  "emailondeck.com", "moakt.com", "mohmal.com", "spamgourmet.com", "mytemp.email",
+  "tempr.email", "discard.email", "mailpoof.com", "burnermail.io", "33mail.com",
+  "inboxkitten.com", "mail.tm", "mailcatch.com", "spam4.me", "tempinbox.com",
+  "harakirimail.com", "dropmail.me", "emailfake.com", "fakemail.net", "mailforspam.com",
+]);
+function isDisposable(email: string): boolean {
+  const domain = email.split("@")[1] ?? "";
+  if (DISPOSABLE.has(domain)) return true;
+  // subdomains of a listed service (x.mailinator.com)
+  for (const d of DISPOSABLE) if (domain.endsWith("." + d)) return true;
+  return false;
+}
+
+// Cloudflare Turnstile server-side verification (same as faucet-claim).
+async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  if (!TS_SECRET) return true; // not configured → skip; set it once the site key is live
+  if (!token) return false;
+  try {
+    const form = new URLSearchParams();
+    form.set("secret", TS_SECRET);
+    form.set("response", token);
+    if (ip) form.set("remoteip", ip);
+    const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    const out = await r.json();
+    return out?.success === true;
+  } catch (_e) {
+    return false; // verification unreachable → fail closed
+  }
+}
 
 const ALLOWED_ORIGINS = new Set([
   "https://timbswap.xyz",
@@ -113,8 +163,8 @@ Why bother on testnet? Your volume and streaks build Timber Points, and the
 wallets active on testnet are who we prioritize for the mainnet transition and
 the airdrop allowlist. Playing now counts.
 
-How the game works: trade like you would anywhere. Every eligible trade also
-enters the round — call six characters, and if the live meter lands on them, you
+How the game works: trade like you would anywhere. Here, the meter moves with
+the market — hold a ticket, call six characters, and if it lands on them, you
 split the pot. The prize is funded by yield, not your deposit. What you put in
 stays yours.
 
@@ -157,7 +207,7 @@ function confirmHtml(unsub: string): string {
 <tr><td align="center" style="padding:20px 32px 8px;"><a href="https://timbswap.xyz/compete" style="display:inline-block;background:#14f195;color:#062015;font-weight:700;font-size:15px;text-decoration:none;padding:13px 28px;border-radius:10px;">Take a round &rarr;</a></td></tr>
 <tr><td style="padding:14px 32px 4px;font-size:14px;line-height:1.6;color:#9fb2a8;">
 <p style="margin:0 0 12px;"><strong style="color:#c3d1c9;">Why bother on testnet?</strong> Your volume and streaks build Timber Points, and testnet-active wallets are who we prioritize for the mainnet transition and the airdrop allowlist. Playing now counts.</p>
-<p style="margin:0 0 12px;"><strong style="color:#c3d1c9;">How it works:</strong> trade like you would anywhere. Every eligible trade also enters the round &mdash; call six characters, and if the live meter lands on them, you split the pot. The prize is funded by yield, not your deposit. What you put in stays yours.</p>
+<p style="margin:0 0 12px;"><strong style="color:#c3d1c9;">How it works:</strong> trade like you would anywhere. Here, the meter moves with the market &mdash; hold a ticket, call six characters, and if it lands on them, you split the pot. The prize is funded by yield, not your deposit. What you put in stays yours.</p>
 <p style="margin:0;">Every round settles on-chain &mdash; winning strings, entries, and payouts are all public. <a href="https://timbswap.xyz/analytics" style="color:#14f195;text-decoration:none;">See the round history &#8599;</a></p></td></tr>
 <tr><td style="padding:16px 32px 4px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0e1512;border:1px solid #24322b;border-radius:10px;"><tr><td style="padding:14px 16px;font-size:13px;line-height:1.55;color:#9fb2a8;"><strong style="color:#e8f0ec;">Stay safe:</strong> we will <strong style="color:#e8f0ec;">never</strong> DM you first and never ask for your seed phrase or private keys. The only official sources are timbswap.xyz, our Telegram, and our X account. Anyone else is an impersonator &mdash; report and block them.</td></tr></table></td></tr>
 <tr><td style="padding:22px 32px 28px;border-top:1px solid #1a241f;">
@@ -208,6 +258,9 @@ Deno.serve(async (req) => {
   if (!EMAIL_RE.test(email) || email.length > 254) {
     return json({ ok: false, error: "Please enter a valid email address." }, 422, origin);
   }
+  if (isDisposable(email)) {
+    return json({ ok: false, error: "Please use a permanent email address." }, 422, origin);
+  }
 
   // Wallet + telegram are optional; an invalid wallet is dropped, not rejected.
   let wallet: string | null = null;
@@ -228,6 +281,12 @@ Deno.serve(async (req) => {
 
   const country = String(req.headers.get("X-Client-Country") ?? "").slice(0, 8);
   const rawIp   = req.headers.get("X-Real-IP") || req.headers.get("CF-Connecting-IP") || "";
+
+  // Human check before anything is stored, pinged, or mailed.
+  const tsToken = String(body?.cfTurnstileToken ?? "");
+  if (!(await verifyTurnstile(tsToken, rawIp))) {
+    return json({ ok: false, error: "Human check failed — please retry the challenge." }, 403, origin);
+  }
   const ipHash  = rawIp ? await sha256Hex(IP_SALT + "|" + rawIp) : "";
 
   const sb = createClient(SB_URL, SB_SERVICE);

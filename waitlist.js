@@ -17,6 +17,35 @@
   var msgEl    = document.getElementById("wl-msg");
   var okEl     = document.getElementById("wl-success");
 
+  // ── Turnstile (anti-bot). Renders only when config.js sets TURNSTILE_SITE_KEY;
+  // the waitlist function verifies the token once its TURNSTILE_SECRET is set.
+  // With no site key the form behaves exactly as before.
+  var tsToken = "";
+  var tsWidget = null;
+  function renderTurnstile() {
+    var key = window.TURNSTILE_SITE_KEY;
+    var el = document.getElementById("wl-turnstile");
+    if (!el || !key || !window.turnstile || tsWidget !== null) return;
+    try {
+      tsWidget = window.turnstile.render("#wl-turnstile", {
+        sitekey: key,
+        callback: function (t) { tsToken = t; },
+        "expired-callback": function () { tsToken = ""; },
+        "error-callback": function () { tsToken = ""; },
+        theme: "dark"
+      });
+    } catch (e) { /* widget optional */ }
+  }
+  function resetTurnstile() {
+    tsToken = "";
+    try { if (tsWidget !== null) window.turnstile.reset(tsWidget); } catch (e) {}
+  }
+  (function waitForTurnstile(tries) {
+    if (window.turnstile) { renderTurnstile(); return; }
+    if (tries <= 0) return;
+    setTimeout(function () { waitForTurnstile(tries - 1); }, 300);
+  })(40);
+
   // ── Attribution: capture UTM + referrer once, on first landing, and keep it in
   // sessionStorage so it survives to whichever page the visitor submits from.
   var ATTR_KEY = "timbswap_attr";
@@ -61,6 +90,7 @@
     try { localStorage.removeItem(STORE_KEY); } catch (e2) {}
     if (okEl) okEl.hidden = true;
     form.hidden = false;
+    resetTurnstile();
     clearMsg();
     if (emailEl) { emailEl.value = ""; emailEl.focus(); }
   });
@@ -91,6 +121,11 @@
     }
     var tg = ((tgEl && tgEl.value) || "").trim().replace(/^@+/, "").slice(0, 40);
 
+    if (tsWidget !== null && !tsToken) {
+      showMsg("Please complete the human check first.");
+      return;
+    }
+
     var attr = readAttribution();
     var payload = {
       email: email,
@@ -103,7 +138,8 @@
         source:   attr.utm_source   || "",
         medium:   attr.utm_medium   || "",
         campaign: attr.utm_campaign || ""
-      }
+      },
+      cfTurnstileToken: tsToken || ""
     };
 
     btn.disabled = true;
@@ -125,12 +161,14 @@
         } else {
           var reason = (res.body && res.body.error) || "Something went wrong. Please try again in a moment.";
           showMsg(reason);
+          resetTurnstile();
           btn.disabled = false;
           btn.textContent = label;
         }
       })
       .catch(function () {
         showMsg("Network hiccup — please try again.");
+        resetTurnstile();
         btn.disabled = false;
         btn.textContent = label;
       });

@@ -36,7 +36,10 @@
     }
   </script>
   <link rel="stylesheet" href="style.css?v=20260902a" />
-  <link rel="stylesheet" href="waitlist.css?v=2" />
+  <link rel="stylesheet" href="waitlist.css?v=3" />
+  <!-- Cloudflare Turnstile (anti-bot) for the waitlist form. Explicit render from
+       waitlist.js, and only when window.TURNSTILE_SITE_KEY is set in config.js. -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 <body>
 
@@ -408,6 +411,7 @@
           <input class="wl-input" id="wl-tg" type="text" spellcheck="false"
                  autocomplete="off" placeholder="@telegram (optional)" aria-label="Telegram handle (optional)" />
         </details>
+        <div class="wl-turnstile" id="wl-turnstile"></div>
         <div class="wl-msg" id="wl-msg" role="alert" hidden></div>
       </form>
 
@@ -445,7 +449,7 @@
 
   <script>document.write('<script src="config.js?t=' + Date.now() + '"><\/script>');</script>
 <script src="landing.js?v=20260904c"></script>
-<script src="waitlist.js?v=2"></script>
+<script src="waitlist.js?v=3"></script>
   <script>
     function toggleMobileNav() {
       document.getElementById("mobile-nav").classList.toggle("open");
