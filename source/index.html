@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
+  <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Source — TimbSwap</title>
+  <meta name="description" content="TimbSwap source: the deployed contracts, the security policy, and the specs, served from this site and cross-checked against Sourcify and Arbiscan." />
+  <link rel="canonical" href="https://timbswap.xyz/source/" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TimbSwap" />
+  <meta property="og:title" content="Source — TimbSwap" />
+  <meta property="og:description" content="The deployed contracts, security policy and specs, served from this site and cross-checked against Sourcify and Arbiscan." />
+  <meta property="og:url" content="https://timbswap.xyz/source/" />
+  <meta property="og:image" content="https://timbswap.xyz/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Source — TimbSwap" />
+  <meta name="twitter:description" content="The deployed contracts, security policy and specs, served from this site and cross-checked against Sourcify and Arbiscan." />
+  <meta name="twitter:image" content="https://timbswap.xyz/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script>window.ethers || document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');</script>
+  <script>window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };</script>
+  <script src="../assets/dh.js?v=1.3.4"></script>
+  <script>
+    if (!window.DebugHub) {
+      window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260902a" />
+  <link rel="stylesheet" href="../docs/docs.css?v=20260739a" />
+  <style>
+    /* One-off accents for the litepaper — leans on the docs design system. */
+    .src-x { font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--text-2);
+      background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius);
+      padding: 18px 20px; margin: 16px 0; overflow-x: auto; white-space: pre; }
+    .src-x b { color: var(--green); }
+    .lp-tag { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--green); }
+    .lp-abstract { font-size: 17px; line-height: 1.6; color: var(--text); }
+    .docs-section h2 .lp-num { font-family: var(--mono); color: var(--text-3); font-size: 0.7em; margin-right: 10px; }
+    .src-table td:first-child a { font-family: var(--mono); font-size: 13px; }
+    .src-group td { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--green); padding-top: 18px; border-bottom: none; }
+    .src-table td code { font-size: 12px; }
+    .docs-body a.btn-primary { color: var(--bg); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">⬡</span>
+      <span class="nav-logo-text">Timb<svg class="nav-logo-s" viewBox="31 30 38 42" preserveAspectRatio="xMidYMid meet"><path d="M66 33 L41 33 L34 40 L34 44 L41 51 L59 51 L66 58 L66 62 L59 69 L34 69" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/></svg>wap</span>
+    </a>
+    <div class="nav-links">
+      <div class="nav-group">
+        <button class="nav-group-btn">Dashboard <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../start/">Start Here</a>
+          <a href="../swap/">Swap</a>
+          <a href="../analytics/">Analytics</a>
+          <a href="../gov/">Protocol</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Earn TIMBS <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="../farm/">Farm</a>
+          <a href="../compete/">Compete</a>
+          <a href="../faucet/">Faucet</a>
+          <a href="../quests/">Airdrop <span class="badge-soon">Soon</span></a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn">Tools <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a class="nav-off">Lock Vault</a>
+          <a href="../explore/">V2 Pools</a>
+          <a href="../docs/">Docs</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="testnet-badge" title="Live on Arbitrum Sepolia testnet">Testnet</div>
+      <div id="network-badge" class="network-badge hidden">Arb Sepolia</div>
+      <button id="connect-btn" class="btn-connect" onclick="handleConnect()">Connect Wallet</button>
+      <div id="wallet-info" class="wallet-info hidden">
+        <button class="wallet-menu-btn" onclick="toggleWalletMenu(event)" aria-haspopup="true">
+          <span id="wallet-addr" class="wallet-addr"></span>
+          <span class="wallet-caret">▾</span>
+        </button>
+        <div class="wallet-dropdown">
+          <button class="wallet-menu-item" onclick="handleSwitchAccount()">Switch Account</button>
+          <button class="wallet-menu-item danger" onclick="handleDisconnect()">Disconnect</button>
+          <button class="wallet-menu-item" id="theme-toggle" onclick="toggleTheme()">Light Mode</button>
+        </div>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="nav-mobile-overlay" id="mobile-nav">
+    <button class="nav-mobile-close" type="button" aria-label="Close menu" onclick="document.getElementById('mobile-nav').classList.remove('open')">CLOSE &#10005;</button>
+    <div class="nav-mobile-section">DASHBOARD</div>
+    <a href="../start/">Start Here</a>
+    <a href="../swap/">Swap</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="../gov/">Protocol</a>
+    <div class="nav-mobile-section">EARN TIMBS</div>
+    <a href="../farm/">Farm</a>
+    <a href="../compete/">Compete</a>
+    <a href="../faucet/">Faucet</a>
+    <a href="../quests/">Airdrop <span class="badge-soon">Soon</span></a>
+    <div class="nav-mobile-section">TOOLS</div>
+    <a class="nav-off">Lock Vault</a>
+    <a href="../explore/">V2 Pools</a>
+    <a href="../docs/">Docs</a>
+  </div>
+
+  <div class="docs-page">
+
+    <!-- ─── Sidebar TOC ─────────────────────────────────────────────────── -->
+    <aside class="docs-toc" id="docs-toc">
+      <div class="docs-toc-label">SOURCE · a932fb2</div>
+      <nav>
+        <a href="#why" class="toc-link">Why this page</a>
+        <a href="#contracts" class="toc-link">Deployed contracts</a>
+        <a href="#verify" class="toc-link">Verify a contract</a>
+        <a href="#docs" class="toc-link">Policy &amp; specs</a>
+        <a href="#download" class="toc-link">Download</a>
+      </nav>
+    </aside>
+
+    <!-- ─── Content ─────────────────────────────────────────────────────── -->
+    <main class="docs-body">
+
+      <div class="docs-hero">
+        <h1 class="page-h1">Source</h1>
+        <p class="page-sub">The contracts behind the testnet, the security policy, and the specs, served from this site at commit <code>a932fb2</code>. Every deployed contract is cross-linked to its verified source on Arbiscan and Sourcify, which are independent of us.</p>
+      </div>
+
+      <section id="why" class="docs-section">
+        <h2>Why this page</h2>
+        <p>Open source means you can read what you interact with, and read it somewhere we do not control. The GitHub repository is temporarily unreachable while the account is under review, so the code is published here, and the verification links below go to third parties that hold the compiled bytecode and the matching source independently of both this site and GitHub.</p>
+        <div class="docs-callout docs-callout-warn">
+          <strong>Trust the chain, not the label.</strong> The addresses below are the same ones in the <a href="../docs/#authenticity">Docs address table</a>. If a contract you are about to use is not in that table, it is not ours.
+        </div>
+      </section>
+
+      <section id="contracts" class="docs-section">
+        <h2>Deployed contracts</h2>
+        <p>Arbitrum Sepolia, chain ID <code>421614</code>. Source file on the left, live address in the middle, independent verification on the right.</p>
+        <div class="table-wrap"><table class="docs-table src-table">
+          <thead><tr><th>Source</th><th>Address</th><th>Verified</th></tr></thead>
+          <tbody>
+<tr class="src-group"><td colspan="3">DEX core</td></tr>
+<tr><td><a href="/contracts/TimbSwapFactory.sol">TimbSwapFactory.sol</a></td><td><code>0xCCd6…8AF5</code></td><td><a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbSwapRouter.sol">TimbSwapRouter.sol</a></td><td><code>0x40C7…11f1</code></td><td><a href="https://sepolia.arbiscan.io/address/0x40C7Caf90817C9891D278Ec1400B9deb180911f1#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x40C7Caf90817C9891D278Ec1400B9deb180911f1/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbSwapPair.sol">TimbSwapPair.sol</a></td><td><code>0x5a91…BB95</code></td><td><a href="https://sepolia.arbiscan.io/address/0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/EligibleTokenRegistry.sol">EligibleTokenRegistry.sol</a></td><td><code>0xbFF5…9F04</code></td><td><a href="https://sepolia.arbiscan.io/address/0xbFF59a3408B2574AcE948F130f0fA2f2CB149F04#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xbFF59a3408B2574AcE948F130f0fA2f2CB149F04/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr class="src-group"><td colspan="3">Prize game</td></tr>
+<tr><td><a href="/contracts/TimbPrize.sol">TimbPrize.sol</a></td><td><code>0x6027…86AF</code></td><td><a href="https://sepolia.arbiscan.io/address/0x6027a196b553cC016b2CA8fC4477B681a2Ca86AF#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x6027a196b553cC016b2CA8fC4477B681a2Ca86AF/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/VRFEntropy.sol">VRFEntropy.sol</a></td><td><code>0xa2AC…A393</code></td><td><a href="https://sepolia.arbiscan.io/address/0xa2AC62BF0FdD1D1ED148ea1c0555eEcD8829A393#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xa2AC62BF0FdD1D1ED148ea1c0555eEcD8829A393/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/PrizeEscrow.sol">PrizeEscrow.sol</a></td><td><code>0x865C…fB6D</code></td><td><a href="https://sepolia.arbiscan.io/address/0x865C50d933e63BbE388EEAFa017AE634B0A6fB6D#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x865C50d933e63BbE388EEAFa017AE634B0A6fB6D/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/GameRegistry.sol">GameRegistry.sol</a></td><td><code>0x11C2…DD65</code></td><td><a href="https://sepolia.arbiscan.io/address/0x11C240577Cc522BE3e0f4b1ac61f916e35cfDD65#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x11C240577Cc522BE3e0f4b1ac61f916e35cfDD65/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/GasFaucet.sol">GasFaucet.sol</a></td><td><code>0x0a59…a04b</code></td><td><a href="https://sepolia.arbiscan.io/address/0x0a59b7d61a4db317fad8697c3e3e1e6df4c7a04b#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x0a59b7d61a4db317fad8697c3e3e1e6df4c7a04b/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr class="src-group"><td colspan="3">Token & incentives</td></tr>
+<tr><td><a href="/contracts/TIMBSToken.sol">TIMBSToken.sol</a></td><td><code>0x2Aaa…faAa</code></td><td><a href="https://sepolia.arbiscan.io/address/0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbStaking.sol">TimbStaking.sol</a></td><td><code>0xe776…3C8F</code></td><td><a href="https://sepolia.arbiscan.io/address/0xe776c7b700B190ED8248741F9b518B08d8733C8F#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xe776c7b700B190ED8248741F9b518B08d8733C8F/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbFarm.sol">TimbFarm.sol</a></td><td><code>0xE319…9011</code></td><td><a href="https://sepolia.arbiscan.io/address/0xE319E2206F71A5cD8dd2c411C6F29712935f9011#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xE319E2206F71A5cD8dd2c411C6F29712935f9011/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbBoostFarm.sol">TimbBoostFarm.sol</a></td><td><code>0x551D…Bd35</code></td><td><a href="https://sepolia.arbiscan.io/address/0x551D919D517aBa40D2b3A57a91973ad5Ad3CBd35#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x551D919D517aBa40D2b3A57a91973ad5Ad3CBd35/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbLockVault.sol">TimbLockVault.sol</a></td><td><code>0x0157…7a41</code></td><td><a href="https://sepolia.arbiscan.io/address/0x0157086E7670D1eFb15DC6b5158eE78279927a41#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x0157086E7670D1eFb15DC6b5158eE78279927a41/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbYieldVault.sol">TimbYieldVault.sol</a></td><td><code>0x43D8…EB0B</code></td><td><a href="https://sepolia.arbiscan.io/address/0x43D833e828e2AF951527C2b573Eb70c358FfEB0B#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x43D833e828e2AF951527C2b573Eb70c358FfEB0B/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr><td><a href="/contracts/TimbTreasury.sol">TimbTreasury.sol</a></td><td><code>0xd3F4…0D5c</code></td><td><a href="https://sepolia.arbiscan.io/address/0xd3F40042aFA8074EA68C9f61dE6aDADD539F0D5c#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xd3F40042aFA8074EA68C9f61dE6aDADD539F0D5c/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+<tr class="src-group"><td colspan="3">Governance</td></tr>
+<tr><td><a href="/contracts/TimbGovernance.sol">TimbGovernance.sol</a></td><td><code>0x8a32…a061</code></td><td><a href="https://sepolia.arbiscan.io/address/0x8a324EfDc457BfB9Cf3D077E4CBC5A16a1c6a061#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x8a324EfDc457BfB9Cf3D077E4CBC5A16a1c6a061/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
+          </tbody>
+        </table></div>
+        <p class="docs-note">Also in <code>contracts/</code> (libraries, interfaces, earlier boards, test assets): <a href="/contracts/BoostRewarder.sol">BoostRewarder.sol</a> · <a href="/contracts/CommitRevealEntropy.sol">CommitRevealEntropy.sol</a> · <a href="/contracts/DDJackpot.sol">DDJackpot.sol</a> · <a href="/contracts/PoolLedger.sol">PoolLedger.sol</a> · <a href="/contracts/RouterInterface.sol">RouterInterface.sol</a> · <a href="/contracts/SeedRegistry.sol">SeedRegistry.sol</a> · <a href="/contracts/SegmentBoard.sol">SegmentBoard.sol</a> · <a href="/contracts/SegmentBoardVRF.sol">SegmentBoardVRF.sol</a> · <a href="/contracts/SegmentBoardVRF9.sol">SegmentBoardVRF9.sol</a> · <a href="/contracts/SegmentCrank.sol">SegmentCrank.sol</a> · <a href="/contracts/TestUSDT.sol">TestUSDT.sol</a> · <a href="/contracts/TimbAirdropDistributor.sol">TimbAirdropDistributor.sol</a> · <a href="/contracts/TimbReleaseVault.sol">TimbReleaseVault.sol</a> · <a href="/contracts/TimbVesting.sol">TimbVesting.sol</a> · <a href="/contracts/UnderwriteReserve.sol">UnderwriteReserve.sol</a>.</p>
+      </section>
+
+      <section id="verify" class="docs-section">
+        <h2>Verify a contract</h2>
+        <ol>
+          <li>Open the Arbiscan link. The <strong>Contract</strong> tab shows the verified source and the compiler settings; <em>Exact Match</em> means the on-chain bytecode was rebuilt from that source.</li>
+          <li>Open the Sourcify link for a second, independent match of the same address.</li>
+          <li>Compare either with the file served here. They are the same code; if they ever differ, the chain is right and this page is stale.</li>
+        </ol>
+      </section>
+
+      <section id="docs" class="docs-section">
+        <h2>Policy &amp; specs</h2>
+        <ul>
+          <li><a href="/SECURITY.md">SECURITY.md</a> — the bug bounty policy, tiers, scope, and how to report.</li>
+          <li><a href="/SPECS.md">SPECS.md</a> — the full technical specification.</li>
+          <li><a href="/ROADMAP.md">ROADMAP.md</a> — the roadmap and the mainnet gate.</li>
+          <li><a href="/README.md">README.md</a> · <a href="/CHANGELOG.md">CHANGELOG.md</a> · <a href="/LICENSE">LICENSE</a> (BUSL-1.1).</li>
+        </ul>
+      </section>
+
+      <section id="download" class="docs-section">
+        <h2>Download</h2>
+        <p><a href="/timbswap-source.zip" class="btn-primary">timbswap-source.zip</a> — contracts, policy and specs at commit <code>a932fb2</code>, without third-party libraries. Vendored dependencies are OpenZeppelin and forge-std at the versions pinned in <code>foundry.toml</code>.</p>
+      </section>
+
+      <div class="docs-foot-links">
+        <a href="../docs/">Docs</a>
+        <a href="../gov/#bounty">Bug Bounty</a>
+        <a href="../litepaper/">Litepaper</a>
+      </div>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="nav-logo-mark">⬡</span> TimbSwap — Arbitrum Sepolia Testnet
+    </div>
+    <div class="footer-links">
+      <a href="/docs/">Docs</a>
+      <a href="/litepaper/">Litepaper</a>
+      <a href="/gov/#bounty">Bug Bounty</a>
+      <a href="/quests/">Quests</a>
+      <a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
+      <a href="/source/">Source</a>
+      <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
+      <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
+    </div>
+  </footer>
+
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
+  <script>
+    // Nav controls
+    function toggleMobileNav() { document.getElementById("mobile-nav").classList.toggle("open"); }
+    function toggleWalletMenu(e) { e.stopPropagation(); document.getElementById("wallet-info").classList.toggle("open"); }
+    document.addEventListener("click", function(e) {
+      const nav = document.getElementById("mobile-nav");
+      const btn = document.querySelector(".nav-hamburger");
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) nav.classList.remove("open");
+      const wi = document.getElementById("wallet-info");
+      if (wi && !wi.contains(e.target)) wi.classList.remove("open");
+    });
+
+    // Wallet connect (config.js supplies connectWallet / autoReconnect / fmtAddr / userAddress)
+    async function handleConnect() {
+      const ok = await connectWallet();
+      if (!ok) return;
+      DebugHub.startSession(userAddress);
+      document.getElementById("connect-btn").classList.add("hidden");
+      document.getElementById("wallet-info").classList.remove("hidden");
+      document.getElementById("network-badge").classList.remove("hidden");
+      document.getElementById("wallet-addr").textContent = fmtAddr(userAddress);
+      listenForAccountChanges((newAddr) => {
+        if (!newAddr) { handleDisconnect(); return; }
+        document.getElementById("wallet-addr").textContent = fmtAddr(newAddr);
+      });
+    }
+    function handleDisconnect() {
+      DebugHub.endSession();
+      disconnectWallet(); // clears the saved session too — a manual null left sessionStorage intact, so Disconnect was undone on the next page
+      document.getElementById("connect-btn").classList.remove("hidden");
+      document.getElementById("wallet-info").classList.add("hidden");
+      document.getElementById("network-badge").classList.add("hidden");
+    }
+
+    // TOC scroll-spy (docs.css styles .toc-link.toc-active)
+    (function () {
+      const links = Array.from(document.querySelectorAll(".toc-link"));
+      const map = new Map();
+      for (const link of links) {
+        const sec = document.getElementById(link.getAttribute("href").slice(1));
+        if (sec) map.set(sec, link);
+      }
+      if (!map.size || !("IntersectionObserver" in window)) return;
+      let active = null;
+      const io = new IntersectionObserver((entries) => {
+        const vis = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (!vis.length) return;
+        const link = map.get(vis[0].target);
+        if (link === active) return;
+        if (active) active.classList.remove("toc-active");
+        link.classList.add("toc-active"); active = link;
+      }, { rootMargin: "-88px 0px -70% 0px" });
+      map.forEach((_, sec) => io.observe(sec));
+    })();
+
+    // Reflect a saved connection; the page works fully disconnected.
+    (async () => {
+      DebugHub.logCheckpoint("Litepaper:Page Loaded", "pass");
+      try {
+        const addr = await autoReconnect();
+        if (addr) {
+          document.getElementById("connect-btn")?.classList.add("hidden");
+          document.getElementById("wallet-info")?.classList.remove("hidden");
+          document.getElementById("network-badge")?.classList.remove("hidden");
+          const el = document.getElementById("wallet-addr");
+          if (el) el.textContent = fmtAddr(addr);
+          DebugHub.startSession(addr);
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>

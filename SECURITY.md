@@ -6,8 +6,10 @@ pending. We welcome good-faith security research and will reward responsibly
 disclosed vulnerabilities.
 
 > **Report privately — do not open a public issue or exploit on mainnet.**
-> Primary channel: **GitHub → this repo → Security → "Report a vulnerability"**
-> (private advisory). Backup: **devhub@timbswap.xyz**.
+> Primary channel: **devhub@timbswap.xyz** (security-only inbox; put the
+> contract name in the subject). A GitHub private advisory on this repo
+> (Security → "Report a vulnerability") is also accepted whenever the repo is
+> reachable; email is the channel that is always open.
 > `devhub@` is for security reports only. Player support goes to `hello@timbswap.xyz`,
 > partnerships and press to `marketing@timbswap.xyz`.
 
@@ -15,7 +17,7 @@ disclosed vulnerabilities.
 
 ## How to report
 
-1. Send a report via the private channel above with: affected contract(s) +
+1. Email the report to devhub@timbswap.xyz with: affected contract(s) +
    address, a description, impact, and a **proof of concept** (a Foundry test
    or a fork script is ideal).
 2. We acknowledge within **72 hours**, trap-triage severity, and keep you
@@ -29,7 +31,7 @@ disclosed vulnerabilities.
 
 The **deployed Arbitrum One contracts** recorded in
 [`MAINNET_ADDRESSES.md`](./MAINNET_ADDRESSES.md) — and their source in
-`contracts/`. In scope by category:
+`contracts/` (also served at [timbswap.xyz/source](https://timbswap.xyz/source/)). In scope by category:
 
 - **DEX core** — `TimbSwapFactory`, `TimbSwapRouter`, the TIMBS/WETH pair.
 - **Prize game** — `TimbPrize`, `GameRegistry`, `PrizeEscrow`, `VRFEntropy`,
