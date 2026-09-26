@@ -142,3 +142,7 @@
   .wl-card { padding: 30px 20px; }
   .wl-btn { flex: 1 1 100%; }
 }
+
+/* Turnstile human check (renders only when a site key is configured). */
+.wl-turnstile { display: flex; justify-content: center; margin: 12px 0 0; }
+.wl-turnstile:empty { display: none; }
