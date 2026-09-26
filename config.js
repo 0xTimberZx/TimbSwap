@@ -11,7 +11,7 @@ const CHAIN_NAME = "Arbitrum Sepolia";
 // page. Set to your real site key; leave "" to render the faucet with no human
 // check (the edge function also skips verification when TURNSTILE_SECRET is unset,
 // so both must be set together to enforce it). window.* so faucet.js can read it.
-window.TURNSTILE_SITE_KEY = "";
+window.TURNSTILE_SITE_KEY = "0x4AAAAAAEyu8wJ7X6AVFLlS";
 
 // Privy app ID (PUBLIC — safe in client JS) for "Continue with email": email
 // one-time-code sign-in that yields an embedded Ethereum wallet (a normal EOA),
