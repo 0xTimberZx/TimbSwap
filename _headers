@@ -1,0 +1,11 @@
+# Cloudflare Worker static assets: serve source files as readable text, not downloads.
+/contracts/*
+  Content-Type: text/plain; charset=utf-8
+/*.md
+  Content-Type: text/plain; charset=utf-8
+/LICENSE
+  Content-Type: text/plain; charset=utf-8
+/timbswap-source.zip
+  Content-Disposition: attachment; filename="timbswap-source.zip"
+/keepers.tgz
+  Cache-Control: no-cache

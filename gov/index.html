@@ -250,10 +250,10 @@
       </div>
 
       <div class="pb-cta">
-        <a href="https://github.com/0xTimberZx/TimbSwap/security/advisories/new" target="_blank" rel="noopener" class="btn-primary">Report a vulnerability ↗︎</a>
-        <a href="https://github.com/0xTimberZx/TimbSwap/blob/main/SECURITY.md" target="_blank" rel="noopener" class="btn-secondary">Full policy &amp; severity detail ↗︎</a>
+        <a href="mailto:devhub@timbswap.xyz?subject=%5BTimbSwap%20bounty%5D%20%3Ccontract%3E%20%E2%80%94%20%3Cone-line%20summary%3E" class="btn-primary">Report a vulnerability · devhub@timbswap.xyz</a>
+        <a href="/SECURITY.md" class="btn-secondary">Full policy &amp; severity detail</a>
       </div>
-      <p class="pb-note">Note: the linked <code>SECURITY.md</code> describes the post-audit <strong>mainnet</strong> program (real value at risk, larger reward bands). This tab covers the <strong>testnet</strong> phase that runs first — same tiers and process, testnet targets.</p>
+      <p class="pb-note">Reports go by email to <strong>devhub@timbswap.xyz</strong>, a security-only inbox. Encrypt if you like; a proof of concept as an attachment or a gist-style paste is fine. The <code>SECURITY.md</code> linked above is the testnet policy this tab summarises; the post-audit mainnet program (real value at risk, larger bands) follows the same tiers and process.</p>
 
       <div class="pb-section">
         <h2>Verify the pool</h2>
@@ -284,7 +284,7 @@
 
       <div class="pb-section">
         <h2>Overview</h2>
-        <p>TimbSwap runs on <strong>Arbitrum Sepolia testnet</strong>: every token is a test asset with <strong>no monetary value</strong>, and the contracts are <strong>unaudited</strong>. This bounty runs <em>now</em> — before the independent audit and any mainnet launch — so vulnerabilities get found and fixed while nothing real is at stake. The contracts are open-source in <a href="https://github.com/0xTimberZx/TimbSwap/tree/main/contracts" target="_blank" rel="noopener">contracts/</a> and their deployed testnet addresses are in the <a href="../docs/#authenticity">Docs address table</a>.</p>
+        <p>TimbSwap runs on <strong>Arbitrum Sepolia testnet</strong>: every token is a test asset with <strong>no monetary value</strong>, and the contracts are <strong>unaudited</strong>. This bounty runs <em>now</em> — before the independent audit and any mainnet launch — so vulnerabilities get found and fixed while nothing real is at stake. The contracts are open-source on the <a href="../source/">Source page</a>, each cross-linked to its verified code on Arbiscan and Sourcify, and their deployed testnet addresses are in the <a href="../docs/#authenticity">Docs address table</a>.</p>
         <div class="pb-callout warn">
           <strong>Report privately — do not open a public issue.</strong> Prefer your own local fork; don't grief, spam, or DoS the shared Arbitrum Sepolia deployment, the faucet, or the keeper that other players and hunters rely on. Severity is judged by the impact a bug <em>would</em> have with real funds, so a drain-class finding is rewarded as such even though it's caught on testnet. Bands and cap rise for the mainnet program after the audit.
         </div>
@@ -311,7 +311,7 @@
 
       <div class="pb-section">
         <h2>Scope</h2>
-        <p>The <strong>deployed testnet contracts</strong> in the <a href="../docs/#authenticity">Docs address table</a> and their source in <a href="https://github.com/0xTimberZx/TimbSwap/tree/main/contracts" target="_blank" rel="noopener">contracts/</a>.</p>
+        <p>The <strong>deployed testnet contracts</strong> in the <a href="../docs/#authenticity">Docs address table</a> and their source on the <a href="../source/">Source page</a>.</p>
         <div class="pb-scope">
           <div class="pb-scope-card in">
             <h3>In scope</h3>
@@ -328,7 +328,7 @@
             <ul>
               <li>The <strong>frontend / static site</strong> for cosmetic issues; off-chain keeper / telemetry infra.</li>
               <li><strong>Third-party</strong> code / infra: Chainlink VRF, OpenZeppelin, the Arbitrum sequencer / bridge, RPC providers, wallets.</li>
-              <li><strong>Already-documented behavior</strong> (see <a href="https://github.com/0xTimberZx/TimbSwap/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>): FoT / rebasing unsupported; timelock-gated admin powers; read-only reentrancy on <code>getReserves()</code>.</li>
+              <li><strong>Already-documented behavior</strong> (see <a href="/SECURITY.md">SECURITY.md</a>): FoT / rebasing unsupported; timelock-gated admin powers; read-only reentrancy on <code>getReserves()</code>.</li>
               <li>Wallet <em>connection</em> problems, gas-golf, and scanner output without a working PoC.</li>
               <li><strong>Spam / DoS against shared testnet infra</strong> — the public RPC, the faucet, or the keeper. That's griefing, not a vulnerability.</li>
             </ul>
@@ -340,9 +340,9 @@
         <h2>How to report</h2>
         <div class="pb-report">
           <h3>1 · Send a private report</h3>
-          <p>Primary channel: <strong>GitHub → the repo → Security → “Report a vulnerability”</strong> (private advisory). Include the affected contract(s) + address, a description, the impact, and a <strong>proof of concept</strong> — a Foundry test or fork script is ideal. A backup security contact is in <a href="https://github.com/0xTimberZx/TimbSwap/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>.</p>
+          <p>Email <strong>devhub@timbswap.xyz</strong>. Include the affected contract(s) + address, a description, the impact, and a <strong>proof of concept</strong> — a Foundry test or fork script is ideal. Put the contract name in the subject so triage can route it. A GitHub private advisory on the repository is accepted too whenever the repository is reachable; email is the channel that is always open.</p>
           <div class="pb-cta">
-            <a href="https://github.com/0xTimberZx/TimbSwap/security/advisories/new" target="_blank" rel="noopener" class="btn-primary">Open a private advisory ↗︎</a>
+            <a href="mailto:devhub@timbswap.xyz?subject=%5BTimbSwap%20bounty%5D%20%3Ccontract%3E%20%E2%80%94%20%3Cone-line%20summary%3E" class="btn-primary">Email a report</a>
           </div>
         </div>
         <p><span class="pb-tag">2 · We acknowledge</span> within <strong>72 hours</strong>, triage severity, and keep you updated through the fix.</p>
@@ -396,7 +396,7 @@
       <a href="/gov/#bounty">Bug Bounty</a>
       <a href="/quests/">Quests</a>
       <a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank">Factory ↗︎</a>
-      <a href="https://github.com/0xTimberZx/TimbSwap" target="_blank">GitHub ↗︎</a>
+      <a href="/source/">Source</a>
       <a href="https://t.me/timbswapann" target="_blank">Telegram ↗︎</a>
       <a href="https://x.com/timbswap" target="_blank">X ↗︎</a>
     </div>

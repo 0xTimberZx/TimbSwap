@@ -54,3 +54,4 @@ node_modules/
 !dev-docs/KEEPER_FLEET.md
 !dev-docs/MAINNET_LP_SEED.md
 !dev-docs/REGISTRY_MIGRATION_NOTES.md
+dist/
