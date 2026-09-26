@@ -14,8 +14,19 @@ jobs:
   dispense:
     name: Drain faucet claims
     runs-on: ubuntu-latest
-    # Must exceed FAUCET_LINGER_MINUTES (default 55).
-    timeout-minutes: 60
+    # Host gate: the fleet moved to Railway on 2026-09-25 (scripts/RAILWAY.md)
+    # after GitHub disabled Actions on the account. The cron triggers stay so
+    # this host can be switched back on, but they must never run alongside
+    # the Railway services (two settlers share one key and one nonce stream).
+    # Default is OFF: this job runs only when the repo variable KEEPERS_HOST
+    # is set to 'actions'. Set it to move the fleet back; unset it to leave.
+    if: vars.KEEPERS_HOST == 'actions'
+    # Must exceed FAUCET_LINGER_MINUTES (default 55) by enough to absorb a slow
+    # runner pickup. 2026-09-20: run 510 waited 5 min for a runner, its 55-min
+    # linger then met the old 60-min cap, the job was cancelled before its
+    # dispatch step and the chain broke until cron restarted it. The other
+    # self-chained jobs carry 10–20 min of headroom; this one now does too.
+    timeout-minutes: 70
 
     steps:
       - name: Checkout repo

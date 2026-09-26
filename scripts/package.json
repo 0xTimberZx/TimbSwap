@@ -1,12 +1,18 @@
 {
-  "name": "timbswap-settler",
+  "name": "timbswap-keepers",
   "version": "1.0.0",
-  "description": "TimbSwap automated segment settler",
+  "description": "TimbSwap keepers: settler, faucet, notifiers, scorer. Run one per process via keeper-loop.js.",
   "main": "settler.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "settle": "node settler.js"
+    "settle": "node settler.js",
+    "keeper": "node keeper-loop.js"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.60",
+    "@supabase/supabase-js": "^2.45.0",
     "ethers": "^6.0.0"
   }
 }
