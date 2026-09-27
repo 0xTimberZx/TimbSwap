@@ -1,4 +1,12 @@
 // gov.js — TimbGovernance: voting power, proposals, vote, resolve
+//
+// GOVERNANCE IS OFF (2026-09-27, bounty report TS-001). ADDRESSES.TimbGovernance
+// in config.js points at a deprecated TimbSwapRouter, not a governance contract:
+// every read failed, every write reverted, and the deposit flow granted an
+// unlimited TIMBS allowance to that router. Governance has no spec or deployment
+// yet, so the Voting tab is removed from the page and every governance call
+// below is a no-op until GOV_LIVE is flipped with a real address. Wallet connect
+// on this page still works (the Bug Bounty tab uses it).
 
 const GOV_ABI = [
   "function proposalCount() external view returns (uint256)",
@@ -44,7 +52,10 @@ function readProv() {
 
 // ─── Stats Bar ────────────────────────────────────────────────────────────────
 
+const GOV_LIVE = false;
+
 async function loadStats() {
+  if (!GOV_LIVE) return;
   try {
     const gov = new ethers.Contract(ADDRESSES.TimbGovernance, GOV_ABI, readProv());
     const [count, total, qBps, threshold] = await Promise.all([
@@ -88,6 +99,7 @@ async function loadStats() {
 // ─── Voting Power ─────────────────────────────────────────────────────────────
 
 async function setVPMax() {
+  if (!GOV_LIVE) return;
   if (!userAddress) return;
   try {
     const timbs = new ethers.Contract(ADDRESSES.TIMBSToken, TIMBS_ABI, readProv());
@@ -97,6 +109,7 @@ async function setVPMax() {
 }
 
 async function handleDeposit() {
+  if (!GOV_LIVE) return;
   if (!userAddress) return;
   const amtStr = document.getElementById("vp-input").value;
   if (!amtStr || parseFloat(amtStr) <= 0) return;
@@ -114,7 +127,7 @@ async function handleDeposit() {
       DebugHub.logCheckpoint("Gov:Deposit Approve Requested", "pass");
       const gas   = await getGasParams();
       const nonce = await getPendingNonce();
-      const tx    = await timbs.approve(ADDRESSES.TimbGovernance, ethers.constants.MaxUint256, { ...gas, nonce });
+      const tx    = await timbs.approve(ADDRESSES.TimbGovernance, amt, { ...gas, nonce });
       DebugHub.logCheckpoint("Gov:Deposit Approve Submitted", "pass");
       await confirmTx(tx);
       DebugHub.logCheckpoint("Gov:Deposit Approve Confirmed", "pass");
@@ -146,6 +159,7 @@ async function handleDeposit() {
 }
 
 async function handleWithdraw() {
+  if (!GOV_LIVE) return;
   if (!userAddress || myVotingPower.eq(0)) return;
   const btn = document.getElementById("vp-withdraw-btn");
 
@@ -178,6 +192,7 @@ async function handleWithdraw() {
 // ─── Proposals ────────────────────────────────────────────────────────────────
 
 async function loadProposals() {
+  if (!GOV_LIVE) return;
   const list = document.getElementById("proposals-list");
   if (proposalCount === 0) {
     list.innerHTML = '<div class="empty-state">No proposals yet. Proposals are created by the protocol owner and voted on by TIMBS holders.</div>';
@@ -289,6 +304,7 @@ function escapeHtml(str) {
 // ─── Vote ─────────────────────────────────────────────────────────────────────
 
 async function handleVote(proposalId, support) {
+  if (!GOV_LIVE) return;
   if (!userAddress) return;
   const label = support ? "For" : "Against";
 
@@ -313,6 +329,7 @@ async function handleVote(proposalId, support) {
 // ─── Resolve ──────────────────────────────────────────────────────────────────
 
 async function handleResolve(proposalId) {
+  if (!GOV_LIVE) return;
   try {
     DebugHub.logCheckpoint("Gov:Resolve Requested", "pass");
     const gov   = await writeContract(ADDRESSES.TimbGovernance, GOV_ABI);
@@ -362,9 +379,10 @@ function handleDisconnect() {
   document.getElementById("connect-btn").classList.remove("hidden");
   document.getElementById("wallet-info").classList.add("hidden");
   document.getElementById("network-badge").classList.add("hidden");
-  document.getElementById("vp-deposit-btn").disabled = true;
-  document.getElementById("vp-deposit-btn").textContent = "Connect wallet";
-  document.getElementById("vp-withdraw-btn").disabled = true;
+  const _dep = document.getElementById("vp-deposit-btn");
+  if (_dep) { _dep.disabled = true; _dep.textContent = "Connect wallet"; }
+  const _wd = document.getElementById("vp-withdraw-btn");
+  if (_wd) _wd.disabled = true;
   loadStats();
   loadProposals();
 }
