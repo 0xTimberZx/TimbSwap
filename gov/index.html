@@ -171,75 +171,12 @@
   <div class="gov-page">
 
     <h1 class="page-h1">Protocol</h1>
-    <p class="page-sub">Shape and secure TimbSwap: vote on protocol proposals, or hunt the testnet bug bounty. Two tabs, one place.</p>
+    <p class="page-sub">Secure TimbSwap: hunt the testnet bug bounty. On-chain voting opens once governance ships.</p>
 
-    <div class="proto-tabs" role="tablist">
-      <button class="proto-tab active" data-tab="vote" role="tab">Voting</button>
-      <button class="proto-tab" data-tab="bounty" role="tab">Bug Bounty</button>
-    </div>
-
-    <!-- ═══ VOTING TAB ══════════════════════════════════════════ -->
-    <section class="proto-panel" id="tab-vote">
-      <p class="page-sub" style="margin-top:0">Deposit TIMBS for voting power and vote on protocol proposals. Your tokens stay locked only while you hold active votes.</p>
-
-      <div class="gov-stats">
-        <div class="gov-stat">
-          <span class="gov-stat-label">Total Proposals</span>
-          <span class="gov-stat-val" id="g-proposals">—</span>
-        </div>
-        <div class="gov-stat">
-          <span class="gov-stat-label">Total Voting Power</span>
-          <span class="gov-stat-val" id="g-total-power">—</span>
-        </div>
-        <div class="gov-stat">
-          <span class="gov-stat-label">Your Voting Power</span>
-          <span class="gov-stat-val" id="g-my-power">—</span>
-        </div>
-        <div class="gov-stat">
-          <span class="gov-stat-label">Quorum Required</span>
-          <span class="gov-stat-val" id="g-quorum">—</span>
-        </div>
-      </div>
-
-      <div class="gov-grid">
-        <div class="gov-card">
-          <h2 class="card-title">Voting Power</h2>
-          <p class="card-sub">Deposit TIMBS to participate in governance. Your TIMBS are locked while you have active votes.</p>
-
-          <div class="vp-display" id="vp-display">
-            <span class="vp-amount" id="vp-amount">—</span>
-            <span class="vp-label">TIMBS deposited</span>
-          </div>
-
-          <div class="pool-bal" id="vp-wallet" onclick="setVPMax()" title="Use full balance">Balance: —</div>
-          <div class="gov-input-row">
-            <input id="vp-input" class="gov-input" type="number" placeholder="Amount" />
-            <button class="gov-max-btn" onclick="setVPMax()">MAX</button>
-          </div>
-
-          <div class="vp-actions">
-            <button class="btn-gov-primary" id="vp-deposit-btn" onclick="handleDeposit()" disabled>
-              Connect wallet
-            </button>
-            <button class="btn-gov-secondary" id="vp-withdraw-btn" onclick="handleWithdraw()" disabled>
-              Withdraw
-            </button>
-          </div>
-        </div>
-
-        <div class="gov-card gov-card-wide">
-          <div class="proposals-header">
-            <h2 class="card-title">Proposals</h2>
-          </div>
-          <div id="proposals-list" class="proposals-list">
-            <div class="empty-state">Loading proposals…</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ BUG BOUNTY TAB ══════════════════════════════════════ -->
-    <section class="proto-panel" id="tab-bounty" hidden>
+    <!-- Voting tab removed 2026-09-27 (bounty report TS-001): there is no governance
+         contract deployed yet; the configured address was a deprecated router.
+         Restore from git history when governance ships. -->
+    <section class="proto-panel" id="tab-bounty">
       <p class="pb-lead">Break it before mainnet does — and get paid for telling us. Hunt the TimbSwap contracts on Arbitrum Sepolia testnet, where nothing is at real risk, and earn rewards for responsibly disclosed vulnerabilities that harden the protocol ahead of its audit and launch.</p>
 
       <div class="pb-stats">
@@ -403,7 +340,7 @@
   </footer>
 
   <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
-  <script src="gov.js?v=20260904c"></script>
+  <script src="gov.js?v=20260927a"></script>
   <script src="bounty.js?v=20260923a"></script>
   <script>
     function toggleMobileNav() {
@@ -425,28 +362,7 @@
       if (wi && !wi.contains(e.target)) wi.classList.remove("open");
     });
 
-    // ── Protocol tabs (Voting / Bug Bounty), deep-linked via #vote / #bounty ──
-    (function () {
-      var tabs = document.querySelectorAll(".proto-tab");
-      var panels = { vote: document.getElementById("tab-vote"), bounty: document.getElementById("tab-bounty") };
-      function show(name) {
-        if (!panels[name]) name = "vote";
-        tabs.forEach(function (t) { t.classList.toggle("active", t.dataset.tab === name); });
-        Object.keys(panels).forEach(function (k) { if (panels[k]) panels[k].hidden = (k !== name); });
-      }
-      tabs.forEach(function (t) {
-        t.addEventListener("click", function () {
-          var n = t.dataset.tab;
-          try { history.replaceState(null, "", "#" + n); } catch (e) { location.hash = n; }
-          show(n);
-        });
-      });
-      var initial = (location.hash || "").replace("#", "");
-      show(initial === "bounty" ? "bounty" : "vote");
-      window.addEventListener("hashchange", function () {
-        show((location.hash || "").replace("#", "") === "bounty" ? "bounty" : "vote");
-      });
-    })();
+    // Voting tab removed until governance ships; the page is the bug bounty.
   </script>
 </body>
 </html>
