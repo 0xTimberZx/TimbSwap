@@ -24,6 +24,7 @@ const GAME_REGISTRY_ABI = [
   "function entryCostTIMBS() external view returns (uint256)",
   "function entryCostETH() external view returns (uint256)",
   "function additionalRoundCost(uint256 extraRounds) external view returns (uint256)",
+  "function maxExtraRounds() external view returns (uint256)",
   "function activeTicketOf(address owner) external view returns (uint256)",
   `function getTicketsOf(address owner) external view returns (${TICKET_TUPLE}[] list, uint8[] displayStatuses)`,
   "function submitEntry(bytes6 string6, bool useETH, uint256 extraRounds) external payable",
@@ -486,6 +487,10 @@ async function loadEntryCosts() {
       registry.entryCostETH(),
       registry.entryCostTIMBS()
     ]);
+    // The cap is owner-set on-chain (6 in the capped beta). Older registries
+    // without the getter keep the constant.
+    try { maxExtraRounds = (await registry.maxExtraRounds()).toNumber(); } catch {}
+    if (extraRounds > maxExtraRounds) adjustExtraRounds(0);
     updateCostDisplay();
   } catch (e) { console.warn("loadEntryCosts:", e.message); }
 }
@@ -522,7 +527,9 @@ async function updateCostDisplay() {
       const extra = await registry.additionalRoundCost(forRounds);
       if (forRounds !== extraRounds) return; // count changed mid-flight — stale
       extraCostWei = extra;
-      noteEl.textContent = `+ ${fmtTIMBS(extra)} · non-refundable`;
+      noteEl.textContent = extra.isZero()
+        ? "Free during the beta"
+        : `+ ${fmtTIMBS(extra)} · non-refundable`;
       noteEl.classList.remove("hidden");
     } catch { extraCostWei = null; noteEl.classList.add("hidden"); }
   } else {
@@ -533,6 +540,12 @@ async function updateCostDisplay() {
 }
 
 // ─── Token Dropdown ───────────────────────────────────────────────────────────
+
+// TIMBS is not a principal option until it is distributed (config.js TIMBS_LIVE;
+// the registry also rejects TIMBS entries while timbsEntryEnabled is off).
+function timbsAllowed(addr) {
+  return TIMBS_LIVE || addr.toLowerCase() !== ADDRESSES.TIMBSToken.toLowerCase();
+}
 
 async function buildTokenDropdown() {
   try {
@@ -553,13 +566,11 @@ async function buildTokenDropdown() {
         return { address: addr, symbol, isNative: false };
       } catch { return null; }
     }));
-    for (const t of resolved) if (t) eligibleTokens.push(t);
+    for (const t of resolved) if (t && timbsAllowed(t.address)) eligibleTokens.push(t);
     renderTokenDropdown();
   } catch {
-    eligibleTokens = [
-      { address: "native", symbol: "ETH", isNative: true },
-      { address: ADDRESSES.TIMBSToken, symbol: "TIMBS", isNative: false }
-    ];
+    eligibleTokens = [{ address: "native", symbol: "ETH", isNative: true }];
+    if (TIMBS_LIVE) eligibleTokens.push({ address: ADDRESSES.TIMBSToken, symbol: "TIMBS", isNative: false });
     renderTokenDropdown();
   }
 }
@@ -604,7 +615,7 @@ async function refreshEntryBalance() {
       timbsBalWei = bal;
     }
     let txt = `Balance: ${fmt(bal, 18, 4)} ${selectedToken.symbol}`;
-    if (extraRounds > 0 && selectedToken.isNative) {
+    if (extraRounds > 0 && selectedToken.isNative && TIMBS_LIVE) {
       const timbs = await new ethers.Contract(ADDRESSES.TIMBSToken, ERC20_BAL_ABI, readProv()).balanceOf(userAddress);
       timbsBalWei = timbs;
       txt += ` · ${fmt(timbs, 18, 2)} TIMBS`;
@@ -637,12 +648,13 @@ document.addEventListener("click", (e) => {
 
 // ─── Extra Rounds ─────────────────────────────────────────────────────────────
 
-// Contract caps extra rounds at MAX_EXTRA_ROUNDS (GameRegistry). The
-// stepper must respect it — an out-of-range value reverts every entry
-// with TooManyExtraRounds (observed live: user reached 15, cap is 12).
-const MAX_EXTRA_ROUNDS = 12;
+// Contract caps extra rounds at maxExtraRounds (GameRegistry, owner-set,
+// ≤ 12). The stepper must respect it — an out-of-range value reverts every
+// entry with TooManyExtraRounds (observed live: user reached 15, cap was 12).
+// Read on load (loadEntryCosts); 6 until then, the capped-beta setting.
+let maxExtraRounds = 6;
 function adjustExtraRounds(delta) {
-  extraRounds = Math.min(MAX_EXTRA_ROUNDS, Math.max(0, extraRounds + delta));
+  extraRounds = Math.min(maxExtraRounds, Math.max(0, extraRounds + delta));
   document.getElementById("extra-rounds-val").textContent = extraRounds;
   renderPlaysRound(currentRoundNum);
   refreshEntryBalance();

@@ -91,14 +91,35 @@ async function handleConnect() {
   });
 }
 
+// What a claim pays: ETH in the capped beta (TIMBS not yet distributed).
+const CLAIM_LABEL = TIMBS_LIVE ? "Claim testnet TIMBS" : "Claim ETH";
+
+const FAUCET_READ_ABI = [
+  "function lastClaimAt(address) view returns (uint256)",
+  "function resetGrantedAt(address) view returns (uint256)",
+];
+
+// Top trader of a round gets their cooldown lifted (GasFaucet.grantReset).
+// Tell them, so the reset doesn't go unused.
+async function showResetNotice(addr) {
+  try {
+    const f = new ethers.Contract(ADDRESSES.GasFaucet, FAUCET_READ_ABI, sharedReadProvider());
+    const [last, grant] = await Promise.all([f.lastClaimAt(addr), f.resetGrantedAt(addr)]);
+    if (!last.isZero() && last.lt(grant) && addr === userAddress) {
+      setStatus("Top trader last round: your cooldown is reset. Claim again now.", "ok");
+    }
+  } catch (_e) { /* older faucet without resets: nothing to show */ }
+}
+
 function onConnected(addr) {
   document.getElementById("connect-btn").classList.add("hidden");
   document.getElementById("wallet-info").classList.remove("hidden");
   document.getElementById("network-badge").classList.remove("hidden");
   document.getElementById("wallet-addr").textContent = _fmt(addr);
   document.getElementById("faucet-addr").textContent = addr;
-  setClaimEnabled(true, "Claim testnet TIMBS");
+  setClaimEnabled(true, CLAIM_LABEL);
   setStatus("");
+  showResetNotice(addr);
 }
 
 function handleDisconnect() {
@@ -133,19 +154,21 @@ async function handleClaim() {
     try { body = await res.json(); } catch (_e) {}
 
     if (res.status === 202 || body.ok) {
-      setStatus("Your testnet TIMBS is on the way — it lands in your wallet within a minute. 🌲", "ok");
+      setStatus(TIMBS_LIVE
+        ? "Your testnet TIMBS is on the way — it lands in your wallet within a minute. 🌲"
+        : "Your ETH is on the way, with a matching share to the pot. It lands within a minute.", "ok");
       DebugHub.logCheckpoint("Faucet Claim Queued", "pass");
       setClaimEnabled(false, "Queued ✓");
     } else {
       const msg = body.error || "Couldn't claim right now — try again shortly.";
       setStatus(msg, "warn");
       DebugHub.logCheckpoint("Faucet Claim Rejected", "fail");
-      setClaimEnabled(true, "Claim testnet TIMBS");
+      setClaimEnabled(true, CLAIM_LABEL);
     }
   } catch (e) {
     setStatus("Network error — please try again.", "warn");
     DebugHub.logError("handleClaim", e);
-    setClaimEnabled(true, "Claim testnet TIMBS");
+    setClaimEnabled(true, CLAIM_LABEL);
   } finally {
     resetTurnstile(); // one solve per attempt
   }

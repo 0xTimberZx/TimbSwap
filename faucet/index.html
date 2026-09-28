@@ -116,11 +116,11 @@
 
   <div class="lock-page">
     <h1 class="page-h1">Faucet</h1>
-    <p class="page-sub">A keep-alive drip of testnet TIMBS for live players. Hold an <strong>Active ticket</strong> and claim once every 24 hours to top up your Arbitrum Sepolia TIMBS.</p>
+    <p class="page-sub">A keep-alive ETH drip for live players. Hold an <strong>Active ticket</strong> and claim once every 24 hours: half goes to your wallet for gas, half to the pot.</p>
 
     <div class="lock-grid">
       <div class="lock-card faucet-card">
-        <h2 class="card-title">Claim testnet TIMBS</h2>
+        <h2 class="card-title">Claim ETH</h2>
 
         <div class="lock-field">
           <label class="lock-label">Wallet</label>
@@ -141,6 +141,12 @@
           you minted to enter is the anti-bot gate. No pre-existing balance needed;
           this tops players up, it doesn't onboard a cold wallet.
           <a href="../compete/">Enter a round →</a>
+        </p>
+
+        <p class="faucet-note">
+          <strong>Top trader bonus.</strong> Each round, the Active ticket holder
+          with the most ETH swap volume (at least 0.08 ETH) gets their cooldown
+          reset and can claim again straight away.
         </p>
 
         <!-- Shown only when the mainnet-TIMB airdrop leg is live (config.js:
@@ -167,7 +173,7 @@
       <ul>
         <li><strong>Unaudited.</strong> The faucet and airdrop contracts are
           pre-audit. Interact only with what you're comfortable risking.</li>
-        <li><strong>Testnet tokens have no value.</strong> The TIMBS drip is on
+        <li data-timbs><strong>Testnet tokens have no value.</strong> The TIMBS drip is on
           Arbitrum Sepolia — testnet tokens, not real money; they cannot be sold
           or bridged.</li>
         <li><strong>Not an investment.</strong> TIMB is a utility/participation
