@@ -2,7 +2,9 @@
 # build-site.sh — assemble the static bundle that is uploaded to the Cloudflare
 # Worker (Workers & Pages → timbswap → New deployment → upload zip, Production).
 #
-#   sh scripts/build-site.sh            → dist/timbswap-site-<sha>.zip
+#   sh scripts/build-site.sh            → dist/timbswap-site-<sha>.zip        (Arbitrum Sepolia)
+#   NET=mainnet sh scripts/build-site.sh → dist/timbswap-site-mainnet-<sha>.zip (Arbitrum One beta:
+#                                          config.mainnet.js is prepended to config.js; see that file)
 #
 # Contents: every page and asset the site serves, plus
 #   keepers.tgz            scripts/ without node_modules — the Railway services
@@ -14,6 +16,13 @@
 set -eu
 cd "$(dirname "$0")/.."
 sha=$(git rev-parse --short HEAD)
+net=${NET:-sepolia}
+case "$net" in sepolia) tag=$sha ;; mainnet) tag="mainnet-$sha" ;; *) echo "NET must be sepolia or mainnet" >&2; exit 2 ;; esac
+# mainnet: refuse while any beta contract in config.mainnet.js is still a
+# placeholder — a zero address there would make the live site call address(0).
+if [ "$net" = mainnet ] && grep -qE '"0x0{40}",? *// beta' config.mainnet.js; then
+  echo "config.mainnet.js still has a zero beta address — fill in the DeployBeta output first" >&2; exit 3
+fi
 out=dist; stage=$out/site; rm -rf "$stage"; mkdir -p "$stage"
 
 # 1. site files: everything git tracks except code, CI, docs-for-devs, tests
@@ -25,11 +34,22 @@ tmp=$(mktemp -d); git archive HEAD scripts | tar x -C "$tmp"; rm -rf "$tmp/scrip
 tar czf "$stage/keepers.tgz" -C "$tmp" scripts; rm -rf "$tmp"
 
 # 3. source download
-tmp=$(mktemp -d); git archive HEAD contracts foundry.toml SECURITY.md SPECS.md ROADMAP.md README.md CHANGELOG.md LICENSE | tar x -C "$tmp"
+# (git ls-files drops any of these the repo doesn't have — this mirror has no
+#  SPECS.md/CHANGELOG.md, and git archive would abort on a missing pathspec.)
+tmp=$(mktemp -d)
+git ls-files -z -- contracts foundry.toml SECURITY.md SPECS.md ROADMAP.md README.md CHANGELOG.md LICENSE MAINNET_ADDRESSES.md \
+  | xargs -0 git archive HEAD | tar x -C "$tmp"
 ( cd "$tmp" && zip -qr "$OLDPWD/$stage/timbswap-source.zip" . ); rm -rf "$tmp"
+
+# 3b. mainnet: prepend the network override so every page's single config.js
+#     script tag (and the keepers' regex read of it) sees Arbitrum One first.
+if [ "$net" = mainnet ]; then
+  cat config.mainnet.js "$stage/config.js" > "$stage/config.js.tmp" && mv "$stage/config.js.tmp" "$stage/config.js"
+  rm -f "$stage/config.mainnet.js"
+fi
 
 # 4. pin the commit shown on /source/
 sed -i "s/SOURCE · [0-9a-f]\{7,\}/SOURCE · $sha/; s/at commit <code>[0-9a-f]\{7,\}<\/code>/at commit <code>$sha<\/code>/g" "$stage/source/index.html"
 
-( cd "$stage" && rm -f "../timbswap-site-$sha.zip" && zip -qr "../timbswap-site-$sha.zip" . )
-echo "$out/timbswap-site-$sha.zip  ($(unzip -l "$out/timbswap-site-$sha.zip" | tail -1))"
+( cd "$stage" && rm -f "../timbswap-site-$tag.zip" && zip -qr "../timbswap-site-$tag.zip" . )
+echo "$out/timbswap-site-$tag.zip  ($(unzip -l "$out/timbswap-site-$tag.zip" | tail -1))"

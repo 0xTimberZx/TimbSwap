@@ -4,8 +4,13 @@
 
 // ─── Chain ───────────────────────────────────────────────────────────────────
 
-const CHAIN_ID   = 421614;
-const CHAIN_NAME = "Arbitrum Sepolia";
+// Network overrides. The testnet site runs with none (Sepolia below). The
+// mainnet bundle prepends config.mainnet.js, which sets window.TIMBSWAP_NET;
+// every network constant here reads it first. See scripts/build-site.sh.
+const _NET = (typeof window !== "undefined" && window.TIMBSWAP_NET) || {};
+
+const CHAIN_ID   = _NET.chainId   || 421614;
+const CHAIN_NAME = _NET.chainName || "Arbitrum Sepolia";
 
 // ─── Capped beta: TIMBS not yet in circulation ───────────────────────────────
 // The beta runs ETH-only (dev-docs/BETA_ETH_ONLY.md): TIMBS is deployed but not
@@ -56,7 +61,9 @@ window.TURNSTILE_SITE_KEY = "0x4AAAAAAEyu8wJ7X6AVFLlS";
 // then behaves exactly as before (browser-extension wallets only). Use a
 // separate Privy app per environment (dev mirror vs live site); the app's
 // allowed origins must include this site's origin.
-window.PRIVY_APP_ID = "cmu3mq0in04v90bjyc1y38iij"; // "TimbSwap Dev" app (dev mirror only; the live site gets its own)
+window.PRIVY_APP_ID = _NET.privyAppId !== undefined
+  ? _NET.privyAppId
+  : "cmu3mq0in04v90bjyc1y38iij"; // "TimbSwap Dev" app (dev mirror only; the live site gets its own)
 
 // Where this site is served from ("https://host/" or "https://host/sub/"),
 // derived from this script's own URL so lazily-loaded assets (the email login
@@ -120,7 +127,7 @@ window.BOOST_FARMS_OPEN = false;
 // every page ("fine at first, spoils after exploring"). makeReadProvider()
 // spreads reads across all of them so no single endpoint's throttling freezes
 // the UI. Order = priority.
-const PUBLIC_RPCS = [
+const PUBLIC_RPCS = _NET.publicRpcs || [
   "https://sepolia-rollup.arbitrum.io/rpc",        // official Arbitrum Sepolia
   "https://arbitrum-sepolia-rpc.publicnode.com",   // PublicNode
   "https://arbitrum-sepolia.drpc.org",             // dRPC
@@ -172,7 +179,7 @@ const CHAIN_CONFIG = {
   chainName: CHAIN_NAME,
   nativeCurrency: { name: "Ethereum", symbol: "ETH", decimals: 18 },
   rpcUrls:        PUBLIC_RPCS,
-  blockExplorerUrls: ["https://sepolia.arbiscan.io"]
+  blockExplorerUrls: [_NET.explorer || "https://sepolia.arbiscan.io"]
 };
 
 // ─── Resilient read provider ──────────────────────────────────────────────────
@@ -245,7 +252,10 @@ const ETH_USD_PRICE = 3000;
 
 // ─── Contract Addresses ───────────────────────────────────────────────────────
 
-const ADDRESSES = {
+// Sepolia addresses. On a mainnet build window.TIMBSWAP_NET.addresses is
+// merged over these (see config.mainnet.js); keepers regex-read the deployed
+// file and take the first match per key, which the prepended override wins.
+const _SEPOLIA_ADDRESSES = {
   PrizeEscrow:          "0x0000000000000000000000000000000000000000",
   TIMBSToken:           "0x0000000000000000000000000000000000000000",
   TimbSwapFactory:      "0x0000000000000000000000000000000000000000",
@@ -313,6 +323,7 @@ const ADDRESSES = {
   USDT:                 "0x0000000000000000000000000000000000000000", // TestUSDT — 6 decimals, 1M supply
   DAPP:                 "0x0000000000000000000000000000000000000000",
 };
+const ADDRESSES = Object.assign({}, _SEPOLIA_ADDRESSES, _NET.addresses || {});
 
 // ─── Token Default List ───────────────────────────────────────────────────────
 
