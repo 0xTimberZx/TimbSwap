@@ -40,6 +40,7 @@ contract GameRegistryDynamicPricingTest is Test {
     function setUp() public {
         timbs = new MockTIMBS();
         reg = new GameRegistry(address(timbs), SINK, address(this), 2e18, 1e18);
+        reg.setTimbsEntryEnabled(true); // TIMBS leg is off by default (ETH-only beta)
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
@@ -182,8 +183,11 @@ contract GameRegistryDynamicPricingTest is Test {
     // then the next round re-prices to escrow / 1000.
     function test_EthScales_AboveThreshold() public {
         uint256 n = 1101; // 1101 * 0.001 = 1.101 ETH > 1.1 ETH
+        // Spread across 12 strings ("GABCDE".."RABCDE"): the per-string entrant
+        // cap (default 100) would otherwise stop a 1101-deep stack on one string.
         for (uint256 i = 0; i < n; i++) {
-            _ethEntry(address(uint160(0xC0000 + i)), S1);
+            bytes6 s = bytes6(bytes.concat(bytes1(uint8(0x47 + i % 12)), bytes5("ABCDE")));
+            _ethEntry(address(uint160(0xC0000 + i)), s);
         }
         uint256 escrow = n * ETH_FLOOR;
         assertEq(reg.totalEthEscrow(), escrow, "escrow summed");

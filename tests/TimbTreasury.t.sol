@@ -236,4 +236,50 @@ contract TimbTreasuryTest is Test {
         vm.expectRevert(); // OperatorCapExceeded (remaining == 0)
         treasury.withdrawOperational(dest, 1 wei);
     }
+
+    // ── Fee-sender enforcement (bounty report, informational) ──
+
+    function testUnauthorisedReceiveFeesReverts() public {
+        address rando = address(0xBAD);
+        vm.deal(rando, 1 ether);
+        vm.prank(rando);
+        vm.expectRevert(TimbTreasury.NotAuthorised.selector);
+        treasury.receiveFees{value: 1 ether}();
+        assertEq(treasury.totalFeesReceived(), 0);
+    }
+
+    function testUnauthorisedPlainSendIsDepositNotFee() public {
+        address rando = address(0xBAD);
+        vm.deal(rando, 1 ether);
+        vm.prank(rando);
+        (bool ok, ) = address(treasury).call{value: 1 ether}("");
+        assertTrue(ok, "ETH still accepted");
+        assertEq(address(treasury).balance, 1 ether);
+        assertEq(treasury.totalFeesReceived(), 0, "not counted as fees");
+    }
+
+    function testEscrowRoundCutCountsAsFees() public {
+        assertTrue(treasury.authorisedFeeSenders(escrow), "escrow authorised at deploy");
+        vm.deal(escrow, 1 ether);
+        vm.prank(escrow);
+        (bool ok, ) = address(treasury).call{value: 0.5 ether}("");
+        assertTrue(ok);
+        assertEq(treasury.totalFeesReceived(), 0.5 ether);
+    }
+
+    function testAuthorisedReceiveFeesCounts() public {
+        address router = address(0x407E);
+        treasury.setFeeSender(router, true);
+        vm.deal(router, 1 ether);
+        vm.prank(router);
+        treasury.receiveFees{value: 0.2 ether}();
+        assertEq(treasury.totalFeesReceived(), 0.2 ether);
+    }
+
+    function testSwitchingEscrowMovesAuthorisation() public {
+        address newEscrow = address(0xE5C1);
+        treasury.setPrizeEscrow(newEscrow);
+        assertTrue(treasury.authorisedFeeSenders(newEscrow));
+        assertFalse(treasury.authorisedFeeSenders(escrow), "old escrow revoked");
+    }
 }

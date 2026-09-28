@@ -108,6 +108,13 @@ contract VRFEntropy is Ownable {
     /// @notice requestId => salt, so the callback can find its draw.
     mapping(uint256 => bytes32) public saltOf;
 
+    /// @notice Replacements anyone may fire per salt. Each replacement is a
+    ///         fresh coordinator request billed to the subscription, so past
+    ///         this cap only the owner can re-request (TS-005).
+    uint256 public constant MAX_PUBLIC_REREQUESTS = 3;
+    /// @notice salt => replacements fired so far.
+    mapping(bytes32 => uint256) public rerequestCount;
+
     // ─── Events ────────────────────────────────────────────────────────────
 
     event BoardSet(address indexed board);
@@ -129,6 +136,7 @@ contract VRFEntropy is Ownable {
     error NotReady(bytes32 salt);
     error UnknownRequest(uint256 requestId);
     error NoWords();
+    error RerequestCapReached(bytes32 salt, uint256 count);
 
     modifier onlyBoard() {
         if (msg.sender != board) revert NotBoard();
@@ -169,7 +177,9 @@ contract VRFEntropy is Ownable {
      * @notice Replace a request that never came back. Permissionless — a stuck
      *         table is everyone's problem, and there is nothing to gain: the
      *         pending word is unknowable, so swapping it for another unknowable
-     *         word is not a choice between outcomes.
+     *         word is not a choice between outcomes. Capped at
+     *         MAX_PUBLIC_REREQUESTS per salt for everyone but the owner, so a
+     *         long VRF outage can't be used to drain the subscription.
      */
     function rerequest(bytes32 salt) external returns (uint256 requestId) {
         Draw storage d = draws[salt];
@@ -178,6 +188,11 @@ contract VRFEntropy is Ownable {
         if (block.timestamp < uint256(d.requestedAt) + REREQUEST_DELAY) {
             revert TooSoonToReplace(salt, d.requestedAt);
         }
+        uint256 count = rerequestCount[salt];
+        if (count >= MAX_PUBLIC_REREQUESTS && msg.sender != owner()) {
+            revert RerequestCapReached(salt, count);
+        }
+        rerequestCount[salt] = count + 1;
         // The old requestId keeps its saltOf entry: if the stale request DOES
         // land later, the callback finds the draw and fills it, which is fine —
         // whichever word arrives first is the one nobody could predict.
