@@ -46,6 +46,21 @@ git ls-files -z -- contracts foundry.toml SECURITY.md SPECS.md ROADMAP.md README
 if [ "$net" = mainnet ]; then
   cat config.mainnet.js "$stage/config.js" > "$stage/config.js.tmp" && mv "$stage/config.js.tmp" "$stage/config.js"
   rm -f "$stage/config.mainnet.js"
+  # Static text crawlers read without JS: <meta>/<title> descriptions, explorer
+  # and Sourcify URLs. Visible copy is handled at runtime (config.js netCopy).
+  find "$stage" -name '*.html' -print0 | xargs -0 sed -i \
+    -e '/<meta\|<title/ s/get free testnet gas and tokens, then play. Free on Arbitrum Sepolia testnet./get a little ETH, pick a ticket, then play. Capped beta on Arbitrum One./g' \
+    -e '/<meta\|<title/ s/Free to try on Arbitrum testnet./Play the capped beta on Arbitrum One./g' \
+    -e '/<meta\|<title/ s/on the Arbitrum Sepolia testnet DEX/on Arbitrum One/g' \
+    -e '/<meta\|<title/ s/Arbitrum Sepolia testnet/Arbitrum One/g' \
+    -e '/<meta\|<title/ s/on Arbitrum Sepolia/on Arbitrum One/g' \
+    -e '/<meta\|<title/ s/testnet bug bounty/bug bounty/g' \
+    -e '/<meta\|<title/ s/a testnet TIMBS drip/an ETH drip/g' \
+    -e '/<meta\|<title/ s/free testnet entry/free entry/g' \
+    -e '/<meta\|<title/ s/get free testnet gas and tokens, then play. Free on Arbitrum One./get a little ETH, pick a ticket, then play. Capped beta on Arbitrum One./g' \
+    -e 's#https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5#https://arbiscan.io/address/0x60d4f18fe205c0ed38507a8fbf89aaa1bd2ce183#g' \
+    -e 's#https://sepolia.arbiscan.io#https://arbiscan.io#g' \
+    -e 's#https://repo.sourcify.dev/421614/#https://repo.sourcify.dev/42161/#g'
 fi
 
 # 4. pin the commit shown on /source/

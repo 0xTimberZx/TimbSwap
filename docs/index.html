@@ -145,11 +145,11 @@
 
       <div class="docs-hero">
         <h1 class="page-h1">TimbSwap Documentation</h1>
-        <p class="page-sub">A community DeFi DEX and on-chain game on the Arbitrum Sepolia testnet — swap, pool, farm, lock, and compete for the prize scroll.</p>
+        <p class="page-sub">A community DeFi DEX and on-chain game <span data-net="sepolia">on the Arbitrum Sepolia testnet</span><span data-net="mainnet">in the capped beta on Arbitrum One</span> — swap, pool, farm, lock, and compete for the prize scroll.</p>
       </div>
 
       <div class="docs-callout docs-callout-warn">
-        <strong>Testnet only.</strong> TimbSwap runs entirely on the <strong>Arbitrum Sepolia</strong> test network (chain ID <code>421614</code>). Every token here — including TIMBS — is a <strong>test asset with no monetary value</strong>. Nothing on this site is an investment, a security, or financial advice. Do not send real funds or mainnet assets to any address listed here.
+        <span data-net="sepolia"><strong>Testnet only.</strong> TimbSwap runs entirely on the <strong>Arbitrum Sepolia</strong> test network (chain ID <code>421614</code>). Every token here — including TIMBS — is a <strong>test asset with no monetary value</strong>. Nothing on this site is an investment, a security, or financial advice. Do not send real funds or mainnet assets to any address listed here.</span><span data-net="mainnet"><strong>Capped beta.</strong> TimbSwap runs on <strong>Arbitrum One</strong> (chain ID <code>42161</code>) with real ETH at <strong>small, capped stakes</strong>; TIMBS is not yet in circulation. Nothing on this site is an investment, a security, or financial advice. Never put in more than a ticket and gas, and verify every address before you use it.</span>
       </div>
 
       <div class="docs-callout"><strong>New here?</strong> The <a href="../litepaper/">Litepaper</a> is the one-document overview — mechanism, tokenomics, architecture, risks, and roadmap. These docs are the detailed reference.</div>
@@ -157,7 +157,7 @@
       <!-- Overview -->
       <section id="overview" class="docs-section">
         <h2>Overview</h2>
-        <p>TimbSwap is a constant-product (Uniswap-V2-style) automated market maker paired with a set of on-chain incentive games. It is <strong>open-source, decentralized, permissionless, and non-custodial</strong>: the protocol is a set of <strong>Solidity smart contracts</strong> on Arbitrum — anyone can call them directly, no one can pause your funds, and you always hold your own keys. All state is read live from the chain — the frontend is static and hosts no backend. You interact by connecting an EVM wallet (MetaMask, Rabby, or a mobile in-app wallet) set to Arbitrum Sepolia — or, with no extension at all, by choosing <em>Continue with email</em>, which gives you an ordinary wallet address (see <a href="#email-wallet">Email wallet &amp; security</a>).</p>
+        <p>TimbSwap is a constant-product (Uniswap-V2-style) automated market maker paired with a set of on-chain incentive games. It is <strong>open-source, decentralized, permissionless, and non-custodial</strong>: the protocol is a set of <strong>Solidity smart contracts</strong> on Arbitrum — anyone can call them directly, no one can pause your funds, and you always hold your own keys. All state is read live from the chain — the frontend is static and hosts no backend. You interact by connecting an EVM wallet (MetaMask, Rabby, or a mobile in-app wallet) set to <span data-net="sepolia">Arbitrum Sepolia</span><span data-net="mainnet">Arbitrum One</span> — or, with no extension at all, by choosing <em>Continue with email</em>, which gives you an ordinary wallet address (see <a href="#email-wallet">Email wallet &amp; security</a>).</p>
         <p>The core surfaces are:</p>
         <ul>
           <li><strong>Swap</strong> — trade tokens against AMM pools.</li>
@@ -187,10 +187,13 @@
       <section id="start" class="docs-section">
         <h2>Getting started</h2>
         <ol>
-          <li><strong>Add the network.</strong> Arbitrum Sepolia — chain ID <code>421614</code>, RPC <code>https://sepolia-rollup.arbitrum.io/rpc</code>, explorer <code>sepolia.arbiscan.io</code>. Connecting your wallet on any TimbSwap page will offer to add/switch to it automatically.</li>
-          <li><strong>Get testnet ETH.</strong> Use a public Arbitrum Sepolia faucet to fund gas. You need a small amount of Sepolia ETH for every transaction. Once you hold an <em>Active</em> ticket in the prize game, the <a href="../faucet/">TimbSwap faucet</a> tops you up with testnet TIMBS once every 24 hours.</li>
+          <li data-net="sepolia"><strong>Add the network.</strong> Arbitrum Sepolia — chain ID <code>421614</code>, RPC <code>https://sepolia-rollup.arbitrum.io/rpc</code>, explorer <code>sepolia.arbiscan.io</code>. Connecting your wallet on any TimbSwap page will offer to add/switch to it automatically.</li>
+          <li data-net="mainnet"><strong>Add the network.</strong> Arbitrum One — chain ID <code>42161</code>, RPC <code>https://arb1.arbitrum.io/rpc</code>, explorer <code>arbiscan.io</code>. Connecting your wallet on any TimbSwap page will offer to add/switch to it automatically.</li>
+          <li data-net="sepolia"><strong>Get testnet ETH.</strong> Use a public Arbitrum Sepolia faucet to fund gas. You need a small amount of Sepolia ETH for every transaction. Once you hold an <em>Active</em> ticket in the prize game, the <a href="../faucet/">TimbSwap faucet</a> tops you up with testnet TIMBS once every 24 hours.</li>
+          <li data-net="mainnet"><strong>Get ETH on Arbitrum One.</strong> Bridge or withdraw a little ETH — about 0.002 covers a refundable 0.001 ETH ticket plus gas. Once you hold an <em>Active</em> ticket in the prize game, the <a href="../faucet/">TimbSwap faucet</a> pays a keep-alive 0.00025 ETH once every 24 hours (and another 0.00025 ETH to the pot).</li>
           <li><strong>Connect.</strong> Click <em>Connect Wallet</em> in the top bar and pick your extension or in-app wallet, or <em>Continue with email</em> if you have none. Reads (quotes, balances, tables) always come from the public RPC; your wallet is only asked to <em>sign</em> transactions.</li>
-          <li><strong>Get test tokens.</strong> Swap a little ETH for TIMBS or another listed token to start using the farm, lock, and compete surfaces.</li>
+          <li data-net="sepolia"><strong>Get test tokens.</strong> Swap a little ETH for TIMBS or another listed token to start using the farm, lock, and compete surfaces.</li>
+          <li data-net="mainnet"><strong>Enter a round.</strong> Set a 6-character ticket on <a href="../compete/">Compete</a> for 0.001 ETH (refundable), then trade — every eligible ETH swap nudges the live meter.</li>
         </ol>
         <p>In a hurry? <a href="../start/">Start Here</a> walks you into your first round in about two minutes.</p>
       </section>
@@ -230,7 +233,7 @@
       <section id="farm" class="docs-section">
         <h2>Farm (staking)</h2>
         <p>The <a href="../farm/">Farm</a> lets you stake eligible tokens to earn TIMBS emissions. Rewards stream at a per-second rate and are claimable at any time; claiming does not reset your stake.</p>
-        <p><strong>Reading APR.</strong> APR is derived from the reward rate and the total staked, so it swings when either changes. On a small testnet pool a tiny stake can produce an astronomical headline APR — the UI caps the displayed figure, and you should treat testnet APR as illustrative, not a yield promise.</p>
+        <p><strong>Reading APR.</strong> APR is derived from the reward rate and the total staked, so it swings when either changes. On a small <span data-net="sepolia">testnet </span><span data-net="mainnet"></span>pool a tiny stake can produce an astronomical headline APR — the UI caps the displayed figure, and you should treat <span data-net="sepolia">testnet</span><span data-net="mainnet">beta</span> APR as illustrative, not a yield promise.</p>
       </section>
 
       <!-- Lock -->
@@ -288,14 +291,15 @@
       <!-- Risks -->
       <section id="risks" class="docs-section">
         <h2>Risks</h2>
-        <p>Plainly stated — these apply on testnet today and would apply with real value on mainnet:</p>
+        <p>Plainly stated — <span data-net="sepolia">these apply on testnet today and would apply with real value on mainnet:</span><span data-net="mainnet">these apply in the capped beta today and with more value at the full launch:</span></p>
         <ul>
           <li><strong>Smart-contract risk.</strong> The contracts are testnet-hardened but <strong>unaudited</strong>. An independent audit is a gating condition for any mainnet deployment. Permissionless refund and recovery paths exist so funds are not trapped behind an operator.</li>
           <li><strong>Impermanent loss.</strong> Providing liquidity carries standard AMM impermanent-loss risk, larger on thin or volatile pairs (boosted farms, once they open, would be the highest-risk seat).</li>
           <li><strong>Game randomness.</strong> Locked characters are jittered with the settling block's hash. You can aim a position's <em>class</em> (letter vs digit) but not the exact character — treat the game as chance-weighted, not skill-guaranteed.</li>
-          <li><strong>Emissions variance.</strong> APR figures move with the epoch waterfall and total staked; a testnet APR is illustrative, never a promise of yield.</li>
-          <li><strong>Regulatory.</strong> Prize mechanics are classified differently by jurisdiction. On testnet nothing has monetary value; before any real-value launch, formal legal review (and likely geofencing) is a gating condition.</li>
-          <li><strong>Testnet impermanence.</strong> Test networks can be reset or halted at any time; assume all testnet state is disposable.</li>
+          <li><strong>Emissions variance.</strong> APR figures move with the epoch waterfall and total staked; a <span data-net="sepolia">testnet</span><span data-net="mainnet">beta</span> APR is illustrative, never a promise of yield.</li>
+          <li><strong>Regulatory.</strong> Prize mechanics are classified differently by jurisdiction. <span data-net="sepolia">On testnet nothing has monetary value; before any real-value launch,</span><span data-net="mainnet">In the beta, stakes are small and capped; before the full launch,</span> formal legal review (and likely geofencing) is a gating condition.</li>
+          <li data-net="sepolia"><strong>Testnet impermanence.</strong> Test networks can be reset or halted at any time; assume all testnet state is disposable.</li>
+          <li data-net="mainnet"><strong>Beta impermanence.</strong> The beta game can be paused or migrated to a new generation at any time; principal stays reclaimable through the permissionless refund paths.</li>
         </ul>
       </section>
 
@@ -315,7 +319,7 @@
             </tbody>
           </table>
         </div>
-        <p class="docs-note">Network: Arbitrum Sepolia (chain ID <code>421614</code>). Tap any address to open it on Arbiscan.</p>
+        <p class="docs-note">Network: <span data-net="sepolia">Arbitrum Sepolia (chain ID <code>421614</code>)</span><span data-net="mainnet">Arbitrum One (chain ID <code>42161</code>)</span>. Tap any address to open it on Arbiscan.</p>
       </section>
 
       <!-- Privacy -->
@@ -325,7 +329,7 @@
         <ul>
           <li><strong>Your wallet.</strong> Connecting shares your public address with the site (standard for any dApp). The app reads balances and signs transactions you approve; it never has custody of your keys or funds.</li>
           <li><strong>Email sign-in (optional).</strong> If you choose “Continue with email”, the one-time code and your email address are handled by <a href="https://www.privy.io/" target="_blank" rel="noopener">Privy</a>, which creates a wallet for you; its key is split between Privy and your browser and is never seen by TimbSwap. TimbSwap only receives the resulting public wallet address, exactly as with an extension wallet. Privy's own privacy policy applies to the email.</li>
-          <li><strong>Public RPC.</strong> Reads go to a public Arbitrum Sepolia RPC endpoint, which sees the requests your browser makes (a normal property of using any public node).</li>
+          <li><strong>Public RPC.</strong> Reads go to a public <span data-net="sepolia">Arbitrum Sepolia</span><span data-net="mainnet">Arbitrum One</span> RPC endpoint, which sees the requests your browser makes (a normal property of using any public node).</li>
           <li><strong>Local storage.</strong> Your theme choice and last-connected state are kept in your browser only.</li>
           <li><strong>Diagnostics.</strong> The app records diagnostic checkpoints and error events <em>in your browser only</em> — nothing is sent to a server during the capped beta. No private keys or seed phrases are ever collected. If you export a debug log to share with us, review it before sending.</li>
           <li><strong>Faucet claims.</strong> If you use the faucet, a Cloudflare Turnstile human-check runs and your wallet address is recorded to enforce the 24-hour cooldown. Nothing else is collected.</li>
@@ -335,7 +339,7 @@
       <!-- Disclaimer -->
       <section id="disclaimer" class="docs-section">
         <h2>Disclaimer</h2>
-        <p>TimbSwap is an experimental, unaudited testnet project provided “as is,” without warranties of any kind. Testnet assets have no monetary value and testnets can be reset or halted at any time. Interact at your own risk, verify every address, and never treat anything here as financial advice.</p>
+        <p><span data-net="sepolia">TimbSwap is an experimental, unaudited testnet project provided “as is,” without warranties of any kind. Testnet assets have no monetary value and testnets can be reset or halted at any time.</span><span data-net="mainnet">TimbSwap is an experimental, unaudited project in a capped beta, provided “as is,” without warranties of any kind. Stakes are small and capped, and the beta can be paused or migrated at any time.</span> Interact at your own risk, verify every address, and never treat anything here as financial advice.</p>
       </section>
 
       <div class="docs-foot-links">

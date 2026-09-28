@@ -145,7 +145,7 @@
 
       <div class="docs-hero">
         <h1 class="page-h1">Source</h1>
-        <p class="page-sub">The contracts behind the testnet, the security policy, and the specs, served from this site at commit <code>a932fb2</code>. Every deployed contract is cross-linked to its verified source on Arbiscan and Sourcify, which are independent of us.</p>
+        <p class="page-sub">The contracts behind the <span data-net="sepolia">testnet</span><span data-net="mainnet">beta</span>, the security policy, and the specs, served from this site at commit <code>a932fb2</code>. Every deployed contract is cross-linked to its verified source on Arbiscan and Sourcify, which are independent of us.</p>
       </div>
 
       <section id="why" class="docs-section">
@@ -158,32 +158,10 @@
 
       <section id="contracts" class="docs-section">
         <h2>Deployed contracts</h2>
-        <p>Arbitrum Sepolia, chain ID <code>421614</code>. Source file on the left, live address in the middle, independent verification on the right.</p>
+        <p id="src-net-note">Source file on the left, live address in the middle, independent verification on the right.</p>
         <div class="table-wrap"><table class="docs-table src-table">
           <thead><tr><th>Source</th><th>Address</th><th>Verified</th></tr></thead>
-          <tbody>
-<tr class="src-group"><td colspan="3">DEX core</td></tr>
-<tr><td><a href="/contracts/TimbSwapFactory.sol">TimbSwapFactory.sol</a></td><td><code>0xCCd6…8AF5</code></td><td><a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbSwapRouter.sol">TimbSwapRouter.sol</a></td><td><code>0x40C7…11f1</code></td><td><a href="https://sepolia.arbiscan.io/address/0x40C7Caf90817C9891D278Ec1400B9deb180911f1#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x40C7Caf90817C9891D278Ec1400B9deb180911f1/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbSwapPair.sol">TimbSwapPair.sol</a></td><td><code>0x5a91…BB95</code></td><td><a href="https://sepolia.arbiscan.io/address/0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x5a911CBfD2808Ad5214E842a0E8ae34d8199BB95/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/EligibleTokenRegistry.sol">EligibleTokenRegistry.sol</a></td><td><code>0xbFF5…9F04</code></td><td><a href="https://sepolia.arbiscan.io/address/0xbFF59a3408B2574AcE948F130f0fA2f2CB149F04#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xbFF59a3408B2574AcE948F130f0fA2f2CB149F04/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr class="src-group"><td colspan="3">Prize game</td></tr>
-<tr><td><a href="/contracts/TimbPrize.sol">TimbPrize.sol</a></td><td><code>0x6027…86AF</code></td><td><a href="https://sepolia.arbiscan.io/address/0x6027a196b553cC016b2CA8fC4477B681a2Ca86AF#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x6027a196b553cC016b2CA8fC4477B681a2Ca86AF/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/VRFEntropy.sol">VRFEntropy.sol</a></td><td><code>0xa2AC…A393</code></td><td><a href="https://sepolia.arbiscan.io/address/0xa2AC62BF0FdD1D1ED148ea1c0555eEcD8829A393#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xa2AC62BF0FdD1D1ED148ea1c0555eEcD8829A393/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/PrizeEscrow.sol">PrizeEscrow.sol</a></td><td><code>0x865C…fB6D</code></td><td><a href="https://sepolia.arbiscan.io/address/0x865C50d933e63BbE388EEAFa017AE634B0A6fB6D#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x865C50d933e63BbE388EEAFa017AE634B0A6fB6D/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/GameRegistry.sol">GameRegistry.sol</a></td><td><code>0x11C2…DD65</code></td><td><a href="https://sepolia.arbiscan.io/address/0x11C240577Cc522BE3e0f4b1ac61f916e35cfDD65#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x11C240577Cc522BE3e0f4b1ac61f916e35cfDD65/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/GasFaucet.sol">GasFaucet.sol</a></td><td><code>0x0a59…a04b</code></td><td><a href="https://sepolia.arbiscan.io/address/0x0a59b7d61a4db317fad8697c3e3e1e6df4c7a04b#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x0a59b7d61a4db317fad8697c3e3e1e6df4c7a04b/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr class="src-group"><td colspan="3">Token & incentives</td></tr>
-<tr><td><a href="/contracts/TIMBSToken.sol">TIMBSToken.sol</a></td><td><code>0x2Aaa…faAa</code></td><td><a href="https://sepolia.arbiscan.io/address/0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x2Aaa61E2c08Ff61c93E960EcCd5Dd7fedF0bfaAa/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbStaking.sol">TimbStaking.sol</a></td><td><code>0xe776…3C8F</code></td><td><a href="https://sepolia.arbiscan.io/address/0xe776c7b700B190ED8248741F9b518B08d8733C8F#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xe776c7b700B190ED8248741F9b518B08d8733C8F/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbFarm.sol">TimbFarm.sol</a></td><td><code>0xE319…9011</code></td><td><a href="https://sepolia.arbiscan.io/address/0xE319E2206F71A5cD8dd2c411C6F29712935f9011#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xE319E2206F71A5cD8dd2c411C6F29712935f9011/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbBoostFarm.sol">TimbBoostFarm.sol</a></td><td><code>0x551D…Bd35</code></td><td><a href="https://sepolia.arbiscan.io/address/0x551D919D517aBa40D2b3A57a91973ad5Ad3CBd35#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x551D919D517aBa40D2b3A57a91973ad5Ad3CBd35/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbLockVault.sol">TimbLockVault.sol</a></td><td><code>0x0157…7a41</code></td><td><a href="https://sepolia.arbiscan.io/address/0x0157086E7670D1eFb15DC6b5158eE78279927a41#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x0157086E7670D1eFb15DC6b5158eE78279927a41/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbYieldVault.sol">TimbYieldVault.sol</a></td><td><code>0x43D8…EB0B</code></td><td><a href="https://sepolia.arbiscan.io/address/0x43D833e828e2AF951527C2b573Eb70c358FfEB0B#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x43D833e828e2AF951527C2b573Eb70c358FfEB0B/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr><td><a href="/contracts/TimbTreasury.sol">TimbTreasury.sol</a></td><td><code>0xd3F4…0D5c</code></td><td><a href="https://sepolia.arbiscan.io/address/0xd3F40042aFA8074EA68C9f61dE6aDADD539F0D5c#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0xd3F40042aFA8074EA68C9f61dE6aDADD539F0D5c/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-<tr class="src-group"><td colspan="3">Governance</td></tr>
-<tr><td><a href="/contracts/TimbGovernance.sol">TimbGovernance.sol</a></td><td><code>0x8a32…a061</code></td><td><a href="https://sepolia.arbiscan.io/address/0x8a324EfDc457BfB9Cf3D077E4CBC5A16a1c6a061#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · <a href="https://repo.sourcify.dev/contracts/full_match/421614/0x8a324EfDc457BfB9Cf3D077E4CBC5A16a1c6a061/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>
-          </tbody>
+          <tbody id="src-tbody"><tr><td colspan="3" class="docs-td-muted">Loading addresses…</td></tr></tbody>
         </table></div>
         <p class="docs-note">Also in <code>contracts/</code> (libraries, interfaces, earlier boards, test assets): <a href="/contracts/BoostRewarder.sol">BoostRewarder.sol</a> · <a href="/contracts/CommitRevealEntropy.sol">CommitRevealEntropy.sol</a> · <a href="/contracts/DDJackpot.sol">DDJackpot.sol</a> · <a href="/contracts/PoolLedger.sol">PoolLedger.sol</a> · <a href="/contracts/RouterInterface.sol">RouterInterface.sol</a> · <a href="/contracts/SeedRegistry.sol">SeedRegistry.sol</a> · <a href="/contracts/SegmentBoard.sol">SegmentBoard.sol</a> · <a href="/contracts/SegmentBoardVRF.sol">SegmentBoardVRF.sol</a> · <a href="/contracts/SegmentBoardVRF9.sol">SegmentBoardVRF9.sol</a> · <a href="/contracts/SegmentCrank.sol">SegmentCrank.sol</a> · <a href="/contracts/TestUSDT.sol">TestUSDT.sol</a> · <a href="/contracts/TimbAirdropDistributor.sol">TimbAirdropDistributor.sol</a> · <a href="/contracts/TimbReleaseVault.sol">TimbReleaseVault.sol</a> · <a href="/contracts/TimbVesting.sol">TimbVesting.sol</a> · <a href="/contracts/UnderwriteReserve.sol">UnderwriteReserve.sol</a>.</p>
       </section>
@@ -238,6 +216,58 @@
 
   <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
   <script>
+    // Deployed-contracts table: rendered from the same ADDRESSES the app uses,
+    // so it tracks config.js (and config.mainnet.js on the mainnet build) and
+    // can never show a stale hand-typed address. Zero entries are skipped.
+    const SRC_GROUPS = [
+      ["DEX core", [
+        ["TimbSwapFactory.sol",       "TimbSwapFactory"],
+        ["TimbSwapRouter.sol",        "TimbSwapRouter"],
+        ["TimbSwapPair.sol",          "TimbsEthPair"],
+        ["EligibleTokenRegistry.sol", "EligibleTokenRegistry"],
+      ]],
+      ["Prize game", [
+        ["TimbPrize.sol",    "TimbPrize"],
+        ["VRFEntropy.sol",   "PrizeVRFEntropy"],
+        ["PrizeEscrow.sol",  "PrizeEscrow"],
+        ["GameRegistry.sol", "GameRegistry"],
+        ["GasFaucet.sol",    "GasFaucet"],
+      ]],
+      ["Token & incentives", [
+        ["TIMBSToken.sol",     "TIMBSToken"],
+        ["TimbStaking.sol",    "TimbStaking"],
+        ["TimbFarm.sol",       "TimbFarm"],
+        ["TimbBoostFarm.sol",  "TimbBoostFarm"],
+        ["TimbLockVault.sol",  "TimbLockVault"],
+        ["TimbYieldVault.sol", "TimbYieldVault"],
+        ["TimbTreasury.sol",   "TimbTreasury"],
+      ]],
+      ["Governance", [
+        ["TimbGovernance.sol", "TimbGovernance"],
+      ]],
+    ];
+    function renderSourceTable() {
+      const tbody = document.getElementById("src-tbody");
+      if (!tbody || typeof ADDRESSES === "undefined") return;
+      const zero = /^0x0{40}$/i, rows = [];
+      for (const [group, files] of SRC_GROUPS) {
+        const live = files.filter(([, key]) => ADDRESSES[key] && !zero.test(ADDRESSES[key]));
+        if (!live.length) continue;
+        rows.push(`<tr class="src-group"><td colspan="3">${group}</td></tr>`);
+        for (const [file, key] of live) {
+          const a = ADDRESSES[key];
+          rows.push(`<tr><td><a href="/contracts/${file}">${file}</a></td>` +
+            `<td><code title="${a}">${a.slice(0, 6)}…${a.slice(-4)}</code></td>` +
+            `<td><a href="${EXPLORER}/address/${a}#code" target="_blank" rel="noopener">Arbiscan ↗︎</a> · ` +
+            `<a href="https://repo.sourcify.dev/contracts/full_match/${CHAIN_ID}/${a}/" target="_blank" rel="noopener">Sourcify ↗︎</a></td></tr>`);
+        }
+      }
+      tbody.innerHTML = rows.join("") || '<tr><td colspan="3" class="docs-td-muted">No addresses configured</td></tr>';
+      const note = document.getElementById("src-net-note");
+      if (note) note.textContent = `${CHAIN_NAME}, chain ID ${CHAIN_ID}. ` + note.textContent;
+    }
+    document.addEventListener("DOMContentLoaded", renderSourceTable);
+
     // Nav controls
     function toggleMobileNav() { document.getElementById("mobile-nav").classList.toggle("open"); }
     function toggleWalletMenu(e) { e.stopPropagation(); document.getElementById("wallet-info").classList.toggle("open"); }

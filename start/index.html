@@ -4,6 +4,8 @@
   <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
   <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <!-- Network-aware copy (data-net twins, TIMBS gate) lives in config.js; load it early so the twins never flash. -->
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Start Here — TimbSwap</title>
@@ -124,21 +126,22 @@
 
     <header class="start-head">
       <a href="/" class="start-logo tap"><span class="mark">⬡</span> TimbSwap</a>
-      <span class="start-badge">Testnet · Free</span>
+      <span class="start-badge"><span data-net="sepolia">Testnet · Free</span><span data-net="mainnet">Capped beta · Arbitrum One</span></span>
     </header>
 
     <section class="start-hero">
       <div class="start-eyebrow">Start here</div>
       <h1>Play your first round <br /><span class="accent">in minutes.</span></h1>
       <p>
-        TimbSwap runs on the Arbitrum Sepolia <strong>testnet</strong> — everything below is
-        free and uses no real money. Follow the four steps and you'll be in your first round.
+        <span data-net="sepolia">TimbSwap runs on the Arbitrum Sepolia <strong>testnet</strong> — everything below is
+        free and uses no real money.</span><span data-net="mainnet">TimbSwap is in a <strong>capped beta</strong> on Arbitrum One — real ETH,
+        small stakes. A ticket is 0.001 ETH and stays refundable.</span> Follow the four steps and you'll be in your first round.
       </p>
     </section>
 
     <ol class="start-steps">
 
-      <li class="step">
+      <li class="step" data-net="sepolia">
         <div class="step-num">1</div>
         <div class="step-body">
           <h3>Get a wallet + add the network</h3>
@@ -153,8 +156,23 @@
           <p class="step-hint">Already have a wallet? Just switch it to Arbitrum Sepolia and skip ahead.</p>
         </div>
       </li>
+      <li class="step" data-net="mainnet">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Get a wallet + add the network</h3>
+          <p>
+            Install MetaMask (or any EVM wallet), then add <strong>Arbitrum One</strong>
+            in one click.
+          </p>
+          <div class="step-links">
+            <a class="step-link tap" href="https://metamask.io/" target="_blank" rel="noopener">Get MetaMask<span class="ext">&#8599;</span></a>
+            <a class="step-link tap" href="https://chainlist.org/chain/42161" target="_blank" rel="noopener">Add network on Chainlist<span class="ext">&#8599;</span></a>
+          </div>
+          <p class="step-hint">Already have a wallet? Just switch it to Arbitrum One and skip ahead.</p>
+        </div>
+      </li>
 
-      <li class="step">
+      <li class="step" data-net="sepolia">
         <div class="step-num">2</div>
         <div class="step-body">
           <h3>Grab free test gas (ETH)</h3>
@@ -169,8 +187,23 @@
           <p class="step-hint">Testnet ETH has no value — it just covers network fees so your trades go through.</p>
         </div>
       </li>
+      <li class="step" data-net="mainnet">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Get a little ETH on Arbitrum One</h3>
+          <p>
+            You need about 0.002 ETH on Arbitrum One: 0.001 for your first ticket
+            (refundable) and the rest for gas. Bridge from Ethereum, or withdraw
+            straight to Arbitrum One from an exchange that supports it.
+          </p>
+          <div class="step-links">
+            <a class="step-link tap" href="https://bridge.arbitrum.io/" target="_blank" rel="noopener">Arbitrum bridge<span class="ext">&#8599;</span></a>
+          </div>
+          <p class="step-hint">Gas on Arbitrum is a fraction of a cent per transaction.</p>
+        </div>
+      </li>
 
-      <li class="step">
+      <li class="step" data-net="sepolia">
         <div class="step-num">3</div>
         <div class="step-body">
           <h3>Get your TIMBS</h3>
@@ -181,8 +214,20 @@
           <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
         </div>
       </li>
+      <li class="step" data-net="mainnet">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Pick your ticket</h3>
+          <p>
+            Head to Compete, connect, and set a 6-character ticket (A–Z, 0–9, no
+            repeats) for 0.001 ETH. The deposit is escrowed and refundable — it is
+            not spent. Up to six extra rounds are free during the beta.
+          </p>
+          <a class="step-btn tap" href="/compete/">Open Compete &rarr;</a>
+        </div>
+      </li>
 
-      <li class="step">
+      <li class="step" data-net="sepolia">
         <div class="step-num">4</div>
         <div class="step-body">
           <h3>Enter a round</h3>
@@ -194,17 +239,30 @@
           <a class="step-btn tap" href="/compete/">Play a round &rarr;</a>
         </div>
       </li>
+      <li class="step" data-net="mainnet">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Trade, nudge, keep it alive</h3>
+          <p>
+            Every eligible ETH swap nudges the live meter — if the round locks on your
+            six, you split the pot. With an Active ticket you can also claim the
+            keep-alive faucet once a day: 0.00025 ETH to you for gas and 0.00025 ETH
+            to the pot. The round's top ETH trader gets a bonus claim.
+          </p>
+          <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
+        </div>
+      </li>
 
     </ol>
 
     <section class="start-cta">
       <h2>That's it — you're playing.</h2>
-      <p>Your testnet activity builds Timber Points and puts you first in line for the mainnet transition.</p>
+      <p><span data-net="sepolia">Your testnet activity builds Timber Points and puts you first in line for the mainnet transition.</span><span data-net="mainnet">Your beta activity builds Timber Points and puts you first in line for the full launch.</span></p>
       <a class="btn-big tap" href="/compete/">Enter your first round &rarr;</a>
     </section>
 
     <div class="start-safe">
-      <strong>Stay safe:</strong> everything here is free and on a testnet. TimbSwap will never DM you
+      <strong>Stay safe:</strong> <span data-net="sepolia">everything here is free and on a testnet.</span><span data-net="mainnet">this is a capped beta with real ETH at small stakes — never put in more than a ticket and gas.</span> TimbSwap will never DM you
       first or ask for your seed phrase or private keys. The only official sources are
       <strong>timbswap.xyz</strong>, our Telegram, and our X account — anyone else is an impersonator.
     </div>
@@ -214,7 +272,7 @@
       <div class="foot-links">
         <a class="foot-link tap" href="/litepaper/">Read the litepaper</a>
         <a class="foot-link tap" href="/quests/">See the leaderboard</a>
-        <a class="foot-link tap" href="/#waitlist">Join the mainnet list</a>
+        <a class="foot-link tap" href="/#waitlist"><span data-net="sepolia">Join the mainnet list</span><span data-net="mainnet">Join the launch list</span></a>
       </div>
     </div>
 
