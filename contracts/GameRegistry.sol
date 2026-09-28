@@ -153,6 +153,30 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         so the two can never drift into an unwinnable configuration.
     bool public allowRepeatedChars;
 
+    // ─── Capped-beta switches (dev-docs/BETA_ETH_ONLY.md §3) ──────────────────
+
+    /// @notice Whether principal may be escrowed in TIMBS. Ships false: during
+    ///         the ETH-only beta no TIMBS is in circulation, and a zero TIMBS
+    ///         entry cost would otherwise mint tickets with no escrow at all.
+    bool public timbsEntryEnabled;
+
+    /// @notice TIMBS charged per extra round, sunk to the protocol sink. Ships
+    ///         0 (extra rounds are free in the beta). Decoupled from
+    ///         fixedTimbsCost so free extra rounds never imply a free TIMBS entry.
+    uint256 public extraRoundCostTimbs;
+
+    /// @notice Owner-set cap on extra rounds per ticket, at most
+    ///         MAX_EXTRA_ROUNDS (which bounds the round-index loop).
+    uint256 public maxExtraRounds = 6;
+
+    /// @notice Cap on entries holding the same string in one round. Bounds the
+    ///         candidate list TimbPrize copies and verifies at settlement, so a
+    ///         sybil stack on one string can't push the settle tx out of gas.
+    uint256 public maxEntrantsPerString = 100;
+
+    /// @notice Hard ceiling for maxEntrantsPerString.
+    uint256 public constant MAX_ENTRANTS_PER_STRING = 500;
+
     // ─── Dynamic entry pricing (v5) ────────────────────────────────────────────
     // Entry costs are no longer static. Both are computed from live protocol
     // state, FIXED per round (predictable — what you see is what you pay), and
@@ -300,6 +324,10 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         to the protocol sink instead.
     event PotShareForwardFailed(uint256 indexed round, uint256 amount);
     event AllowRepeatedCharsSet(bool allowed);
+    event TimbsEntryEnabledSet(bool enabled);
+    event ExtraRoundCostTimbsSet(uint256 cost);
+    event MaxExtraRoundsSet(uint256 max);
+    event MaxEntrantsPerStringSet(uint256 max);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -326,6 +354,9 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     error EthTransferFailed();
     error InvalidBps(uint256 bps);
     error InvalidTimbsPricing(uint256 floorAmount, uint256 step);
+    error TimbsEntryDisabled();
+    error StringFull(bytes6 string6, uint256 round);
+    error InvalidEntrantCap(uint256 cap);
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
 
@@ -437,6 +468,9 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         uint256 g = generation;
         for (uint256 r = playRound; r <= lastRound; r++) {
             ticketAt[g][owner_][r] = id;
+            if (stringEntrants[g][r][string6].length >= maxEntrantsPerString) {
+                revert StringFull(string6, r);
+            }
             stringEntrants[g][r][string6].push(owner_);
             if (!hasEntryInRound[g][r][owner_]) {
                 hasEntryInRound[g][r][owner_] = true;
@@ -551,11 +585,12 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
      *      ETH entries send msg.value >= the fixed ETH cost (excess refunded);
      *      TIMBS entries approve the fixed TIMBS cost first. Read the live cost
      *      via entryCostETH() / entryCostTIMBS() / nextRoundPrices() before
-     *      calling. Extra rounds: TIMBS only, forfeited to the protocol sink,
+     *      calling. TIMBS entries require timbsEntryEnabled. Extra rounds cost
+     *      extraRoundCostTimbs each (0 = free), forfeited to the protocol sink,
      *      non-refundable.
      * @param string6     6-char entry string (A-Z / 0-9, no repeats).
      * @param useETH      True = principal in ETH, false = TIMBS.
-     * @param extraRounds Rounds beyond the first (≤ MAX_EXTRA_ROUNDS).
+     * @param extraRounds Rounds beyond the first (≤ maxExtraRounds).
      */
     function submitEntry(
         bytes6  string6,
@@ -567,8 +602,8 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         nonReentrant
         whenNotPaused
     {
-        if (extraRounds > MAX_EXTRA_ROUNDS) {
-            revert TooManyExtraRounds(extraRounds, MAX_EXTRA_ROUNDS);
+        if (extraRounds > maxExtraRounds) {
+            revert TooManyExtraRounds(extraRounds, maxExtraRounds);
         }
 
         // One eligible live ticket per wallet.
@@ -600,6 +635,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
             }
             totalEthEscrow += ethCost;
         } else {
+            if (!timbsEntryEnabled) revert TimbsEntryDisabled();
             if (msg.value > 0) {
                 (bool ok,) = payable(msg.sender).call{value: msg.value}("");
                 if (!ok) revert EthTransferFailed();
@@ -616,9 +652,9 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
             escrowAmount, escrowToken, 0
         );
 
-        // Extra rounds — TIMBS only, priced at this round's fixed TIMBS cost,
-        // straight to the protocol sink (forfeited, non-refundable).
-        uint256 additionalCost = extraRounds * fixedTimbsCost;
+        // Extra rounds — TIMBS at extraRoundCostTimbs each (0 = free), straight
+        // to the protocol sink (forfeited, non-refundable).
+        uint256 additionalCost = extraRounds * extraRoundCostTimbs;
         if (additionalCost > 0) {
             timbsToken.safeTransferFrom(msg.sender, protocolSink, additionalCost);
             emit ExtraRoundsSunk(msg.sender, id, additionalCost);
@@ -632,7 +668,8 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
      *         allowed). The senior ticket becomes Conceded — visible, tethered
      *         beneath the replacement, ineligible to win. Its principal moves
      *         onto the new ticket. Extra-round TIMBS must be paid again for
-     *         the replacement to carry extra rounds.
+     *         the replacement to carry extra rounds (free while
+     *         extraRoundCostTimbs is 0).
      * @param newString6  New (or same) 6-char entry string.
      * @param extraRounds Extra rounds for the NEW ticket (paid fresh in TIMBS).
      */
@@ -647,19 +684,19 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         Ticket storage old = tickets[oldId];
         if (!_isLive(old)) revert TicketNotReplaceable(old.status);
 
-        if (extraRounds > MAX_EXTRA_ROUNDS) {
-            revert TooManyExtraRounds(extraRounds, MAX_EXTRA_ROUNDS);
+        if (extraRounds > maxExtraRounds) {
+            revert TooManyExtraRounds(extraRounds, maxExtraRounds);
         }
         _validateString(newString6);
 
-        // Fix this round's prices so extra rounds bill at the current TIMBS cost.
+        // Fix this round's prices before minting the replacement.
         // The replacement carries the senior ticket's principal unchanged, so the
         // pricing meters (totalEthEscrow / activeTimbEntries) are net-neutral —
         // the concession removes and the mint re-adds the same live seat.
         _fixPricesForRound();
 
         // Pre-flight the extra-round TIMBS pull before any state changes.
-        uint256 additionalCost = extraRounds * fixedTimbsCost;
+        uint256 additionalCost = extraRounds * extraRoundCostTimbs;
         if (additionalCost > 0) {
             uint256 allowance_ = timbsToken.allowance(msg.sender, address(this));
             if (allowance_ < additionalCost) {
@@ -1214,6 +1251,33 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     function setAllowRepeatedChars(bool allowed) external onlyOwner {
         allowRepeatedChars = allowed;
         emit AllowRepeatedCharsSet(allowed);
+    }
+
+    /// @notice Open or close TIMBS-denominated entries. Closed for the
+    ///         ETH-only beta; opened once TIMBS is distributed.
+    function setTimbsEntryEnabled(bool enabled) external onlyOwner {
+        timbsEntryEnabled = enabled;
+        emit TimbsEntryEnabledSet(enabled);
+    }
+
+    /// @notice TIMBS per extra round (0 = free).
+    function setExtraRoundCostTimbs(uint256 cost) external onlyOwner {
+        extraRoundCostTimbs = cost;
+        emit ExtraRoundCostTimbsSet(cost);
+    }
+
+    /// @notice Cap on extra rounds per ticket, 0..MAX_EXTRA_ROUNDS.
+    function setMaxExtraRounds(uint256 max_) external onlyOwner {
+        if (max_ > MAX_EXTRA_ROUNDS) revert TooManyExtraRounds(max_, MAX_EXTRA_ROUNDS);
+        maxExtraRounds = max_;
+        emit MaxExtraRoundsSet(max_);
+    }
+
+    /// @notice Cap on same-string entries per round, 1..MAX_ENTRANTS_PER_STRING.
+    function setMaxEntrantsPerString(uint256 cap) external onlyOwner {
+        if (cap == 0 || cap > MAX_ENTRANTS_PER_STRING) revert InvalidEntrantCap(cap);
+        maxEntrantsPerString = cap;
+        emit MaxEntrantsPerStringSet(cap);
     }
 
     /// @notice Escape hatch for a ticket/game inconsistency ("contract error

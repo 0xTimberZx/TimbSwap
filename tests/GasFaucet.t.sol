@@ -40,7 +40,9 @@ contract MockRegistry is IGameRegistry {
 
 contract MockPrize is IPrize {
     uint256 public potBalance;
+    mapping(uint256 => bytes6) public roundWinningString;
     function addToPot() external payable { potBalance += msg.value; }
+    function settle(uint256 round, bytes6 w) external { roundWinningString[round] = w; }
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -347,5 +349,68 @@ contract GasFaucetTest is Test {
         vm.prank(dispatcher);
         faucet.dispense(alice);
         assertFalse(faucet.claimable(alice), "on cooldown");
+    }
+
+    // ── Top-trader reset (dev-docs/BETA_ETH_ONLY.md §5) ──
+
+    function _claimed(address w) internal {
+        _eligible(w);
+        vm.prank(dispatcher);
+        faucet.dispense(w);
+    }
+
+    function test_GrantResetLiftsCooldownOnce() public {
+        _claimed(alice);
+        prize.settle(1, bytes6("ABC123"));
+        vm.warp(block.timestamp + 1);
+        vm.prank(dispatcher);
+        faucet.grantReset(1, alice);
+        assertTrue(faucet.claimable(alice), "reset lifts the cooldown");
+
+        vm.warp(block.timestamp + 1);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(timbs.balanceOf(alice), 2 * TIMB, "second claim delivered");
+
+        // The grant is spent: a fresh 24h cooldown applies again.
+        assertFalse(faucet.claimable(alice), "grant spent");
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(
+            GasFaucet.CooldownActive.selector, faucet.lastClaimAt(alice) + COOLDOWN));
+        faucet.dispense(alice);
+    }
+
+    function test_GrantResetOncePerRound() public {
+        prize.settle(1, bytes6("ABC123"));
+        vm.startPrank(dispatcher);
+        faucet.grantReset(1, alice);
+        vm.expectRevert(abi.encodeWithSelector(GasFaucet.ResetAlreadyGranted.selector, 1));
+        faucet.grantReset(1, bob);
+        vm.stopPrank();
+    }
+
+    function test_GrantResetNeedsSettledRound() public {
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(GasFaucet.RoundNotSettled.selector, 7));
+        faucet.grantReset(7, alice);
+    }
+
+    function test_GrantResetDispatcherOnly() public {
+        prize.settle(1, bytes6("ABC123"));
+        vm.prank(stranger);
+        vm.expectRevert(GasFaucet.NotDispatcher.selector);
+        faucet.grantReset(1, alice);
+    }
+
+    function test_GrantResetStillNeedsActiveTicket() public {
+        _claimed(alice);
+        registry.clear(alice);
+        prize.settle(1, bytes6("ABC123"));
+        vm.warp(block.timestamp + 1);
+        vm.prank(dispatcher);
+        faucet.grantReset(1, alice);
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(GasFaucet.NotEligible.selector, alice));
+        faucet.dispense(alice);
     }
 }

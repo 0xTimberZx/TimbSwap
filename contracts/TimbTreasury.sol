@@ -145,7 +145,10 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     ///         via the manual `distributeToStaking` path.
     uint256 public stakingDistributionPeriod;
 
-    /// @notice Authorised callers for receiveFees() (Router, TimbPrize).
+    /// @notice Senders whose ETH counts as protocol revenue in
+    ///         totalFeesReceived: receiveFees() callers and receive() senders
+    ///         (PrizeEscrow's round cut). Anyone else's ETH is still accepted but
+    ///         only logged as a deposit, so the fee metric can't be inflated.
     mapping(address => bool) public authorisedFeeSenders;
 
     /// @notice Total ETH received as protocol fees (lifetime).
@@ -210,6 +213,8 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     // ─── Events ──────────────────────────────────────────────────────────────
 
     event FeesReceived(address indexed from, uint256 amount);
+    /// @notice ETH from a sender that is not an authorised fee sender.
+    event EthDeposited(address indexed from, uint256 amount);
     event BuybackExecuted(
         uint256 ethSpent,
         uint256 timbsBought,
@@ -290,16 +295,17 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         stakingDistributionPeriod = 30 days;
 
         authorisedFeeSenders[msg.sender] = true;
+        // The round cut arrives from PrizeEscrow via receive().
+        if (_prizeEscrow != address(0)) authorisedFeeSenders[_prizeEscrow] = true;
     }
 
     // ─── Fee Reception ────────────────────────────────────────────────────────
 
     /**
-     * @notice Receive protocol fees from Router or TimbPrize.
-     * @dev Router sends 0.05% swap fees here.
-     *      TimbPrize sends round settlement cut here.
+     * @notice Receive protocol fees from an authorised fee sender.
      */
     function receiveFees() external payable {
+        if (!authorisedFeeSenders[msg.sender]) revert NotAuthorised();
         if (msg.value == 0) revert ZeroAmount();
         totalFeesReceived += msg.value;
         emit FeesReceived(msg.sender, msg.value);
@@ -729,8 +735,15 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
 
     function setPrizeEscrow(address _escrow) external onlyOwner {
         if (_escrow == address(0)) revert ZeroAddress();
+        address old = prizeEscrow;
+        if (old != address(0) && old != _escrow) {
+            authorisedFeeSenders[old] = false;
+            emit FeeSenderSet(old, false);
+        }
         prizeEscrow = _escrow;
+        authorisedFeeSenders[_escrow] = true;
         emit PrizeEscrowSet(_escrow);
+        emit FeeSenderSet(_escrow, true);
     }
 
     function setTimbsEthPair(address _pair) external onlyOwner {
@@ -813,15 +826,19 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         );
     }
 
-    /// @dev Accept ETH from Router fee transfers and direct deposits.
+    /// @dev Accept ETH from fee senders and direct deposits; only authorised
+    ///      senders count toward totalFeesReceived.
     ///      WETH.withdraw refunds under a 2300-gas stipend — too little for
     ///      the accounting SSTORE+event, so that path returns early (it's an
     ///      internal conversion, not new revenue).
     receive() external payable {
         if (msg.sender == weth) return;
-        if (msg.value > 0) {
+        if (msg.value == 0) return;
+        if (authorisedFeeSenders[msg.sender]) {
             totalFeesReceived += msg.value;
             emit FeesReceived(msg.sender, msg.value);
+        } else {
+            emit EthDeposited(msg.sender, msg.value);
         }
     }
 }

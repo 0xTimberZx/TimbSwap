@@ -28,6 +28,7 @@ interface IGameRegistry {
 /// @notice Prize pot sink — the "pot half" of each claim grows the live round.
 interface IPrize {
     function addToPot() external payable;
+    function roundWinningString(uint256 round) external view returns (bytes6);
 }
 
 /**
@@ -127,6 +128,13 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     /// @notice Last claim timestamp per wallet (cooldown anchor).
     mapping(address => uint256) public lastClaimAt;
 
+    /// @notice Top-trader cooldown reset (dev-docs/BETA_ETH_ONLY.md §5): a
+    ///         wallet whose last claim predates its grant may claim again.
+    mapping(address => uint256) public resetGrantedAt;
+
+    /// @notice One reset per settled round.
+    mapping(uint256 => bool) public resetUsed;
+
     // ─── Events ─────────────────────────────────────────────────────────────────
 
     event Dispensed(address indexed claimant, uint256 ethToWallet, uint256 ethToPot, uint256 timbsOut);
@@ -140,6 +148,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     event GuardianSet(address indexed guardian);
     event TimbsRecovered(address indexed to, uint256 amount);
     event EthSwept(address indexed to, uint256 amount);
+    event ResetGranted(uint256 indexed round, address indexed wallet);
 
     // ─── Errors ─────────────────────────────────────────────────────────────────
 
@@ -154,6 +163,8 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     error InsufficientTimbsBalance(uint256 requested, uint256 held);
     error WalletTimbsCapExceeded(uint256 requested, uint256 remaining);
     error EthTransferFailed();
+    error RoundNotSettled(uint256 round);
+    error ResetAlreadyGranted(uint256 round);
 
     // ─── Modifiers ──────────────────────────────────────────────────────────────
 
@@ -227,12 +238,9 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
             revert NotEligible(claimant);
         }
 
-        // ── Cooldown (a never-claimed wallet is always allowed). ──
-        uint256 last = lastClaimAt[claimant];
-        if (last != 0) {
-            uint256 readyAt = last + cooldown;
-            if (block.timestamp < readyAt) revert CooldownActive(readyAt);
-        }
+        // ── Cooldown (a never-claimed wallet is always allowed; a reset
+        //    granted after the last claim lifts it once). ──
+        if (!_offCooldown(claimant)) revert CooldownActive(lastClaimAt[claimant] + cooldown);
 
         uint256 ethOut = doEth ? dripEth + potEth : 0;
         uint256 timbsOut = doTimbs ? timbsPerClaim : 0;
@@ -295,8 +303,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
             registry.effectiveStatus(ticketId) != IGameRegistry.TicketStatus.Active) {
             return false;
         }
-        uint256 last = lastClaimAt[claimant];
-        if (last != 0 && block.timestamp < last + cooldown) return false;
+        if (!_offCooldown(claimant)) return false;
 
         bool ethOk = !ethPaused && (dripEth + potEth) > 0 &&
             ethDistributed + dripEth + potEth <= ethCap;
@@ -307,6 +314,32 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
              timbsClaimedBy[claimant] + timbsPerClaim <= maxTimbsPerWallet);
 
         return ethOk || timbsOk;
+    }
+
+    /// @dev Off cooldown: never claimed, the cooldown has elapsed, or a reset
+    ///      was granted after the last claim. Claiming sets lastClaimAt to now,
+    ///      so a grant is spent by the claim that uses it.
+    function _offCooldown(address claimant) internal view returns (bool) {
+        uint256 last = lastClaimAt[claimant];
+        return last == 0
+            || block.timestamp >= last + cooldown
+            || last < resetGrantedAt[claimant];
+    }
+
+    // ─── Dispatcher: top-trader reset ───────────────────────────────────────────
+
+    /// @notice Grant `wallet` one cooldown reset for settled `round`: the
+    ///         keeper's pick of the round's top ETH-volume Active ticket holder
+    ///         (tally is off-chain from router SwapExecuted events, so anyone
+    ///         can re-derive it). One grant per round; eligibility (an Active
+    ///         ticket) is still checked at claim time.
+    function grantReset(uint256 round, address wallet) external onlyDispatcher {
+        if (wallet == address(0)) revert ZeroAddress();
+        if (prize.roundWinningString(round) == bytes6(0)) revert RoundNotSettled(round);
+        if (resetUsed[round]) revert ResetAlreadyGranted(round);
+        resetUsed[round] = true;
+        resetGrantedAt[wallet] = block.timestamp;
+        emit ResetGranted(round, wallet);
     }
 
     // ─── Owner / guardian: pauses ───────────────────────────────────────────────
