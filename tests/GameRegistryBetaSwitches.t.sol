@@ -140,4 +140,10 @@ contract GameRegistryBetaSwitchesTest is Test {
         reg.setMaxEntrantsPerString(501);
         assertEq(reg.maxEntrantsPerString(), 100, "default");
     }
+
+    function test_AdditionalRoundCostQuotesWhatIsCharged() public {
+        assertEq(reg.additionalRoundCost(6), 0, "free in beta, whatever the TIMBS entry cost");
+        reg.setExtraRoundCostTimbs(5e18);
+        assertEq(reg.additionalRoundCost(3), 15e18);
+    }
 }
