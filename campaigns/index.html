@@ -4,6 +4,8 @@
   <!-- Force HTTPS: wallets (window.ethereum) only inject on a secure origin -->
   <script>if(location.protocol==="http:"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,"https:"));</script>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("timbswap_theme")==="light"?"light":"dark"}catch(e){}</script>
+  <!-- Network-aware copy (data-net twins, TIMBS gate) lives in config.js; load it early so the twins never flash. -->
+  <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Campaigns — TimbSwap</title>
@@ -97,7 +99,7 @@
     <div class="comp-hero">
       <div class="comp-eyebrow">TIMBSWAP · OFFICIAL CAMPAIGNS PAGE</div>
       <h1 class="comp-h1">USDT <span class="comp-gold">Prize Month</span></h1>
-      <p class="comp-sub">Real USDT prizes on a free testnet game. Results decided on-chain,
+      <p class="comp-sub">Real USDT prizes on a <span data-net="sepolia">free testnet</span><span data-net="mainnet">capped-beta</span> game. Results decided on-chain,
         prize funds verifiable below, every payout published with its transaction hash.
         This page — on <strong>timbswap.xyz</strong> — is the only authoritative source of rules.</p>
       <div class="comp-status" id="comp-status">Dates announced on X &amp; Telegram</div>
@@ -133,7 +135,7 @@
         <li><strong>Join</strong> the Telegram group and follow
           <a href="https://x.com/timbswap" target="_blank" rel="noopener">@timbswap</a> on X.</li>
         <li><strong>Enter a ticket</strong> at <a href="../compete/">timbswap.xyz/compete</a> —
-          it costs only free testnet ETH (faucet links in the <a href="../docs/">docs</a>) and
+          it costs <span data-net="sepolia">only free testnet ETH (faucet links in the <a href="../docs/">docs</a>)</span><span data-net="mainnet">a refundable 0.001 ETH ticket plus gas</span> and
           your deposit stays refundable.</li>
         <li><strong>Post your ticket string</strong> in the Telegram group. That's your competition entry proof.</li>
         <li><strong>Longest gold streak of the month wins the grand prize.</strong> Your streak is how many
@@ -151,7 +153,7 @@
     <div class="section-label">VERIFY THE RESULTS</div>
     <div class="comp-card">
       <p class="comp-text">Nothing is judged behind closed doors. Every round's winning string, every
-        entry, and every settlement is public on Arbitrum Sepolia:</p>
+        entry, and every settlement is public on <span data-net="sepolia">Arbitrum Sepolia</span><span data-net="mainnet">Arbitrum One</span>:</p>
       <ul class="comp-list">
         <li>Round history and winning strings → <a href="../analytics/">timbswap.xyz/analytics</a></li>
         <li>Every contract address → <a href="../docs/">timbswap.xyz/docs</a> (verified on Sourcify)</li>

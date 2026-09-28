@@ -119,7 +119,7 @@
 
   <section class="hero">
     <div class="hero-inner">
-      <div class="hero-eyebrow">Arbitrum Sepolia · Free to play</div>
+      <div class="hero-eyebrow"><span data-net="sepolia">Arbitrum Sepolia · Free to play</span><span data-net="mainnet">Arbitrum One · Capped beta</span></div>
       <!-- Revolving headline lands the hook in two beats: "Match the meter" (3s)
            then "Win the pot" (5s, the gold one lingers). -->
       <h1 class="hero-headline hero-rotator" aria-label="Match the meter. Win the pot.">
@@ -368,10 +368,11 @@
         <h3>What you're taking on.</h3>
         <ul class="edge-list">
           <li><strong>Impermanent loss.</strong> Providing liquidity carries IL — larger on thin or volatile pairs (boosted farms, once they open after the airdrop launch campaign, are the highest-risk seat).</li>
-          <li><strong>Emissions vary.</strong> The rate moves with the waterfall and total staked; if inflow runs short the tail (boost) can go unfunded — and boost stays closed until the airdrop launch campaign ends. Testnet APR is illustrative, not a promise.</li>
+          <li><strong>Emissions vary.</strong> The rate moves with the waterfall and total staked; if inflow runs short the tail (boost) can go unfunded — and boost stays closed until the airdrop launch campaign ends. <span data-net="sepolia">Testnet</span><span data-net="mainnet">Beta</span> APR is illustrative, not a promise.</li>
           <li><strong>The game is chance-weighted.</strong> You aim a segment's class, not the exact character — the pot is never guaranteed.</li>
           <li><strong>Token &amp; liquidity exposure.</strong> TIMBS rewards carry TIMBS price risk; staked positions are locked while staked.</li>
-          <li><strong>Unaudited testnet.</strong> Contracts are unaudited and every asset is test-only, with no monetary value.</li>
+          <li data-net="sepolia"><strong>Unaudited testnet.</strong> Contracts are unaudited and every asset is test-only, with no monetary value.</li>
+          <li data-net="mainnet"><strong>Unaudited, capped beta.</strong> The contracts are unaudited. Real value is live but bounded — small stakes, a program cap on every payout, privileged actions behind a timelock and multisig — until the independent audit clears.</li>
         </ul>
       </aside>
     </div>
@@ -382,7 +383,7 @@
     <div class="trust-item"><span class="t-label">SOURCE</span><a href="/source/">Open-source · read the contracts</a></div>
     <div class="trust-item"><span class="t-label">CONTRACTS</span><a href="/docs/#authenticity">Address table in Docs</a></div>
     <div class="trust-item"><span class="t-label">EXPLORER</span><a href="https://sepolia.arbiscan.io/address/0xCCd6d3f0A86042d2B7056eDd381d367126628AF5" target="_blank" rel="noopener">Factory on Arbiscan ↗︎</a></div>
-    <div class="trust-item"><span class="t-label">AUDIT</span><span class="t-muted">Independent audit gates mainnet — testnet today</span></div>
+    <div class="trust-item"><span class="t-label">AUDIT</span><span class="t-muted"><span data-net="sepolia">Independent audit gates mainnet — testnet today</span><span data-net="mainnet">Independent audit pending — capped beta today</span></span></div>
   </div>
 
   <!-- Mainnet capture: convert the visitor after the pitch. Testnet is live now;
@@ -393,7 +394,7 @@
       <div class="wl-eyebrow">MAINNET IS COMING</div>
       <h2 class="wl-title">Be first when <span class="w-green">TimbSwap</span> goes live.</h2>
       <p class="wl-sub">
-        Testnet is live today; mainnet opens once the independent audit clears.
+        <span data-net="sepolia">Testnet is live today; mainnet opens once the independent audit clears.</span><span data-net="mainnet">The capped beta is live on Arbitrum One; the full launch opens once the independent audit clears.</span>
         Join the list for early access, a priority spot on the airdrop allowlist,
         and first call on the bug bounty. One email, no spam — leave anytime.
       </p>
@@ -419,8 +420,9 @@
         <div class="wl-check">✓</div>
         <div class="wl-success-text">
           <strong>You're on the list.</strong>
-          Watch your inbox for the mainnet call. In the meantime the testnet is
-          live — <a href="/faucet/">grab test tokens</a>, <a href="/quests/">earn points</a>, and take a round for a spin.
+          <span data-net="sepolia">Watch your inbox for the mainnet call. In the meantime the testnet is
+          live — <a href="/faucet/">grab test tokens</a>, <a href="/quests/">earn points</a>, and take a round for a spin.</span><span data-net="mainnet">Watch your inbox for the launch call. In the meantime the beta is
+          live — <a href="/compete/">enter a round</a>, <a href="/quests/">earn points</a>, and claim the <a href="/faucet/">keep-alive ETH</a>.</span>
           <div class="wl-reset">Not you? <a href="#waitlist" id="wl-reset">Join with a different email</a></div>
         </div>
       </div>

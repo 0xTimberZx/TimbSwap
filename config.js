@@ -11,6 +11,48 @@ const _NET = (typeof window !== "undefined" && window.TIMBSWAP_NET) || {};
 
 const CHAIN_ID   = _NET.chainId   || 421614;
 const CHAIN_NAME = _NET.chainName || "Arbitrum Sepolia";
+const EXPLORER   = _NET.explorer  || "https://sepolia.arbiscan.io";
+const NET_IS_MAINNET = CHAIN_ID === 42161;
+// Short network label for the header pill and the footer.
+const NET_LABEL  = NET_IS_MAINNET ? "Arb One" : "Arb Sepolia";
+
+// ─── Network-aware page copy ─────────────────────────────────────────────────
+// Pages are written once and serve both networks. Two mechanisms:
+//   * data-net="sepolia" / data-net="mainnet" — twin blocks; only the current
+//     network's twin is shown (CSS injected at parse time, so no flash).
+//   * shared chrome (the header badge, the network pill, the footer line, any
+//     sepolia.arbiscan.io link) is rewritten in place on DOMContentLoaded.
+// <meta> descriptions are static text for crawlers; the mainnet build rewrites
+// those at build time (scripts/build-site.sh).
+(function netCopy() {
+  if (typeof document === "undefined") return;
+  const other = NET_IS_MAINNET ? "sepolia" : "mainnet";
+  const style = document.createElement("style");
+  style.textContent = `[data-net="${other}"]{display:none!important}`;
+  document.head.appendChild(style);
+  if (!NET_IS_MAINNET) return;
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".testnet-badge").forEach(el => {
+      el.textContent = "Beta"; el.title = "Capped beta on Arbitrum One";
+    });
+    document.querySelectorAll("#network-badge").forEach(el => { el.textContent = NET_LABEL; });
+    document.querySelectorAll(".footer-left").forEach(el => {
+      el.childNodes.forEach(n => {
+        if (n.nodeType === 3 && /Arbitrum Sepolia Testnet/.test(n.textContent)) {
+          n.textContent = n.textContent.replace("Arbitrum Sepolia Testnet", "Arbitrum One · Capped beta");
+        }
+      });
+    });
+    // Explorer links: swap the host; the Sepolia factory link also gets the
+    // mainnet factory address so "Factory ↗" stays true.
+    const sepFactory = /0xCCd6d3f0A86042d2B7056eDd381d367126628AF5/i;
+    document.querySelectorAll('a[href^="https://sepolia.arbiscan.io"]').forEach(a => {
+      let href = a.getAttribute("href").replace("https://sepolia.arbiscan.io", EXPLORER);
+      if (sepFactory.test(href) && ADDRESSES.TimbSwapFactory) href = href.replace(sepFactory, ADDRESSES.TimbSwapFactory);
+      a.setAttribute("href", href);
+    });
+  });
+})();
 
 // ─── Capped beta: TIMBS not yet in circulation ───────────────────────────────
 // The beta runs ETH-only (dev-docs/BETA_ETH_ONLY.md): TIMBS is deployed but not
