@@ -47,6 +47,9 @@ const KEEPERS = {
   // redeploy, so mount a volume before enabling these (see scripts/RAILWAY.md).
   "epoch":            { script: "epoch.js",            pause: 120 },
   "bounty-post":      { script: "bounty-poster.js",    pause: 60  },
+  // Beta faucet bonus: after each settled round, reset the cooldown of the
+  // round's top ETH trader (dev-docs/BETA_ETH_ONLY.md §5). Idempotent per round.
+  "top-trader":       { script: "top-trader.js",       pause: 15  },
 };
 
 const name = process.env.KEEPER;
