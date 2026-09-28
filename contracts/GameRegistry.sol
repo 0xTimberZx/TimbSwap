@@ -1166,10 +1166,10 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         return stringEntrants[generation][currentRound + 1][string6].length;
     }
 
-    /// @notice Extra-round cost helper — priced at the next round's TIMBS cost.
+    /// @notice Extra-round cost helper — TIMBS charged for `extraRounds` extra
+    ///         rounds (extraRoundCostTimbs each; 0 while extra rounds are free).
     function additionalRoundCost(uint256 extraRounds) external view returns (uint256) {
-        (, uint256 timbsCost) = _previewPrices();
-        return extraRounds * timbsCost;
+        return extraRounds * extraRoundCostTimbs;
     }
 
     // ─── Views: Dynamic Entry Pricing (v5) ───────────────────────────────────

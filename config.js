@@ -7,6 +7,43 @@
 const CHAIN_ID   = 421614;
 const CHAIN_NAME = "Arbitrum Sepolia";
 
+// ─── Capped beta: TIMBS not yet in circulation ───────────────────────────────
+// The beta runs ETH-only (dev-docs/BETA_ETH_ONLY.md): TIMBS is deployed but not
+// distributed, so every TIMBS surface stays hidden until this flips to true.
+// While false: TIMBS drops out of the token lists and the ticket token choice,
+// the Farm and Lock pages are unlisted (a direct visit shows a notice), and
+// any element marked data-timbs is hidden.
+const TIMBS_LIVE = false;
+
+(function gateTimbsSurfaces() {
+  if (TIMBS_LIVE || typeof document === "undefined") return;
+  const style = document.createElement("style");
+  style.textContent =
+    'a[href="/farm/"],a[href="/lock/"],[data-timbs]{display:none!important}';
+  document.head.appendChild(style);
+  // The "Earn TIMBS" nav group also holds Compete and Faucet, so relabel it
+  // rather than hide it.
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".nav-group-btn, .nav-mobile-section").forEach(el => {
+      el.childNodes.forEach(n => {
+        if (n.nodeType === 3 && /earn timbs/i.test(n.textContent)) {
+          n.textContent = n.textContent.replace(/earn timbs/i, m => m === "EARN TIMBS" ? "PLAY" : "Play");
+        }
+      });
+    });
+  });
+  if (/^\/(farm|lock)\//.test(location.pathname)) {
+    document.addEventListener("DOMContentLoaded", () => {
+      document.body.innerHTML =
+        '<main style="max-width:560px;margin:15vh auto;padding:0 16px;text-align:center">' +
+        '<h1>Opens after the beta</h1>' +
+        '<p>Farming and locking pay out in TIMBS, which launches after the ' +
+        'independent audit. The beta runs on ETH.</p>' +
+        '<p><a href="/compete/">Enter a round</a> · <a href="/swap/">Swap</a></p></main>';
+    });
+  }
+})();
+
 // Cloudflare Turnstile site key (PUBLIC — safe in client JS) for the faucet claim
 // page. Set to your real site key; leave "" to render the faucet with no human
 // check (the edge function also skips verification when TURNSTILE_SECRET is unset,
@@ -315,7 +352,7 @@ const DEFAULT_TOKENS = [
     decimals: 18,
     logoChar: "L"
   }
-];
+].filter(t => TIMBS_LIVE || t.symbol !== "TIMBS");
 
 // ─── Ethers Setup ─────────────────────────────────────────────────────────────
 
