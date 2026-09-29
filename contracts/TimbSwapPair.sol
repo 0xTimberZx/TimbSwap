@@ -275,7 +275,7 @@ contract TimbSwapPair is ERC20, ReentrancyGuard {
         returns (uint256 liquidity)
     {
         if (to == address(0)) revert ZeroAddress();
-        if (to == token0 || to == token1) revert InvalidTo(to);
+        if (to == token0 || to == token1 || to == address(this)) revert InvalidTo(to);
 
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
 
@@ -329,7 +329,7 @@ contract TimbSwapPair is ERC20, ReentrancyGuard {
         returns (uint256 amount0, uint256 amount1)
     {
         if (to == address(0)) revert ZeroAddress();
-        if (to == token0 || to == token1) revert InvalidTo(to);
+        if (to == token0 || to == token1 || to == address(this)) revert InvalidTo(to);
 
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
 
