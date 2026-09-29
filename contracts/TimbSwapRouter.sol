@@ -83,6 +83,18 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     ///         loop. Owner-set, 1..MAX_SWAP_NUDGE_WEIGHT.
     uint256 public swapNudgeWeight = 3;
 
+    /// @notice Minimum swap input, per input token, for a swap to earn
+    ///         meter nudges (TS-009). Without a floor a 1-wei swap earned the
+    ///         full swapNudgeWeight, so the "paid, hence self-limiting" swap
+    ///         path cost only gas and let one caller steer every segment's
+    ///         class. A token with no floor set (0) earns no nudges. WETH
+    ///         (which also covers native-ETH swaps) is seeded in the
+    ///         constructor; owner sets the rest with setMinNudgeAmountIn.
+    mapping(address => uint256) public minNudgeAmountIn;
+
+    /// @notice Default WETH/ETH floor seeded at construction.
+    uint256 public constant DEFAULT_WETH_NUDGE_FLOOR = 0.001 ether;
+
     /// @notice #1 — max gas-only (advanceScroll) nudges one address may make
     ///         per segment. Paid swap-nudges are NOT capped (they cost fees
     ///         per wallet, so sybil doesn't help). 0 = free path disabled.
@@ -128,6 +140,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     event Unpaused(address indexed by);
     event SwapNudgeWeightSet(uint256 weight);
     event FreeNudgeCapSet(uint256 capPerSegment);
+    event MinNudgeAmountInSet(address indexed token, uint256 minAmountIn);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -179,6 +192,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         eligibleRegistry = _eligibleRegistry;
         timbPrize        = _timbPrize;
         weth             = _weth; // immutable — no setter (Low fix)
+        minNudgeAmountIn[_weth] = DEFAULT_WETH_NUDGE_FLOOR; // TS-009
     }
 
     // ─── Owner Config ────────────────────────────────────────────────────────
@@ -311,8 +325,12 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
     // ─── Internal: Prize Nudge ────────────────────────────────────────────────
 
-    function _maybeNudge(address tokenIn, bool influencePrize) internal {
+    function _maybeNudge(address tokenIn, uint256 amountIn, bool influencePrize) internal {
         if (!influencePrize)                return;
+        // TS-009: only swaps at or above the token's floor earn nudges; a token
+        // with no floor configured earns none.
+        uint256 floor = minNudgeAmountIn[tokenIn];
+        if (floor == 0 || amountIn < floor) return;
         if (timbPrize == address(0))        return;
         if (eligibleRegistry == address(0)) return;
         try IEligibleTokenRegistry(eligibleRegistry).isEligible(tokenIn)
@@ -322,7 +340,8 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         // #2 — an eligible swap is worth swapNudgeWeight meter units. Each is
         // a separate nudgeScroll() call; if the settlement window opens mid-loop
         // the call reverts and we stop cleanly. Swap-nudges are NOT counted
-        // against the free-nudge cap — they're paid, hence self-limiting.
+        // against the free-nudge cap; the per-token input floor above is what
+        // makes them paid (TS-009).
         uint256 w = swapNudgeWeight;
         uint256 done;
         for (uint256 i = 0; i < w; i++) {
@@ -357,7 +376,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         IERC20(tokenIn).safeTransferFrom(msg.sender, pair, amountIn);
         _collectProtocolFee(tokenIn, amountIn);
         _swapOnPair(pair, tokenIn, amountOut, to);
-        _maybeNudge(tokenIn, influencePrize);
+        _maybeNudge(tokenIn, amountIn, influencePrize);
         emit SwapExecuted(msg.sender, tokenIn, tokenOut, amountIn, amountOut, to);
     }
 
@@ -384,7 +403,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
             _swapOnPair(pair, path[i], amounts[i + 1], next);
         }
 
-        _maybeNudge(path[0], influencePrize);
+        _maybeNudge(path[0], amounts[0], influencePrize);
         emit SwapExecuted(msg.sender, path[0], path[n - 1], amounts[0], amounts[n - 1], to);
     }
 
@@ -598,7 +617,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         }
 
         _swapOnPair(pair, weth, amountOut, to);
-        _maybeNudge(weth, influencePrize);
+        _maybeNudge(weth, amountIn, influencePrize);
         _refundExcessETH(amountIn + fee);
         emit SwapExecuted(msg.sender, weth, tokenOut, amountIn, amountOut, to);
     }
@@ -642,7 +661,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         (bool ok,) = payable(to).call{value: amountOut}("");
         if (!ok) revert ETHTransferFailed();
 
-        _maybeNudge(tokenIn, influencePrize);
+        _maybeNudge(tokenIn, amountIn, influencePrize);
         emit SwapExecuted(msg.sender, tokenIn, weth, amountIn, amountOut, to);
     }
 
@@ -700,6 +719,14 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         uint256 seg   = ITimbPrize(timbPrize).currentSegment();
         uint256 used  = freeNudgesUsed[keccak256(abi.encode(timbPrize, round, seg, user))];
         return freeNudgeCapPerSeg > used ? freeNudgeCapPerSeg - used : 0;
+    }
+
+    /// @notice Owner: minimum input of `token` for a swap to earn nudges
+    ///         (TS-009). 0 means swaps in that token earn no nudges.
+    function setMinNudgeAmountIn(address token, uint256 minAmountIn) external onlyOwner {
+        if (token == address(0)) revert ZeroAddress();
+        minNudgeAmountIn[token] = minAmountIn;
+        emit MinNudgeAmountInSet(token, minAmountIn);
     }
 
     /// @notice Owner: set how many meter units an eligible swap is worth (#2).
