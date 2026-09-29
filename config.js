@@ -1607,3 +1607,13 @@ try {
   const _savedAddr = _getSavedAddress();
   if (_savedAddr) applyWalletChrome(_savedAddr);
 } catch {}
+
+// ─── On-chain text is untrusted ────────────────────────────────────────────
+// Token symbol()/name() come from arbitrary contracts (pair creation is
+// permissionless) and are rendered via innerHTML on several pages. Keep only
+// characters real tickers use, and cap the length, at every read — so a
+// hostile token can never inject markup (stored XSS).
+function safeTokenText(s, max = 24) {
+  const t = String(s == null ? "" : s).replace(/[^A-Za-z0-9 ._\-+$()\/]/g, "").trim().slice(0, max);
+  return t || "?";
+}

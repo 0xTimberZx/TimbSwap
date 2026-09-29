@@ -255,7 +255,7 @@
       try {
         const c = new ethers.Contract(a, ["function symbol() view returns (string)", "function decimals() view returns (uint8)"], sharedReadProvider());
         const [symbol, decimals] = await Promise.all([c.symbol(), c.decimals()]);
-        info = { symbol, decimals: Number(decimals) };
+        info = { symbol: typeof safeTokenText === "function" ? safeTokenText(symbol) : String(symbol).replace(/[^A-Za-z0-9._\-]/g, "").slice(0, 24), decimals: Number(decimals) };
       } catch (_e) { info = { symbol: short(a), decimals: 18 }; }
     }
     _tokCache[a] = info;

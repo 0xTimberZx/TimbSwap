@@ -72,7 +72,7 @@ async function tokenMeta(addr) {
       c.symbol().catch(() => addr.slice(0, 6)),
       c.decimals().catch(() => 18)
     ]);
-    return (_tokenMeta[lc] = { symbol, decimals: Number(decimals) });
+    return (_tokenMeta[lc] = { symbol: safeTokenText(symbol), decimals: Number(decimals) });
   } catch {
     return (_tokenMeta[lc] = { symbol: addr.slice(0, 6) + "…", decimals: 18 });
   }
@@ -254,7 +254,7 @@ function renderPools() {
   const rows = _pools.filter(p => !q || matchesPool(p, q));
 
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">${q ? "No pools match “" + q + "”" : "No pools"}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">${q ? "No pools match “" + safeTokenText(q, 42) + "”" : "No pools"}</td></tr>`;
     return;
   }
   tbody.innerHTML = "";
