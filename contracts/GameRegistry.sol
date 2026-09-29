@@ -1060,7 +1060,14 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         return (true, tickets[id].string6);
     }
 
-    /// @notice Layer 2: the ticket is Active and eligible for this round.
+    /// @notice Layer 2: the ticket is live (Active, or Pending once its play
+    ///         round has started) and eligible for this round.
+    /// @dev    Activation is a permissionless keeper step that only registers
+    ///         yield weight. Prize eligibility must not depend on it: if a
+    ///         matching ticket were still Pending at settlement (keeper
+    ///         lagging), anyone could activate only their own ticket and take
+    ///         the omitted winners' shares (TS-008). A Pending ticket whose
+    ///         playRound has arrived is therefore a valid entry here.
     function verifyEntryValid(address player, uint256 round)
         external
         view
@@ -1069,7 +1076,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         uint256 id = ticketAt[generation][player][round];
         if (id == 0) return (false, bytes6(0));
         Ticket storage t = tickets[id];
-        if (t.status != TicketStatus.Active)                       return (false, bytes6(0));
+        if (t.status != TicketStatus.Active && t.status != TicketStatus.Pending) return (false, bytes6(0));
         if (round < t.playRound || round > t.lastEligibleRound)    return (false, bytes6(0));
         return (true, t.string6);
     }
