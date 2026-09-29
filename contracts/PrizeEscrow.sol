@@ -19,7 +19,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  *
  * Security:
  *   - ReentrancyGuard on pay() and emergencyWithdraw().
- *   - Only TimbPrize can instruct payouts.
+ *   - Only TimbPrize can instruct payouts, and only TimbPrize can deposit
+ *     (deposit() and receive()), so every wei held is credited to the pot.
  *   - Emergency withdrawal restricted to owner only.
  *   - ETH transfer uses call{value} with success check.
  *   - ETH only — no ERC-20 tokens.
@@ -28,7 +29,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  *   1. Deploy PrizeEscrow()
  *   2. Deploy TimbPrize(prizeEscrow, ...)
  *   3. setTimbPrize(timbPrize)
- *   4. Fund via deposit() or direct ETH send
+ *   4. Fund the pot via TimbPrize.fundPot() / addToPot() (never directly)
  *   5. Verify on Sourcify
  */
 contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
@@ -85,11 +86,16 @@ contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
     // ─── Deposit ──────────────────────────────────────────────────────────────
 
     /**
-     * @notice Deposit ETH into the prize pool.
-     * @dev Called by TimbTreasury, TimbPrize.fundPot(), or owner seeding.
-     *      Also accepts direct ETH via receive().
+     * @notice Deposit ETH into the prize pool. Only callable by TimbPrize.
+     * @dev Every pot source (fundPot, addToPot, yield harvest, the registry
+     *      lapse share, the faucet pot share, TimbTreasury.distributeToPot)
+     *      goes through TimbPrize, which credits currentAccumulatedRewards
+     *      before depositing here. ETH arriving any other way would sit
+     *      outside that counter and could never reach a winner (TS-006), so
+     *      it is refused. To top up the pot, call TimbPrize.addToPot.
      */
     function deposit() external payable {
+        if (msg.sender != timbPrize) revert NotTimbPrize();
         if (msg.value == 0) revert ZeroAmount();
         emit Deposited(msg.sender, msg.value);
     }
@@ -132,8 +138,11 @@ contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
         return address(this).balance;
     }
 
-    /// @dev Accept ETH deposits directly.
+    /// @dev Plain ETH transfers are refused for the same reason as direct
+    ///      deposit() calls: they would never be credited to the pot. Only
+    ///      TimbPrize may send (it uses deposit(); this is a backstop).
     receive() external payable {
+        if (msg.sender != timbPrize) revert NotTimbPrize();
         if (msg.value > 0) emit Deposited(msg.sender, msg.value);
     }
 }
