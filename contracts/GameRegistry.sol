@@ -174,8 +174,11 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         sybil stack on one string can't push the settle tx out of gas.
     uint256 public maxEntrantsPerString = 100;
 
-    /// @notice Hard ceiling for maxEntrantsPerString.
-    uint256 public constant MAX_ENTRANTS_PER_STRING = 500;
+    /// @notice Hard ceiling for maxEntrantsPerString. Settlement verifies every
+    ///         candidate with two external calls plus an O(n^2) dedup; a fork
+    ///         PoC settled 350 and ran out of gas at 500, so the ceiling sits
+    ///         well below that.
+    uint256 public constant MAX_ENTRANTS_PER_STRING = 250;
 
     // ─── Dynamic entry pricing (v5) ────────────────────────────────────────────
     // Entry costs are no longer static. Both are computed from live protocol

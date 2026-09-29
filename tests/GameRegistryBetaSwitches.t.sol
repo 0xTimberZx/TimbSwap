@@ -136,8 +136,11 @@ contract GameRegistryBetaSwitchesTest is Test {
     function test_EntrantCapBounds() public {
         vm.expectRevert(abi.encodeWithSelector(GameRegistry.InvalidEntrantCap.selector, 0));
         reg.setMaxEntrantsPerString(0);
-        vm.expectRevert(abi.encodeWithSelector(GameRegistry.InvalidEntrantCap.selector, 501));
-        reg.setMaxEntrantsPerString(501);
+        vm.expectRevert(abi.encodeWithSelector(GameRegistry.InvalidEntrantCap.selector, 251));
+        reg.setMaxEntrantsPerString(251);
+        reg.setMaxEntrantsPerString(250);
+        assertEq(reg.maxEntrantsPerString(), 250, "ceiling allowed");
+        reg.setMaxEntrantsPerString(100);
         assertEq(reg.maxEntrantsPerString(), 100, "default");
     }
 
