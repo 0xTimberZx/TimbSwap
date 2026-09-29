@@ -115,6 +115,9 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
 
     /// @notice Full segment duration.
     uint256 public constant SEGMENT_DURATION = INTERACTION_WINDOW + SETTLEMENT_WINDOW;
+    /// @notice A lock this far past the 60-minute mark still anchors the next
+    ///         segment to the grid; later locks start it at lock time.
+    uint256 public constant GRID_GRACE = 2 minutes;
 
     /// @notice Segments per round.
     uint256 public constant SEGMENTS_PER_ROUND = 6;
@@ -420,16 +423,16 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
             : 0;
     }
 
-    /// @dev Grid-anchored start for the next segment: segments live on exact
-    ///      60-minute marks ("next segment before 60:01"), so a settle
-    ///      landing anywhere inside the following slot anchors to the
-    ///      boundary. Only a deep stall — a full extra slot with no settle —
-    ///      falls back to wall clock to catch up.
+    /// @dev Start of the next segment. A lock up to GRID_GRACE past the
+    ///      60-minute mark (normal VRF latency) anchors to the mark, so a
+    ///      healthy game stays on the hourly grid; a settle inside the
+    ///      59:45–60:00 intermission also dates the next segment at 60:00.
+    ///      A later lock (a slow VRF fulfilment) starts the next segment at
+    ///      lock time, so it keeps its full interaction window instead of
+    ///      losing the delay. Rounds run later on slow days.
     function _nextSegmentStart() internal view returns (uint256) {
         uint256 gridNext = segmentStartTime + SEGMENT_DURATION;
-        return block.timestamp < gridNext + SEGMENT_DURATION
-            ? gridNext
-            : block.timestamp;
+        return block.timestamp > gridNext + GRID_GRACE ? block.timestamp : gridNext;
     }
 
     function _isInSettlementWindow() internal view returns (bool) {
@@ -531,7 +534,7 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         if (!entropy.isReady(salt)) return; // armed, awaiting the VRF callback — no-op
 
         if (currentSegment < SEGMENTS_PER_ROUND) {
-            // Lock from the VRF word and advance on the 60-minute grid. The
+            // Lock from the VRF word and advance (grid mark, or lock time if later). The
             // incoming segment's counter is NOT reset: the meter is continuous —
             // each digit carries its value across segments and rounds.
             _lockCurrentSegment(salt);
@@ -600,7 +603,7 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         // So a round ending "KM3PQ7" leaves round N+1's segments starting on
         // K,M,3,P,Q,7 and nudging up from there — the pre-jitter continuity,
         // now linked to the actual winning char. The new round's first segment
-        // starts on the 60-minute grid, same as a plain segment advance.
+        // starts like a plain segment advance: grid mark, or lock time if later.
         uint256 nextStart = _nextSegmentStart();
         currentRound++;
         currentSegment   = 1;

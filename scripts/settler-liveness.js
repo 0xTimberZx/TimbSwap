@@ -118,7 +118,9 @@ function assess(snap, nowSec, opts = OPTS) {
     else if (snap.vrf.replaceable) { cause = "vrf-stalled";  need = "VRF callback overdue and rearmSegment not called"; }
     else                           { cause = "awaiting-vrf"; need = "armed, VRF callback not landed, re-request not yet allowed"; }
     row.cause = cause;
-    const slipped = elapsed >= 2 * snap.segmentSec ? "; grid slipped — the next settle re-anchors to wall clock" : "";
+    // A lock more than GRID_GRACE (2 min) past the mark starts the next segment at
+    // lock time, so the grid shifts once this settles; say so on a deep stall.
+    const slipped = elapsed >= 2 * snap.segmentSec ? "; grid slipped — the next segment starts at lock time" : "";
     if (!snap.settlementPaused) {
       findings.push({ kind: "stuck", cause, detail: `${where} is ${fmtMin(late)} past its grid mark: ${need}${slipped}` });
     }

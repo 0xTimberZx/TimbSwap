@@ -118,18 +118,29 @@ const SEGMENT_TOTAL_S    = 60 * 60; // 60:00 grid slot
 const DELAY_SLIGHT_S     = 5;
 const DELAY_CRITICAL_S   = 30;
 
+// One alert per segment per tier. The settle loop polls every few seconds
+// while it waits on the VRF word, and each pass used to page again with the
+// lateness a few seconds higher (observed: round 94 segment 5, one page per
+// poll for 15 minutes). The tier escalating (slight → critical) still pages.
+const _delayAlerted = new Map(); // "round:segment" -> highest tier paged (1 slight, 2 critical)
+
 /** Alert (tiered) if this overdue segment blew past the 60:00 grid mark. */
 async function alertIfDelayed(prize, round, segment) {
   try {
     const startTs  = await prize.segmentStartTime();
     const lateness = Math.floor(Date.now() / 1000) - (Number(startTs) + SEGMENT_TOTAL_S);
-    if (lateness > DELAY_CRITICAL_S) {
+    const key  = `${round}:${segment}`;
+    const tier = lateness > DELAY_CRITICAL_S ? 2 : lateness > DELAY_SLIGHT_S ? 1 : 0;
+    if (tier <= (_delayAlerted.get(key) || 0)) return lateness;
+    _delayAlerted.set(key, tier);
+    if (tier === 2) {
       await notify(
-        `🚨 CRITICALLY DELAYED segment\nRound #${round} | Segment ${segment}/6 ran ` +
-        `${lateness}s past its 60:00 mark before settling. The keeper (or any ` +
-        `interaction) didn't land in time — check GitHub cron health.`
+        `🚨 CRITICALLY DELAYED segment\nRound #${round} | Segment ${segment}/6 is ` +
+        `${lateness}s past its 60:00 mark and still unsettled. The keeper is polling; ` +
+        `if no arm/lock error follows, the VRF word has not arrived — check the ` +
+        `Chainlink subscription balance and pending requests.`
       );
-    } else if (lateness > DELAY_SLIGHT_S) {
+    } else if (tier === 1) {
       await notify(
         `⚠️ Slightly later segment\nRound #${round} | Segment ${segment}/6 ran ` +
         `${lateness}s past its 60:00 mark before settling.`
