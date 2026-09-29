@@ -38,7 +38,9 @@ interface IAirdropPause {
  *                                 DeployGen3Migration)
  *           NEW    TimbTreasury  (fee-sender check)
  *           NEW    GasFaucet     (top-trader reset; first mainnet deploy)
- *           REUSED TIMBSToken, Factory, Router, pair, PrizeEscrow,
+ *           NEW    TimbSwapRouter (swap-nudge input floor, TS-009); the factory
+ *                  is pointed at it and the old router (ROUTER_ADDR) is paused
+ *           REUSED TIMBSToken, Factory, pair, PrizeEscrow,
  *                  EligibleTokenRegistry, TimbYieldVault — repointed below.
  *
  *         Beta values set here: extra rounds free (registry default), max 6
@@ -80,6 +82,11 @@ interface IAirdropPause {
  *   forge script scripts/DeployBeta.s.sol --rpc-url $ARB_RPC -vvvv
  *   forge script scripts/DeployBeta.s.sol --rpc-url $ARB_RPC --broadcast --gas-estimate-multiplier 300
  */
+interface ITimbSwapFactoryAdmin {
+    function setRouter(address router) external;
+    function router() external view returns (address);
+}
+
 contract DeployBeta is Script {
     struct Cfg {
         address timbs; address sink; address escrow; address router; address eligible;
@@ -91,7 +98,7 @@ contract DeployBeta is Script {
 
     struct Deployed {
         GameRegistry registry; VRFEntropy entropy; TimbPrize prize;
-        TimbTreasury treasury; GasFaucet faucet;
+        TimbTreasury treasury; GasFaucet faucet; TimbSwapRouter router;
     }
 
     function run() external {
@@ -101,8 +108,11 @@ contract DeployBeta is Script {
         _preflight(c);
 
         vm.startBroadcast(deployerKey);
-        Deployed memory d = _deployGame(c);
+        Deployed memory d;
         d.treasury = _deployTreasury(c);
+        d.router   = _deployRouter(c, d.treasury);
+        _deployGame(c, d);
+        _switchRouter(c, d);
         d.faucet   = _deployFaucet(c, d);
         if (c.airdrop != address(0) && !IAirdropPause(c.airdrop).paused()) {
             IAirdropPause(c.airdrop).setPaused(true);
@@ -134,16 +144,16 @@ contract DeployBeta is Script {
         c.vrfCbGas  = uint32(vm.envOr("VRF_CALLBACK_GAS", uint256(200_000)));
     }
 
-    /// @dev Registry + entropy + prize, wired to each other and to the reused
-    ///      escrow, router, eligible registry and yield vault.
-    function _deployGame(Cfg memory c) internal returns (Deployed memory d) {
+    /// @dev Registry + entropy + prize, wired to each other, to the new router
+    ///      and to the reused escrow, eligible registry and yield vault.
+    function _deployGame(Cfg memory c, Deployed memory d) internal {
         d.registry = new GameRegistry(
             c.timbs, c.sink, address(0),
             vm.envOr("TIMBS_ENTRY_FLOOR", uint256(500e18)),
             vm.envOr("TIMBS_STEP", uint256(100e18))
         );
         d.entropy = new VRFEntropy(c.vrfCoord, c.vrfKeyHash, c.vrfSubId, c.vrfConfs, c.vrfCbGas, c.vrfExtra);
-        d.prize   = new TimbPrize(c.escrow, address(d.registry), c.router);
+        d.prize   = new TimbPrize(c.escrow, address(d.registry), address(d.router));
 
         d.registry.setTimbPrize(address(d.prize));
         d.registry.setYieldVault(c.vault);
@@ -160,17 +170,39 @@ contract DeployBeta is Script {
         if (c.settler != address(0)) d.prize.setSettler(c.settler);
 
         PrizeEscrow(payable(c.escrow)).setTimbPrize(address(d.prize));
-        TimbSwapRouter(payable(c.router)).setTimbPrize(address(d.prize));
+        d.router.setTimbPrize(address(d.prize));
         EligibleTokenRegistry(c.eligible).registerConsumer(address(d.prize));
         IYieldVaultAdmin(c.vault).setGameRegistry(address(d.registry));
         IYieldVaultAdmin(c.vault).setTimbPrize(address(d.prize));
     }
 
-    /// @dev New treasury (fee-sender check). The router's 0.05% fee is repointed
-    ///      to it; PrizeEscrow is authorised at construction for the 2% cut.
+    /// @dev New treasury (fee-sender check). The new router's 0.05% fee goes to
+    ///      it; PrizeEscrow is authorised at construction for the 2% cut.
     function _deployTreasury(Cfg memory c) internal returns (TimbTreasury t) {
         t = new TimbTreasury(c.timbs, c.staking, c.escrow, c.pair, c.weth);
-        TimbSwapRouter(payable(c.router)).setTreasury(address(t));
+    }
+
+    /// @dev New router (TS-009: swap nudges need a minimum input, which the
+    ///      live router lacks). Same factory and WETH as the live router; its
+    ///      nudge settings are copied so behaviour only changes by the floor.
+    ///      WETH/ETH gets the default 0.001 ETH floor; any other token earns no
+    ///      nudges until setMinNudgeAmountIn is called for it.
+    function _deployRouter(Cfg memory c, TimbTreasury t) internal returns (TimbSwapRouter r) {
+        TimbSwapRouter old = TimbSwapRouter(payable(c.router));
+        r = new TimbSwapRouter(old.factory(), address(t), c.eligible, address(0), c.weth);
+        if (r.swapNudgeWeight() != old.swapNudgeWeight())       r.setSwapNudgeWeight(old.swapNudgeWeight());
+        if (r.freeNudgeCapPerSeg() != old.freeNudgeCapPerSeg()) r.setFreeNudgeCapPerSeg(old.freeNudgeCapPerSeg());
+        t.setRouter(address(r));
+    }
+
+    /// @dev Point the factory at the new router, register it as an eligible-
+    ///      registry consumer, and pause the old router so stale frontends can
+    ///      no longer swap through it. Pairs stay where they are.
+    function _switchRouter(Cfg memory c, Deployed memory d) internal {
+        TimbSwapRouter old = TimbSwapRouter(payable(c.router));
+        ITimbSwapFactoryAdmin(old.factory()).setRouter(address(d.router));
+        EligibleTokenRegistry(c.eligible).registerConsumer(address(d.router));
+        if (!old.paused()) old.pause();
     }
 
     function _deployFaucet(Cfg memory c, Deployed memory d) internal returns (GasFaucet f) {
@@ -220,6 +252,14 @@ contract DeployBeta is Script {
         require(!d.registry.allowRepeatedChars(),       "beta: no repeated chars");
         require(d.registry.lapsePotBps() == 10_000,     "beta: lapse 100% to pot");
         require(d.treasury.authorisedFeeSenders(c.escrow), "treasury must count the escrow's cut");
+        TimbSwapRouter old = TimbSwapRouter(payable(c.router));
+        require(ITimbSwapFactoryAdmin(old.factory()).router() == address(d.router), "factory must use the new router");
+        require(d.router.timbPrize() == address(d.prize),       "new router must nudge the new prize");
+        require(d.router.treasury() == address(d.treasury),     "new router fee must go to the new treasury");
+        require(d.prize.router() == address(d.router),          "prize must accept nudges from the new router");
+        require(d.treasury.router() == address(d.router),       "treasury must use the new router");
+        require(d.router.minNudgeAmountIn(c.weth) > 0,          "WETH nudge floor must be set (TS-009)");
+        require(old.paused(),                                   "old router must be paused");
         if (c.airdrop != address(0)) require(IAirdropPause(c.airdrop).paused(), "airdrop must be paused");
 
         console.log("\n========== BETA DEPLOY COMPLETE ==========");
@@ -228,11 +268,12 @@ contract DeployBeta is Script {
         console.log("PrizeVRFEntropy:  ", address(d.entropy));
         console.log("TimbTreasury:     ", address(d.treasury));
         console.log("GasFaucet:        ", address(d.faucet));
+        console.log("TimbSwapRouter:   ", address(d.router), "(new; old router paused)");
         console.log("==========================================");
         console.log("NEXT (dev-docs/BETA_ETH_ONLY.md, deploy checklist):");
         console.log("1. Add PrizeVRFEntropy as a consumer on VRF sub", c.vrfSubId, "; remove the old entropy");
         console.log("2. Fund the treasury with the faucet's ETH budget (operator pulls from it)");
-        console.log("3. Record the five addresses in MAINNET_ADDRESSES.md and config.mainnet.js");
+        console.log("3. Record the six addresses (incl. the new router) in MAINNET_ADDRESSES.md and config.mainnet.js");
         console.log("4. TimbPrize.startGame()  (opens round 1)");
         console.log("5. Keepers: settler, faucet, top-trader on the mainnet dispatcher/settler keys");
         console.log("6. Ownership handoff to the timelock for the new contracts too");
