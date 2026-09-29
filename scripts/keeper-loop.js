@@ -50,6 +50,7 @@ const KEEPERS = {
   // Beta faucet bonus: after each settled round, reset the cooldown of the
   // round's top ETH trader (dev-docs/BETA_ETH_ONLY.md §5). Idempotent per round.
   "top-trader":       { script: "top-trader.js",       pause: 15  },
+  "lp-fee-split":     { script: "lp-fee-split.js",     pause: 360 },
 };
 
 const name = process.env.KEEPER;
