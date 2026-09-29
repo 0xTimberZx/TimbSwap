@@ -449,6 +449,13 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
         uint256 staked = stakedBalance[msg.sender];
         if (staked == 0) revert ZeroAmount();
 
+        // TS-011: the forfeited reward is no longer owed to anyone — release it
+        // from rewardReserve (as claim/exit do) so recoverERC20 can reclaim it.
+        uint256 forfeited = pendingRewards[msg.sender];
+        if (forfeited > 0) {
+            rewardReserve = forfeited < rewardReserve ? rewardReserve - forfeited : 0;
+        }
+
         stakedBalance[msg.sender]         = 0;
         pendingRewards[msg.sender]        = 0;
         userRewardPerTokenPaid[msg.sender] = 0;
