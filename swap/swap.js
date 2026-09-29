@@ -126,7 +126,13 @@ const EXTRA_TOKENS = [];
 // Custom tokens the user imported by pasting an address (persisted per-browser).
 const CUSTOM_TOKENS_KEY = "timbswap_custom_tokens";
 function loadCustomTokens() {
-  try { return JSON.parse(localStorage.getItem(CUSTOM_TOKENS_KEY)) || []; } catch { return []; }
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem(CUSTOM_TOKENS_KEY)) || []; } catch { return []; }
+  // Imports saved before the XSS fix may hold unsanitised on-chain text.
+  return (Array.isArray(raw) ? raw : []).filter(t => t && /^0x[0-9a-fA-F]{40}$/.test(t.address)).map(t => {
+    const symbol = safeTokenText(t.symbol);
+    return { ...t, symbol, name: safeTokenText(t.name, 40), logoChar: (symbol[0] || "?").toUpperCase(), decimals: Number(t.decimals) || 18 };
+  });
 }
 function saveCustomTokens() {
   try { localStorage.setItem(CUSTOM_TOKENS_KEY, JSON.stringify(customTokens)); } catch {}
@@ -288,13 +294,14 @@ async function offerImport(addr) {
       c.name().catch(() => "Custom token"),
     ]);
     if (seq !== _importSeq) return; // superseded by a newer lookup
+    const cleanSym = safeTokenText(sym), cleanName = safeTokenText(name, 40);
     const t = {
-      symbol: sym, name, address: addr, decimals: Number(dec),
-      logoChar: (sym[0] || "?").toUpperCase(), isCustom: true
+      symbol: cleanSym, name: cleanName, address: addr, decimals: Number(dec),
+      logoChar: (cleanSym[0] || "?").toUpperCase(), isCustom: true
     };
     row.onclick = () => importCustomToken(t);
-    row.querySelector(".token-symbol").textContent = sym;
-    row.querySelector(".token-name").textContent   = name + " · tap to import";
+    row.querySelector(".token-symbol").textContent = cleanSym;
+    row.querySelector(".token-name").textContent   = cleanName + " · tap to import";
   } catch {
     if (seq !== _importSeq) return;
     row.querySelector(".token-symbol").textContent = "Not an ERC-20";

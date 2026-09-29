@@ -564,7 +564,7 @@ async function buildTokenDropdown() {
     const resolved = await Promise.all(wanted.map(async addr => {
       try {
         const symbol = await new ethers.Contract(addr, ERC20_SYMBOL_ABI, readProv()).symbol();
-        return { address: addr, symbol, isNative: false };
+        return { address: addr, symbol: safeTokenText(symbol), isNative: false };
       } catch { return null; }
     }));
     for (const t of resolved) if (t && timbsAllowed(t.address)) eligibleTokens.push(t);

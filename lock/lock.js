@@ -62,7 +62,8 @@ async function loadWhitelistedTokens() {
           erc.decimals().catch(() => 18)
         ]);
         const isTimbs = addr.toLowerCase() === ADDRESSES.TIMBSToken.toLowerCase();
-        return { address: addr, symbol, decimals, logoChar: isTimbs ? "T" : symbol.charAt(0), isTimbs };
+        const sym = safeTokenText(symbol);
+        return { address: addr, symbol: sym, decimals, logoChar: isTimbs ? "T" : sym.charAt(0), isTimbs };
       } catch { return null; }
     }));
 
@@ -248,7 +249,7 @@ async function ensureTokenMeta(addr) {
       erc.symbol().catch(() => addr.slice(0, 6) + "…"),
       erc.decimals().catch(() => 18)
     ]);
-    return (_lockTokenMeta[lc] = { symbol, decimals: Number(decimals) });
+    return (_lockTokenMeta[lc] = { symbol: safeTokenText(symbol), decimals: Number(decimals) });
   } catch {
     return (_lockTokenMeta[lc] = { symbol: addr.slice(0, 6) + "…", decimals: 18 });
   }
@@ -344,7 +345,7 @@ async function openLockDetail(lockId) {
     const lock  = await vault.getLock(lockId);
     const erc   = new ethers.Contract(lock.token, ERC20_ABI, readProv());
     const [sym, dec, supply] = await Promise.all([
-      erc.symbol().catch(() => "???"),
+      erc.symbol().then(s => safeTokenText(s)).catch(() => "???"),
       erc.decimals().catch(() => 18),
       erc.totalSupply().catch(() => null),
     ]);

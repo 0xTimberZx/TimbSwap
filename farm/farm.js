@@ -261,8 +261,8 @@ async function pairName(lp) {
     const pair = new ethers.Contract(lp, PAIR_META_ABI, readProv());
     const [t0, t1] = await Promise.all([pair.token0(), pair.token1()]);
     const [s0, s1] = await Promise.all([
-      new ethers.Contract(t0, SYMBOL_ABI, readProv()).symbol().catch(() => "?"),
-      new ethers.Contract(t1, SYMBOL_ABI, readProv()).symbol().catch(() => "?")
+      new ethers.Contract(t0, SYMBOL_ABI, readProv()).symbol().then(s => safeTokenText(s)).catch(() => "?"),
+      new ethers.Contract(t1, SYMBOL_ABI, readProv()).symbol().then(s => safeTokenText(s)).catch(() => "?")
     ]);
     // Only cache a CLEAN resolve. A transient RPC hiccup used to get cached
     // for the whole session, leaving cards stuck as "?/? LP" / "0x1234…abcd LP".
