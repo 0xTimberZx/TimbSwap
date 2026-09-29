@@ -713,19 +713,28 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
         uint256 round = ITimbPrize(timbPrize).currentRound();
         uint256 seg   = ITimbPrize(timbPrize).currentSegment();
-        // Namespaced by the prize instance so a reused router doesn't carry
-        // stale per-(round,segment) usage across a game-generation migration.
-        bytes32 key   = keccak256(abi.encode(timbPrize, round, seg, msg.sender));
-        uint256 used  = freeNudgesUsed[key];
-        uint256 room  = freeNudgeCapPerSeg > used ? freeNudgeCapPerSeg - used : 0;
-        uint256 n     = count < room ? count : room;
-        if (n == 0) revert FreeNudgeCapReached(round, seg);
+        if (_freeNudgeRoom(round, seg) == 0) revert FreeNudgeCapReached(round, seg);
 
-        freeNudgesUsed[key] = used + n;
-        for (uint256 i = 0; i < n; i++) {
+        // TS-013: a nudge in the settlement window settles the segment, so the
+        // rest of the batch would land in the NEXT segment. Charge each nudge to
+        // the segment it actually landed in, and end the batch as soon as the
+        // segment moves — the next segment's allowance is never bypassed.
+        for (uint256 i = 0; i < count; i++) {
+            if (_freeNudgeRoom(round, seg) == 0) break;
             ITimbPrize(timbPrize).nudgeScroll();
+            uint256 r2 = ITimbPrize(timbPrize).currentRound();
+            uint256 s2 = ITimbPrize(timbPrize).currentSegment();
+            // Namespaced by the prize instance so a reused router doesn't carry
+            // stale per-(round,segment) usage across a game-generation migration.
+            freeNudgesUsed[keccak256(abi.encode(timbPrize, r2, s2, msg.sender))]++;
+            if (r2 != round || s2 != seg) break;
         }
         emit ScrollNudged(msg.sender, address(0)); // address(0) = direct nudge
+    }
+
+    function _freeNudgeRoom(uint256 round, uint256 seg) internal view returns (uint256) {
+        uint256 used = freeNudgesUsed[keccak256(abi.encode(timbPrize, round, seg, msg.sender))];
+        return freeNudgeCapPerSeg > used ? freeNudgeCapPerSeg - used : 0;
     }
 
     /// @notice Remaining free (gas-only) nudges the caller may make this
