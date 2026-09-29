@@ -11,6 +11,7 @@ import {TimbAirdropDistributor} from "../contracts/TimbAirdropDistributor.sol";
 import {TimbPrize} from "../contracts/TimbPrize.sol";
 import {GameRegistry} from "../contracts/GameRegistry.sol";
 import {GasFaucet} from "../contracts/GasFaucet.sol";
+import {TimbTreasury} from "../contracts/TimbTreasury.sol";
 
 contract RehearsalWETH is ERC20 {
     constructor() ERC20("Wrapped Ether", "WETH") {}
@@ -39,6 +40,7 @@ contract DeployBetaRehearsalTest is Test {
 
     DeployGame game;
     TimbSwapRouter router;
+    TimbSwapFactory factory;
     TimbAirdropDistributor airdrop;
     RehearsalWETH weth;
 
@@ -50,7 +52,7 @@ contract DeployBetaRehearsalTest is Test {
 
         // Phase 1 — DeployCore equivalent.
         vm.startPrank(deployer);
-        TimbSwapFactory factory = new TimbSwapFactory(SAFE);
+        factory = new TimbSwapFactory(SAFE);
         router = new TimbSwapRouter(address(factory), SAFE, address(0), address(0), address(weth));
         factory.setRouter(address(router));
         vm.stopPrank();
@@ -116,8 +118,17 @@ contract DeployBetaRehearsalTest is Test {
         vm.setEnv("EXPECT_OLD_PRIZE", vm.toString(address(game.timbPrize())));
         new DeployBeta().run();
 
-        TimbPrize prize = TimbPrize(payable(router.timbPrize()));
-        assertTrue(address(prize) != address(game.timbPrize()), "router moved to the new prize");
+        // TS-009: a new router replaces the live one; the old one is paused.
+        TimbSwapRouter newRouter = TimbSwapRouter(payable(factory.router()));
+        assertTrue(address(newRouter) != address(router), "factory -> new router");
+        assertTrue(router.paused(), "old router paused");
+        assertEq(newRouter.minNudgeAmountIn(address(weth)), newRouter.DEFAULT_WETH_NUDGE_FLOOR(), "WETH nudge floor");
+        assertEq(newRouter.swapNudgeWeight(), router.swapNudgeWeight(), "nudge weight carried over");
+        assertEq(newRouter.freeNudgeCapPerSeg(), router.freeNudgeCapPerSeg(), "free-nudge cap carried over");
+
+        TimbPrize prize = TimbPrize(payable(newRouter.timbPrize()));
+        assertTrue(address(prize) != address(game.timbPrize()), "new router -> new prize");
+        assertEq(prize.router(), address(newRouter), "prize accepts the new router's nudges");
         assertEq(game.prizeEscrow().timbPrize(), address(prize), "escrow -> new prize");
         GameRegistry reg = GameRegistry(prize.gameRegistry());
         assertTrue(address(reg) != address(game.gameRegistry()), "new registry");
@@ -126,7 +137,8 @@ contract DeployBetaRehearsalTest is Test {
         assertEq(reg.maxExtraRounds(), 6);
         assertEq(reg.lapsePotBps(), 10_000);
         assertEq(prize.protocolCutBps(), 200, "2% round sweep");
-        assertTrue(router.treasury() != SAFE, "router fee -> new treasury");
+        assertTrue(newRouter.treasury() != SAFE, "router fee -> new treasury");
+        assertEq(TimbTreasury(payable(newRouter.treasury())).router(), address(newRouter), "treasury -> new router");
         assertTrue(airdrop.paused(), "airdrop paused");
         assertFalse(prize.gameStarted(), "startGame left to the runbook");
     }

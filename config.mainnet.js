@@ -7,7 +7,7 @@
 // The keepers regex-read the deployed config.js and take the FIRST match per
 // key, so they see these addresses too.
 //
-// Addresses: MAINNET_ADDRESSES.md. The five beta contracts (marked) are filled
+// Addresses: MAINNET_ADDRESSES.md. The six beta contracts (marked) are filled
 // in from the DeployBeta output before the mainnet bundle is built.
 // Design: dev-docs/BETA_ETH_ONLY.md.
 window.TIMBSWAP_NET = {
@@ -34,10 +34,10 @@ window.TIMBSWAP_NET = {
     PrizeVRFEntropy:      "0x0000000000000000000000000000000000000000", // beta
     TimbTreasury:         "0x0000000000000000000000000000000000000000", // beta
     GasFaucet:            "0x0000000000000000000000000000000000000000", // beta
+    TimbSwapRouter:       "0x0000000000000000000000000000000000000000", // beta — new router (TS-009); the Phase-1 router 0x4f33…62b5fe is paused by DeployBeta
 
     // ── Live Phase 1 + Phase 2 (reused) ──
     TimbSwapFactory:      "0x60d4f18fe205c0ed38507a8fbf89aaa1bd2ce183",
-    TimbSwapRouter:       "0x4f33df838c0d357c7f1a44ffb5ee0fc49a62b5fe",
     WETH:                 "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
     TIMBSToken:           "0x44bc0ab521191e839c3cb5bb20c9d044c8471ea1",
     PrizeEscrow:          "0xa9355021cef39be7b67fb81a1c91df53fce0dd32",
