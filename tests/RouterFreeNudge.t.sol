@@ -14,7 +14,12 @@ contract MockPrize {
     uint256 public nudged;
 
     function set(uint256 r, uint256 s) external { currentRound = r; currentSegment = s; }
-    function nudgeScroll() external { nudged++; }
+    uint256 public settleAt; // nudge number that settles (0 = never)
+    function setSettleAt(uint256 n) external { settleAt = n; }
+    function nudgeScroll() external {
+        nudged++;
+        if (nudged == settleAt) currentSegment++; // this nudge settled the segment
+    }
     function isSettlementWindow() external pure returns (bool) { return false; }
 }
 
@@ -88,6 +93,24 @@ contract RouterFreeNudgeTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(TimbSwapRouter.FreeNudgeCapReached.selector, uint256(1), uint256(2)));
+        router.advanceScroll(1);
+    }
+
+    // TS-013: a batch that settles the segment mid-way must not carry the rest
+    // of the batch into the next segment uncharged.
+    function test_TS013_BatchStopsAtSettlement() public {
+        prizeA.setSettleAt(1); // the first nudge settles segment 2 -> 3
+        vm.prank(alice);
+        router.advanceScroll(CAP);
+        assertEq(prizeA.nudged(), 1, "batch ends once the segment moves");
+        assertEq(prizeA.currentSegment(), 3);
+        assertEq(router.freeNudgesRemaining(alice), CAP - 1, "landed nudge charged to new segment");
+
+        vm.prank(alice);
+        router.advanceScroll(CAP);
+        assertEq(prizeA.nudged(), CAP, "at most CAP nudges in the new segment");
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(TimbSwapRouter.FreeNudgeCapReached.selector, 1, 3));
         router.advanceScroll(1);
     }
 }
