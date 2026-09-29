@@ -142,4 +142,32 @@ contract TreasuryLpFeeSplitTest is Test {
     }
 
     receive() external payable {}
+
+    // ─── TS-010: exact-out amountInMax bounds the total debit ───────────────
+
+    function test_TS010_ExactOut_MaxCoversFee() public {
+        router.setProtocolFeeBps(5);
+        address[] memory path = new address[](2);
+        path[0] = address(weth); path[1] = address(tkn);
+        uint256 need = router.getAmountsInPath(10 ether, path)[0];
+        uint256 total = need + (need * 5) / 10_000;
+
+        // A limit that covers the input but not the fee now reverts up front.
+        vm.prank(trader);
+        vm.expectRevert(TimbSwapRouter.ExcessiveInputAmount.selector);
+        router.swapTokensForExactTokens(10 ether, need, address(weth), address(tkn), trader, block.timestamp, false);
+        vm.prank(trader);
+        vm.expectRevert(TimbSwapRouter.ExcessiveInputAmount.selector);
+        router.swapTokensForExactTokensPath(10 ether, need, path, trader, block.timestamp, false);
+
+        // Approving exactly the total works, and never debits more than it.
+        address careful = address(0xCA4E);
+        weth.transfer(careful, total);
+        vm.startPrank(careful);
+        weth.approve(address(router), total);
+        router.swapTokensForExactTokens(10 ether, total, address(weth), address(tkn), careful, block.timestamp, false);
+        vm.stopPrank();
+        assertEq(weth.balanceOf(careful), 0, "debit equals amountInMax");
+        assertEq(tkn.balanceOf(careful), 10 ether);
+    }
 }

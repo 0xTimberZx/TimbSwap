@@ -326,6 +326,11 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
     // ─── Internal: Protocol Fee ───────────────────────────────────────────────
 
+    /// @dev The fee _collectProtocolFee will pull for this amountIn (0 with no treasury).
+    function _protocolFeeFor(uint256 amountIn) internal view returns (uint256) {
+        return treasury != address(0) ? (amountIn * protocolFeeBps) / BPS_DENOMINATOR : 0;
+    }
+
     function _collectProtocolFee(address token, uint256 amountIn) internal {
         uint256 fee = (amountIn * protocolFeeBps) / BPS_DENOMINATOR;
         if (fee > 0 && treasury != address(0)) {
@@ -509,7 +514,8 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         (uint256 reserveIn, uint256 reserveOut) = _getReserves(_getPair(tokenIn, tokenOut), tokenIn);
         amountIn = _getAmountIn(amountOut, reserveIn, reserveOut);
 
-        if (amountIn > amountInMax) revert ExcessiveInputAmount();
+        // TS-010: amountInMax bounds the total debit, fee included.
+        if (amountIn + _protocolFeeFor(amountIn) > amountInMax) revert ExcessiveInputAmount();
 
         _executeSwap(tokenIn, tokenOut, amountIn, amountOut, to, influencePrize);
     }
@@ -571,7 +577,8 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
         uint256[] memory amounts = _getAmountsIn(amountOut, path);
         amountIn = amounts[0];
-        if (amountIn > amountInMax) revert ExcessiveInputAmount();
+        // TS-010: amountInMax bounds the total debit, fee included.
+        if (amountIn + _protocolFeeFor(amountIn) > amountInMax) revert ExcessiveInputAmount();
 
         _executeSwapPath(path, amounts, to, influencePrize);
     }
