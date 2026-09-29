@@ -29,6 +29,8 @@ using SafeERC20 for IERC20;
         function getReserves() external view returns (uint112, uint112, uint32);
         function swap(uint256 amount0Out, uint256 amount1Out, address to) external;
         function token0() external view returns (address);
+        function token1() external view returns (address);
+        function burn(address to) external returns (uint256 amount0, uint256 amount1);
         function price0CumulativeLast() external view returns (uint256);
         function price1CumulativeLast() external view returns (uint256);
     }
@@ -43,7 +45,12 @@ using SafeERC20 for IERC20;
         function prizeEscrow() external view returns (address);
     }
 
+    interface ITimbSwapFactoryView {
+        function getPair(address tokenA, address tokenB) external view returns (address);
+    }
+
     interface ITimbSwapRouter {
+        function factory() external view returns (address);
         function addLiquidity(
             address tokenA,
             address tokenB,
@@ -178,6 +185,15 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     /// @notice Total ETH sent to prize pot (lifetime).
     uint256 public totalPotFunded;
 
+    /// @notice LP tokens per pair that the treasury added itself as protocol-
+    ///         owned liquidity. splitLpFees only redeems the balance above this,
+    ///         i.e. the LP minted to the treasury as the pools' 0.05% protocol
+    ///         share (factory feeTo). Owner can correct it with setPolLp.
+    mapping(address => uint256) public polLp;
+
+    /// @notice Total WETH-side ETH sent to the pot by splitLpFees.
+    uint256 public totalLpFeesToPot;
+
     // ─── Operator role (M1) ────────────────────────────────────────────────────
     // The owner is meant to be a timelock+multisig (see dev-docs/GOVERNANCE_
     // HARDENING.md), so routine, small operational ETH spend would otherwise wait
@@ -229,6 +245,8 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         uint256 timbsReserved
     );
     event PotFunded(uint256 amount);
+    event LpFeesSplit(address indexed pair, uint256 lpRedeemed, uint256 ethToPot, address indexed keptToken, uint256 keptAmount);
+    event PolLpSet(address indexed pair, uint256 amount);
     event RouterSet(address indexed router);
     event LiquidityProvided(
         address indexed tokenA,
@@ -265,6 +283,8 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     error TwapNotReady(uint256 elapsed, uint256 required);
     error BuybackTooLarge(uint256 requested, uint256 max);
     error EscrowMismatch(address timbPrize);
+    error NotWethPair(address pair);
+    error NoFeeLp(address pair);
 
     // ─── Modifiers ─────────────────────────────────────────────────────────────
 
@@ -532,6 +552,12 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         if (prizeEscrow == address(0))       revert ZeroAddress();
         if (amount > address(this).balance)  revert InsufficientETH(amount, address(this).balance);
 
+        _creditPot(amount);
+    }
+
+    /// @dev Send ETH to the pot through TimbPrize.addToPot, which credits the
+    ///      pot counter before depositing into the escrow (TS-006).
+    function _creditPot(uint256 amount) internal {
         address prize = IPrizeEscrow(prizeEscrow).timbPrize();
         if (prize == address(0))                             revert ZeroAddress();
         if (ITimbPrizePot(prize).prizeEscrow() != prizeEscrow) revert EscrowMismatch(prize);
@@ -540,6 +566,56 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         totalPotFunded += amount;
 
         emit PotFunded(amount);
+    }
+
+    /**
+     * @notice Split the pools' protocol fee: half to the prize pot, half kept.
+     * @dev    Each pool charges 0.30% and routes 0.05% of it to the protocol as
+     *         LP tokens minted to the factory's feeTo (this treasury). Anyone may
+     *         call this to redeem that fee LP for `pair` (the balance above the
+     *         treasury's own liquidity, polLp) and send the WETH side, unwrapped,
+     *         to the pot. A V2 pool's two sides are equal in value, so the pot
+     *         receives half of the protocol share and the treasury keeps the
+     *         other token (the other half). Only WETH pairs are split.
+     * @param pair A TimbSwap pair containing WETH.
+     */
+    function splitLpFees(address pair) external nonReentrant {
+        if (prizeEscrow == address(0) || weth == address(0)) revert ZeroAddress();
+        address t0 = ITimbSwapPair(pair).token0();
+        address t1 = ITimbSwapPair(pair).token1();
+        if (t0 != weth && t1 != weth) revert NotWethPair(pair);
+
+        uint256 bal = IERC20(pair).balanceOf(address(this));
+        uint256 pol = polLp[pair];
+        uint256 feeLp = bal > pol ? bal - pol : 0;
+        if (feeLp == 0) revert NoFeeLp(pair);
+
+        IERC20(pair).safeTransfer(pair, feeLp);
+        (uint256 a0, uint256 a1) = ITimbSwapPair(pair).burn(address(this));
+
+        (uint256 wethOut, address kept, uint256 keptAmt) = t0 == weth ? (a0, t1, a1) : (a1, t0, a0);
+        if (wethOut > 0) {
+            IWETH(weth).withdraw(wethOut);
+            totalLpFeesToPot += wethOut;
+            _creditPot(wethOut);
+        }
+        emit LpFeesSplit(pair, feeLp, wethOut, kept, keptAmt);
+    }
+
+    /// @dev Record LP the treasury added itself so splitLpFees never redeems
+    ///      it. The pair is looked up through the router's factory.
+    function _recordPol(address a, address b, uint256 liquidity) internal {
+        try ITimbSwapRouter(router).factory() returns (address f) {
+            address p = ITimbSwapFactoryView(f).getPair(a, b);
+            if (p != address(0)) polLp[p] += liquidity;
+        } catch {}
+    }
+
+    /// @notice Owner: correct the protocol-owned LP recorded for `pair` (for
+    ///         example after withdrawing treasury LP with withdrawToken).
+    function setPolLp(address pair, uint256 amount) external onlyOwner {
+        polLp[pair] = amount;
+        emit PolLpSet(pair, amount);
     }
 
     /**
@@ -615,6 +691,7 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         IERC20(tokenA).forceApprove(router, 0);
         IERC20(tokenB).forceApprove(router, 0);
 
+        _recordPol(tokenA, tokenB, liquidity);
         emit LiquidityProvided(tokenA, tokenB, amountA, amountB, liquidity);
     }
 
@@ -652,6 +729,7 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
 
         IERC20(token).forceApprove(router, 0);
 
+        _recordPol(token, weth, liquidity);
         emit LiquidityProvided(token, weth, amountToken, amountETH, liquidity);
     }
 

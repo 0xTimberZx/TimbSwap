@@ -85,6 +85,8 @@ interface IAirdropPause {
 interface ITimbSwapFactoryAdmin {
     function setRouter(address router) external;
     function router() external view returns (address);
+    function setFeeTo(address feeTo) external;
+    function feeTo() external view returns (address);
 }
 
 contract DeployBeta is Script {
@@ -201,6 +203,9 @@ contract DeployBeta is Script {
     function _switchRouter(Cfg memory c, Deployed memory d) internal {
         TimbSwapRouter old = TimbSwapRouter(payable(c.router));
         ITimbSwapFactoryAdmin(old.factory()).setRouter(address(d.router));
+        // The pools' 0.05% protocol share is minted as LP to feeTo; the new
+        // treasury's splitLpFees sends half of it to the pot.
+        ITimbSwapFactoryAdmin(old.factory()).setFeeTo(address(d.treasury));
         EligibleTokenRegistry(c.eligible).registerConsumer(address(d.router));
         if (!old.paused()) old.pause();
     }
@@ -260,6 +265,8 @@ contract DeployBeta is Script {
         require(d.treasury.router() == address(d.router),       "treasury must use the new router");
         require(d.router.minNudgeAmountIn(c.weth) > 0,          "WETH nudge floor must be set (TS-009)");
         require(old.paused(),                                   "old router must be paused");
+        require(d.router.protocolFeeBps() == 0,                 "router fee must be 0 (all-in 0.30%)");
+        require(ITimbSwapFactoryAdmin(old.factory()).feeTo() == address(d.treasury), "pool protocol share must go to the new treasury");
         if (c.airdrop != address(0)) require(IAirdropPause(c.airdrop).paused(), "airdrop must be paused");
 
         console.log("\n========== BETA DEPLOY COMPLETE ==========");

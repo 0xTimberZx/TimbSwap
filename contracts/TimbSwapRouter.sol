@@ -113,7 +113,16 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
 
     // ─── Constants ───────────────────────────────────────────────────────────
 
-    uint256 public constant PROTOCOL_FEE_BPS = 5;
+    /// @notice Ceiling for the router's protocol fee (0.05%), charged on top
+    ///         of amountIn. The live fee is protocolFeeBps.
+    uint256 public constant MAX_PROTOCOL_FEE_BPS = 5;
+
+    /// @notice Router protocol fee in bps, charged on top of amountIn and sent
+    ///         to the treasury. Starts at 0: the pools already charge 0.30%
+    ///         and route 0.05% of it to the protocol (factory feeTo), which
+    ///         matches the common V2 all-in 0.30%. Owner-settable up to
+    ///         MAX_PROTOCOL_FEE_BPS.
+    uint256 public protocolFeeBps;
     uint256 public constant BPS_DENOMINATOR  = 10_000;
 
     /// @notice Gas-bounded cap for batched user nudges per transaction.
@@ -141,6 +150,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     event SwapNudgeWeightSet(uint256 weight);
     event FreeNudgeCapSet(uint256 capPerSegment);
     event MinNudgeAmountInSet(address indexed token, uint256 minAmountIn);
+    event ProtocolFeeBpsSet(uint256 bps);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -162,6 +172,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     error PrizeNotSet();
     error FreeNudgeCapReached(uint256 round, uint256 segment);
     error InvalidPath();
+    error ProtocolFeeTooHigh(uint256 bps, uint256 max);
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
 
@@ -316,7 +327,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     // ─── Internal: Protocol Fee ───────────────────────────────────────────────
 
     function _collectProtocolFee(address token, uint256 amountIn) internal {
-        uint256 fee = (amountIn * PROTOCOL_FEE_BPS) / BPS_DENOMINATOR;
+        uint256 fee = (amountIn * protocolFeeBps) / BPS_DENOMINATOR;
         if (fee > 0 && treasury != address(0)) {
             IERC20(token).safeTransferFrom(msg.sender, treasury, fee);
             emit ProtocolFeeSent(treasury, token, fee);
@@ -595,7 +606,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         // Fee mirrors _collectProtocolFee: charged on top of amountIn, skipped
         // entirely when no treasury is configured.
         uint256 fee = treasury != address(0)
-            ? (amountIn * PROTOCOL_FEE_BPS) / BPS_DENOMINATOR
+            ? (amountIn * protocolFeeBps) / BPS_DENOMINATOR
             : 0;
         if (msg.value < amountIn + fee) {
             revert InsufficientETHSent(msg.value, amountIn + fee);
@@ -719,6 +730,19 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         uint256 seg   = ITimbPrize(timbPrize).currentSegment();
         uint256 used  = freeNudgesUsed[keccak256(abi.encode(timbPrize, round, seg, user))];
         return freeNudgeCapPerSeg > used ? freeNudgeCapPerSeg - used : 0;
+    }
+
+    /// @notice The live router protocol fee (bps). Kept under the old
+    ///         constant's name so existing readers (the swap page) still work.
+    function PROTOCOL_FEE_BPS() external view returns (uint256) {
+        return protocolFeeBps;
+    }
+
+    /// @notice Owner: set the router protocol fee, 0 to MAX_PROTOCOL_FEE_BPS.
+    function setProtocolFeeBps(uint256 bps) external onlyOwner {
+        if (bps > MAX_PROTOCOL_FEE_BPS) revert ProtocolFeeTooHigh(bps, MAX_PROTOCOL_FEE_BPS);
+        protocolFeeBps = bps;
+        emit ProtocolFeeBpsSet(bps);
     }
 
     /// @notice Owner: minimum input of `token` for a swap to earn nudges

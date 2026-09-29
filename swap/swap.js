@@ -11,8 +11,34 @@ const ROUTER_ABI   = [
   "function swapExactETHForTokens(uint256 amountIn, uint256 amountOutMin, address tokenOut, address to, uint256 deadline, bool influencePrize) external payable returns (uint256 amountOut)",
   "function swapExactTokensForETH(uint256 amountIn, uint256 amountOutMin, address tokenIn, address to, uint256 deadline, bool influencePrize) external returns (uint256 amountOut)",
   "function addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external returns (uint256, uint256, uint256)",
-  "function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external returns (uint256, uint256)"
+  "function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external returns (uint256, uint256)",
+  "function PROTOCOL_FEE_BPS() external view returns (uint256)"
 ];
+
+// Router protocol fee (bps), charged ON TOP of amountIn for every non-wrap swap.
+// Read from the router: 0 on the new router (all-in 0.30%, the pools' own
+// fee), 5 (0.05%) on older routers. Defaults to 5 until read so a slow RPC
+// never under-reserves. The pools' 0.30% is inside the quoted output.
+const POOL_FEE_BPS = 30;
+let routerFeeBps = 5;
+function withRouterFee(bn) { return bn.add(bn.mul(routerFeeBps).div(10000)); }
+function pctOfBps(bps) { return bps === 0 ? "0%" : (bps / 100).toFixed(2) + "%"; }
+function renderFeeLabels() {
+  const r = document.getElementById("info-fee-label");
+  if (r) r.textContent = `Router fee (${pctOfBps(routerFeeBps)})`;
+  const t = document.getElementById("info-total-label");
+  if (t) t.textContent = `Total fee (${pctOfBps(POOL_FEE_BPS + routerFeeBps)})`;
+}
+(async function loadRouterFee() {
+  try {
+    const prov = typeof sharedReadProvider === "function" ? sharedReadProvider() : null;
+    if (!prov || !ADDRESSES.TimbSwapRouter) return;
+    const bps = await new ethers.Contract(ADDRESSES.TimbSwapRouter, ROUTER_ABI, prov).PROTOCOL_FEE_BPS();
+    routerFeeBps = bps.toNumber();
+  } catch (e) { /* keep the safe default */ }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", renderFeeLabels);
+  else renderFeeLabels();
+})();
 const WETH_ABI = [
   "function deposit() external payable",
   "function withdraw(uint256 amount) external"
@@ -143,11 +169,10 @@ async function fillMaxIn() {
   if (!userAddress || !tokenIn) return;
   try {
     let bal = await tokenBalance(tokenIn);
-    // The 0.05% protocol fee is pulled ON TOP of amountIn for every non-wrap
-    // swap (see router _collectProtocolFee), so a full-balance MAX would revert
-    // on the fee transfer ("transfer amount exceeds balance"). Reserve the fee:
-    // largest amountIn with amountIn + 0.05% ≤ balance is balance × 10000/10005.
-    if (!isWrapPair()) bal = bal.mul(10000).div(10005);
+    // The router fee is pulled ON TOP of amountIn for every non-wrap swap (see
+    // router _collectProtocolFee), so a full-balance MAX would revert on the fee
+    // transfer. Reserve it: the largest amountIn with amountIn + fee ≤ balance.
+    if (!isWrapPair()) bal = bal.mul(10000).div(10000 + routerFeeBps);
     document.getElementById("amount-in").value =
       trimAmount(ethers.utils.formatUnits(bal, tokenIn.decimals));
     lastEditedSide = "in";
@@ -473,7 +498,7 @@ async function refreshBalances() {
   }
 }
 
-// "Insufficient <SYM> balance" when the typed pay amount PLUS the 0.05%
+// "Insufficient <SYM> balance" when the typed pay amount PLUS the router
 // protocol fee exceeds the cached wallet balance; null otherwise. The fee is
 // pulled ON TOP of amountIn for every non-wrap swap — native AND ERC20 — via
 // the router's _collectProtocolFee (a separate transferFrom to the treasury),
@@ -484,7 +509,7 @@ function overBalanceLabel() {
   if (!amt || parseFloat(amt) <= 0) return null;
   let needIn;
   try { needIn = ethers.utils.parseUnits(amt, tokenIn.decimals); } catch { return null; }
-  if (!isWrapPair()) needIn = needIn.add(needIn.mul(5).div(10000)); // + 0.05% protocol fee (on top)
+  if (!isWrapPair()) needIn = withRouterFee(needIn); // + router fee (on top)
   return _balInWei.lt(needIn) ? `Insufficient ${tokenIn.symbol} balance` : null;
 }
 
@@ -725,9 +750,13 @@ function renderSwapInfo(amountInWei, amountOutWei, spotPrice, viaLabel = "") {
   impactEl.textContent = impact.toFixed(2) + "%";
   impactEl.className = "info-val" + (impact > 5 ? " danger" : impact > 2 ? " warn" : "");
 
-  const feeAmt = amountInWei.mul(5).div(10000);
+  const feeAmt = amountInWei.mul(routerFeeBps).div(10000);
   document.getElementById("info-fee").textContent =
     fmt(feeAmt, tokenIn.decimals, 6) + " " + tokenIn.symbol;
+  const totalEl = document.getElementById("info-total-fee");
+  if (totalEl) totalEl.textContent =
+    fmt(amountInWei.mul(POOL_FEE_BPS + routerFeeBps).div(10000), tokenIn.decimals, 6) + " " + tokenIn.symbol;
+  renderFeeLabels();
 
   const minReceived = amountOutWei.mul(Math.floor((100 - slippagePct) * 100)).div(10000);
   document.getElementById("info-min").textContent =
@@ -769,7 +798,7 @@ async function renderRouteDivergence(rate, impactPct) {
     if (!isFinite(referenceRate) || referenceRate <= 0) return;
 
     const divergence = (rate / referenceRate - 1) * 100;
-    const expected   = -(impactPct + 0.05);          // impact + the 0.05% fee
+    const expected   = -(impactPct + routerFeeBps / 100); // impact + the router fee
     const excess     = divergence - expected;
     if (Math.abs(excess) < DIVERGENCE_TOLERANCE_PCT) return;
 
@@ -848,7 +877,7 @@ function revertSel(err) {
 const SWAP_REVERTS = {
   // Router
   "0xd28d3eb5": "Price moved: the pool can no longer deliver your minimum output. Quote refreshed — try again.", // InsufficientOutputAmount(uint256,uint256)
-  "0x3eb9e86a": "Sent ETH doesn't cover amount + 0.05% protocol fee. Refresh and try again.",                    // InsufficientETHSent
+  "0x3eb9e86a": "Sent ETH doesn't cover amount + the router fee. Refresh and try again.",                    // InsufficientETHSent
   "0x1f2a2005": "Swap amount is zero.",                                                                          // ZeroAmount
   "0x0dc08fa2": "Router misconfigured (WETH unset) — owner action needed.",                                      // WethNotSet
   "0x4db171d4": "This pair has no pool yet — create it via Add Liquidity.",                                      // PairNotFound
@@ -873,10 +902,10 @@ const SWAP_REVERTS = {
 async function diagnoseRevert(err) {
   // Fast path: some wallets/nodes strip the revert DATA but still surface the
   // reason as a plain string. Catch the common balance case here so it isn't
-  // mislabeled as a price move (the 0.05% fee is charged on top of amountIn).
+  // mislabeled as a price move (the router fee is charged on top of amountIn).
   const reason = (err?.reason || err?.error?.message || err?.data?.message || "").toLowerCase();
   if (reason.includes("exceeds balance")) {
-    return `Not enough ${tokenIn?.symbol || "input token"} — this amount plus the 0.05% fee is more than your balance. Lower it (or tap Max).`;
+    return `Not enough ${tokenIn?.symbol || "input token"} — this amount plus the router fee is more than your balance. Lower it (or tap Max).`;
   }
   const tx = err?.transaction;
   if (!tx || !tx.to || !tx.data) return null;
@@ -922,7 +951,7 @@ async function handleSwap() {
     // failures (observed live: 'swap 2000 ETH' and an ERC20-WETH swap with
     // zero WETH). Check here and say it in a sentence instead.
     const needIn = !isWrapPair()
-      ? amountInWei.add(amountInWei.mul(5).div(10000)) // + 0.05% protocol fee (on top, native + ERC20)
+      ? withRouterFee(amountInWei) // + router fee (on top, native + ERC20)
       : amountInWei;
     const balIn = await tokenBalance(tokenIn);
     if (balIn.lt(needIn)) {
@@ -1007,8 +1036,8 @@ async function handleSwap() {
       args   = isNative(tokenIn) ? [] : [amountInWei];
       value  = isNative(tokenIn) ? amountInWei : undefined;
     } else if (isNative(tokenIn)) {
-      // ETH → token: msg.value must cover amountIn plus the 0.05% protocol fee.
-      const fee = amountInWei.mul(5).div(10000);
+      // ETH → token: msg.value must cover amountIn plus the router fee.
+      const fee = amountInWei.mul(routerFeeBps).div(10000);
       method = "swapExactETHForTokens";
       args   = [amountInWei, minOut, tokenOut.address, userAddress, deadline, influencePrize];
       value  = amountInWei.add(fee);

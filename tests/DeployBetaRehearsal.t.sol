@@ -139,6 +139,8 @@ contract DeployBetaRehearsalTest is Test {
         assertEq(prize.protocolCutBps(), 200, "2% round sweep");
         assertTrue(newRouter.treasury() != SAFE, "router fee -> new treasury");
         assertEq(TimbTreasury(payable(newRouter.treasury())).router(), address(newRouter), "treasury -> new router");
+        assertEq(newRouter.protocolFeeBps(), 0, "router fee 0: all-in 0.30%");
+        assertEq(factory.feeTo(), newRouter.treasury(), "pool protocol share -> new treasury");
         assertTrue(airdrop.paused(), "airdrop paused");
         assertFalse(prize.gameStarted(), "startGame left to the runbook");
     }
