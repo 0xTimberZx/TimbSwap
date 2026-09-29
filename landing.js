@@ -90,8 +90,8 @@ let lastCounter = null;
 let lastSegment = null;
 
 // "Up for Grabs" shows the exact same value as the compete LIVE banner: the
-// winnable pot (larger of the accounted pot and the PrizeEscrow balance) plus
-// any accruing yield. It revolves between that ETH figure and its USD worth
+// winnable pot plus any accruing yield (never the PrizeEscrow balance, which
+// can hold ETH no winner can be paid; TS-007). It revolves between that ETH figure and its USD worth
 // at a FIXED real ETH rate (config ETH_USD_PRICE) — testnet ETH has no market
 // price, so a testnet pool ratio would be meaningless.
 function fmtUsd(v) {
@@ -158,15 +158,12 @@ async function updateScroll() {
     const roundEl = document.getElementById("scroll-round");
     if (roundEl) roundEl.textContent = `Round ${round}`;
 
-    // "Up for Grabs" mirrors the compete LIVE banner: max(pot, escrow balance)
-    // plus accruing yield. Each read is best-effort — falls back to the pot.
+    // "Up for Grabs" mirrors the compete LIVE banner: the winnable pot plus
+    // accruing yield. Never the escrow balance: ETH there beyond the pot is
+    // not payable to a winner (TS-007). Best-effort — falls back to the pot.
     let combined = pot;
     try {
-      const [escrowBal, accrued] = await Promise.all([
-        ADDRESSES.PrizeEscrow ? readProvider.getBalance(ADDRESSES.PrizeEscrow).catch(() => null) : null,
-        readContract("TimbYieldVault", VAULT_ABI).previewAccrued().catch(() => null),
-      ]);
-      if (escrowBal && escrowBal.gt(pot)) combined = escrowBal;
+      const accrued = await readContract("TimbYieldVault", VAULT_ABI).previewAccrued().catch(() => null);
       if (accrued) combined = combined.add(accrued);
     } catch (e) { /* reads unavailable → show pot only */ }
 

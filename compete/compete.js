@@ -404,10 +404,11 @@ async function pollRoundState() {
     if (banner) {
       banner.classList.toggle("hidden", !!userAddress);
       if (!userAddress) {
-        // One combined figure: the winnable pot (whichever is larger of the
-        // accounted pot and its escrow backing) plus any accruing yield,
-        // in dollars at the fixed display rate — matches the landing "Win the Pot".
-        let combined = escrowBal && escrowBal.gt(s.pot) ? escrowBal : s.pot;
+        // One combined figure: the winnable pot plus any accruing yield, in
+        // dollars at the fixed display rate — matches the landing "Win the Pot".
+        // Never the escrow balance: ETH there beyond the pot is not payable to
+        // a winner (TS-007), so headlining it overstates the prize.
+        let combined = s.pot;
         if (accrued) combined = combined.add(accrued);
         const ethFloat = parseFloat(ethers.utils.formatEther(combined));
         const px = await usdPerEth();
