@@ -353,4 +353,36 @@ contract PrizeWindowsTest is Test {
         registry.claimRefund(id);                    // window truly closed now
         vm.stopPrank();
     }
+
+    // ─── Protocol cut: lifetime counter + round-indexed event ────────────────
+
+    function test_ProtocolCutTotal_IsLifetimeAndRoundIndexed() public {
+        prize.fundPot{value: 1 ether}();
+        uint256 r = prize.currentRound();
+
+        vm.recordLogs();
+        runUntilRound(r + 1);                       // settles round r: cut = 2% of 1 ether
+
+        uint256 cut = 0.02 ether;
+        assertEq(prize.protocolCutAccrued(), cut, "accrued");
+        assertEq(prize.protocolCutTotal(),   cut, "lifetime");
+
+        // ProtocolCutTaken(round indexed, amount): the round is a topic.
+        bytes32 sig = keccak256("ProtocolCutTaken(uint256,uint256)");
+        bool seen;
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics.length == 2 && logs[i].topics[0] == sig) {
+                assertEq(uint256(logs[i].topics[1]), r, "event round");
+                assertEq(abi.decode(logs[i].data, (uint256)), cut, "event amount");
+                seen = true;
+            }
+        }
+        assertTrue(seen, "ProtocolCutTaken not emitted");
+
+        // Withdrawing drains the accrued bucket but never the lifetime total.
+        prize.withdrawProtocolCut(sink);
+        assertEq(prize.protocolCutAccrued(), 0,   "accrued after withdraw");
+        assertEq(prize.protocolCutTotal(),   cut, "lifetime after withdraw");
+    }
 }

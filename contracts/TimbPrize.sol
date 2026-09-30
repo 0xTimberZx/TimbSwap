@@ -214,6 +214,11 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     ///         this the cut left the tracked pot but was never accounted or paid.
     uint256 public protocolCutAccrued;
 
+    /// @notice Lifetime protocol cut taken across every settlement. Never
+    ///         decreases — withdrawals only reduce protocolCutAccrued — so
+    ///         "revenue to date" is one read, not a log scan.
+    uint256 public protocolCutTotal;
+
     /// @notice Frozen winning string for each round.
     mapping(uint256 => bytes6) public roundWinningString;
 
@@ -278,7 +283,7 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     ///         successful deposit — surfaced so the stall is observable.
     event YieldDepositFailed(uint256 indexed round, uint256 amount);
     event UnclaimedRecycled(uint256 indexed round, uint256 amount);
-    event ProtocolCutTaken(uint256 amount);
+    event ProtocolCutTaken(uint256 indexed round, uint256 amount);
     event ProtocolCutWithdrawn(address indexed to, uint256 amount);
     event SettlerUpdated(address indexed newSettler);
     event WinnersPerRoundSet(uint256 count);
@@ -771,7 +776,8 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
             uint256 cut = (pot * protocolCutBps) / 10_000;
             pot -= cut;
             protocolCutAccrued += cut;   // tracked; delivered via withdrawProtocolCut()
-            emit ProtocolCutTaken(cut);
+            protocolCutTotal   += cut;   // lifetime, monotonic
+            emit ProtocolCutTaken(round, cut);
         }
 
         uint256 totalPaid = 0;
