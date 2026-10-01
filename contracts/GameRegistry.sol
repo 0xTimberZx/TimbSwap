@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface ITimbYieldVaultRegistry {
     function register(uint256 ticketId, address token, uint256 amount) external;
     function remove(uint256 ticketId) external;
+    function newEpoch() external;
 }
 
 interface ITimbPrizePot {
@@ -1045,6 +1046,14 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         fixedTimbsCost     = 0;
         fixedEthCost       = 0;
         pricedForRound     = 0;
+
+        // TS-014: retire the prior generation's yield weight in one step —
+        // abandoned tickets must not keep drawing on the vault reserve.
+        // Fenced like every other vault call so the game never bricks on it.
+        if (yieldVault != address(0)) {
+            try ITimbYieldVaultRegistry(yieldVault).newEpoch() {}
+            catch { emit WeightRemoveFailed(0); }
+        }
 
         emit GenerationStarted(generation);
         emit CurrentRoundUpdated(1);

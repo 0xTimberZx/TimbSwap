@@ -57,11 +57,23 @@ contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
     /// @notice TimbPrize — only caller for harvest().
     address public timbPrize;
 
-    /// @notice Sum of registered ticket weight (ETH-denominated wei).
+    /// @notice Sum of registered ticket weight (ETH-denominated wei) for the
+    ///         current epoch only.
     uint256 public totalWeight;
 
-    /// @notice ticket id → registered weight.
-    mapping(uint256 => uint256) public weightOf;
+    /// @notice Weight epoch (TS-014). Bumped on every game generation and on
+    ///         every registry change, so weight registered under a retired
+    ///         game or a retired registry stops accruing in O(1) and a fresh
+    ///         registry's ticket #N can never alias an old registry's #N.
+    uint256 public epoch;
+
+    /// @dev epoch → ticket id → registered weight.
+    mapping(uint256 => mapping(uint256 => uint256)) private _weightOf;
+
+    /// @notice Registered weight of a ticket in the current epoch.
+    function weightOf(uint256 ticketId) external view returns (uint256) {
+        return _weightOf[epoch][ticketId];
+    }
 
     /// @notice Pot wei generated per 1e18 weight per second.
     uint256 public ratePerSecond1e18;
@@ -86,6 +98,7 @@ contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
     event RateSet(uint256 ratePerSecond1e18);
     event TimbsWeightSet(uint256 timbsWeight1e18);
     event GameRegistrySet(address indexed registry);
+    event EpochStarted(uint256 indexed epoch, uint256 retiredWeight);
     event TimbPrizeSet(address indexed prize);
     event EmergencyWithdrawn(address indexed to, uint256 amount);
 
@@ -165,7 +178,7 @@ contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
         external
         onlyGameRegistry
     {
-        if (weightOf[ticketId] != 0) return; // already registered
+        if (_weightOf[epoch][ticketId] != 0) return; // already registered
         _accrue();
 
         uint256 w = token == address(0)
@@ -173,20 +186,37 @@ contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
             : amount * timbsWeight1e18 / 1e18;
         if (w == 0) return;
 
-        weightOf[ticketId] = w;
+        _weightOf[epoch][ticketId] = w;
         totalWeight += w;
         emit WeightRegistered(ticketId, w, totalWeight);
     }
 
     /// @notice Remove a ticket's weight (exited Active). Idempotent.
     function remove(uint256 ticketId) external onlyGameRegistry {
-        uint256 w = weightOf[ticketId];
+        uint256 w = _weightOf[epoch][ticketId];
         if (w == 0) return;
         _accrue();
 
-        delete weightOf[ticketId];
+        delete _weightOf[epoch][ticketId];
         totalWeight -= w;
         emit WeightRemoved(ticketId, w, totalWeight);
+    }
+
+    /// @notice Start a fresh weight epoch (TS-014): accrues up to now, then
+    ///         retires every registered weight in O(1). Called by the registry
+    ///         when a new game generation starts, and by setGameRegistry when
+    ///         the registry changes. Owner may also call it directly.
+    function newEpoch() external {
+        if (msg.sender != gameRegistry && msg.sender != owner()) revert NotGameRegistry();
+        _newEpoch();
+    }
+
+    function _newEpoch() internal {
+        _accrue();
+        uint256 retired = totalWeight;
+        totalWeight = 0;
+        epoch += 1;
+        emit EpochStarted(epoch, retired);
     }
 
     // ─── TimbPrize: Harvest ──────────────────────────────────────────────────
@@ -225,8 +255,12 @@ contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
 
     // ─── Owner: Config ───────────────────────────────────────────────────────
 
+    /// @dev Repointing the registry retires the old registry's weight
+    ///      (TS-014): its tickets can no longer be removed through it, and a
+    ///      fresh registry restarts ticket ids from 1.
     function setGameRegistry(address _registry) external onlyOwner {
         if (_registry == address(0)) revert ZeroAddress();
+        if (gameRegistry != address(0) && _registry != gameRegistry) _newEpoch();
         gameRegistry = _registry;
         emit GameRegistrySet(_registry);
     }

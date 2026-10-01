@@ -118,6 +118,49 @@ contract TimbTreasuryTest is Test {
         assertEq(supplyBefore - timbs.totalSupply(), burned, "supply burned");
     }
 
+    // TS-016: an unprivileged refresh can no longer hold the buyback shut.
+    function test_TS016_GrieferRefreshCannotBlockBuyback() public {
+        vm.deal(address(treasury), 1 ether);
+        address griefer = address(0xBAD);
+
+        treasury.updateTwap();
+        vm.warp(block.timestamp + 31 minutes);
+
+        // Griefer refreshes right before the buyback. Allowed (latest is 31m
+        // old), but the rotated-out observation stays usable.
+        vm.prank(griefer);
+        treasury.updateTwap();
+        treasury.executeBuyback(0.5 ether, 1);
+
+        // A second refresh inside the window is refused for outsiders...
+        vm.prank(griefer);
+        vm.expectRevert(abi.encodeWithSelector(TimbTreasury.TwapTooSoon.selector, 0, 30 minutes));
+        treasury.updateTwap();
+
+        // ...but not for the owner. An owner refresh only delays the owner:
+        // both slots are now younger than the window, so the buyback waits.
+        vm.warp(block.timestamp + 10 minutes);
+        treasury.updateTwap();
+        vm.expectRevert(abi.encodeWithSelector(TimbTreasury.TwapNotReady.selector, 0, 30 minutes));
+        treasury.executeBuyback(0.25 ether, 1);
+
+        // Once the latest observation seasons, the buyback goes through even
+        // if the griefer rotates it out at the boundary.
+        vm.warp(block.timestamp + 30 minutes);
+        vm.prank(griefer);
+        treasury.updateTwap();
+        treasury.executeBuyback(0.25 ether, 1);
+    }
+
+    // TS-016: with no seasoned observation at all, the buyback still waits.
+    function test_TS016_NoSeasonedObservationReverts() public {
+        vm.deal(address(treasury), 1 ether);
+        treasury.updateTwap();
+        vm.warp(block.timestamp + 5 minutes);
+        vm.expectRevert(abi.encodeWithSelector(TimbTreasury.TwapNotReady.selector, 5 minutes, 30 minutes));
+        treasury.executeBuyback(0.5 ether, 1);
+    }
+
     // Ratio setters cap at burn + reserve <= 100.
     function testRatioCaps() public {
         // burn defaults 5, reserve defaults 20.
