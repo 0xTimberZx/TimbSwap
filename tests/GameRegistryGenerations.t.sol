@@ -74,6 +74,25 @@ contract GameRegistryGenerationsTest is Test {
         return t.status;
     }
 
+    // TS-022: a ticket whose activation was missed frees the wallet once its
+    // run ends, instead of blocking re-entry until the LER+4 forfeiture sweep.
+    function test_TS022_EndedPendingTicketFreesWallet() public {
+        uint256 id = _submitETH(player, STR_A);            // plays round 2, never activated
+        (GameRegistry.Ticket memory t,) = registry.getTicket(id);
+        assertEq(uint8(t.status), uint8(GameRegistry.TicketStatus.Pending));
+
+        // Still inside its run: re-entry is refused.
+        registry.setCurrentRound(t.lastEligibleRound);
+        vm.prank(player);
+        vm.expectRevert(abi.encodeWithSelector(GameRegistry.ActiveTicketExists.selector, id));
+        registry.submitEntry{value: ENTRY_ETH}(STR_B, true, 0);
+
+        // Run over: the wallet can enter again straight away.
+        registry.setCurrentRound(t.lastEligibleRound + 1);
+        uint256 id2 = _submitETH(player, STR_B);
+        assertTrue(id2 != id, "new ticket minted");
+    }
+
     // ─── Tests ───────────────────────────────────────────────────────────────
 
     function test_FirstGameKeepsGenerationOne() public view {
