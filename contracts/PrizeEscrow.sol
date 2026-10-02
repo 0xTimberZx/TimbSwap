@@ -36,14 +36,24 @@ contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
 
     // ─── State ───────────────────────────────────────────────────────────────
 
-    /// @notice TimbPrize — only address authorised to call pay().
+    /// @notice TimbPrize — the live game: may deposit() and pay().
     address public timbPrize;
+
+    /// @notice Retired TimbPrize contracts that may still pay() but never
+    ///         deposit (TS-018). Repointing the escrow at a new game used to
+    ///         cut the old game off mid-claim-window, so its unclaimed winners
+    ///         (and its protocol-cut withdrawal) reverted NotTimbPrize until
+    ///         the owner intervened. setTimbPrize now retires the outgoing
+    ///         prize automatically; the owner revokes it once the old claim
+    ///         windows have closed.
+    mapping(address => bool) public retiredPrize;
 
     // ─── Events ──────────────────────────────────────────────────────────────
 
     event WinnerPaid(address indexed winner, uint256 amount, uint256 indexed round);
     event Deposited(address indexed from, uint256 amount);
     event TimbPrizeSet(address indexed timbPrize);
+    event RetiredPrizeSet(address indexed prize, bool allowed);
     event EmergencyWithdrawn(address indexed to, uint256 amount);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
@@ -70,7 +80,7 @@ contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
         external
         nonReentrant
     {
-        if (msg.sender != timbPrize)        revert NotTimbPrize();
+        if (msg.sender != timbPrize && !retiredPrize[msg.sender]) revert NotTimbPrize();
         if (to == address(0))               revert ZeroAddress();
         if (amount == 0)                    revert ZeroAmount();
         if (amount > address(this).balance) {
@@ -103,12 +113,30 @@ contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
     // ─── Owner: Config ────────────────────────────────────────────────────────
 
     /**
-     * @notice Set the TimbPrize address — only address that can call pay().
+     * @notice Set the live TimbPrize. The outgoing prize is retired, not cut
+     *         off: it keeps pay() so its in-flight winners can still claim
+     *         (TS-018). Revoke it with setRetiredPrize once its windows close.
      */
     function setTimbPrize(address _timbPrize) external onlyOwner {
         if (_timbPrize == address(0)) revert ZeroAddress();
+        address old = timbPrize;
+        if (old != address(0) && old != _timbPrize) {
+            retiredPrize[old] = true;
+            emit RetiredPrizeSet(old, true);
+        }
+        if (retiredPrize[_timbPrize]) {
+            retiredPrize[_timbPrize] = false; // repointed back: live again
+            emit RetiredPrizeSet(_timbPrize, false);
+        }
         timbPrize = _timbPrize;
         emit TimbPrizeSet(_timbPrize);
+    }
+
+    /// @notice Grant or revoke a retired prize's pay() right (TS-018).
+    function setRetiredPrize(address prize, bool allowed) external onlyOwner {
+        if (prize == address(0)) revert ZeroAddress();
+        retiredPrize[prize] = allowed;
+        emit RetiredPrizeSet(prize, allowed);
     }
 
     /**
