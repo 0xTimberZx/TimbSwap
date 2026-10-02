@@ -234,6 +234,17 @@ contract PrizeWindowsTest is Test {
         assertTrue(escrow.retiredPrize(address(0xBEEF2)));
     }
 
+    // ─── TS-019: entriesPaused gates every meter input ──────────────────────
+
+    function test_TS019_EntriesPausedBlocksNudges() public {
+        prize.pauseEntries();
+        vm.expectRevert(TimbPrize.EntriesPaused.selector);
+        prize.nudgeScroll();                    // this test is the router
+
+        prize.unpauseEntries();
+        prize.nudgeScroll();                    // live again
+    }
+
     // ─── §13.2 Jitter ────────────────────────────────────────────────────────
 
     function test_LockedCharMatchesKeccakMirror() public {

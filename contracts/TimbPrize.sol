@@ -400,6 +400,10 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         onlyRouter
         whenGameStarted
     {
+        // TS-019: the owner's entry pause freezes every meter input. Swaps keep
+        // working (the router catches this and skips the nudge); advanceScroll
+        // is refused. Settlement continues through the keeper's settleSegment.
+        if (entriesPaused) revert EntriesPaused();
         if (_isInSettlementWindow()) {
             if (settlementPaused) revert InSettlementWindow();
             _settleDueSegment();
