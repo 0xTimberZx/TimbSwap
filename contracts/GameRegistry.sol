@@ -433,7 +433,11 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///      reclaimFromPastGame().
     function _isLive(Ticket storage t) internal view returns (bool) {
         if (t.generation != generation) return false;
-        if (t.status == TicketStatus.Pending) return true;
+        // TS-022: an un-activated ticket is live only through its last eligible
+        // round, like an Active one. Unbounded, a missed activation blocked the
+        // wallet from re-entering until the LER+4 forfeiture sweep. It stays
+        // refundable via claimRefund either way.
+        if (t.status == TicketStatus.Pending) return currentRound <= t.lastEligibleRound;
         if (t.status == TicketStatus.Active && currentRound <= t.lastEligibleRound) return true;
         return false;
     }
