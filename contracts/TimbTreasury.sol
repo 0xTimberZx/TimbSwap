@@ -225,6 +225,13 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     ///         updateTwap, and the timestamp it was taken at.
     uint256 public twapTimbsPerEthCumulativeLast;
     uint32  public twapTimestampLast;
+    /// @notice The observation before the latest one (TS-016). An unprivileged
+    ///         refresh may only rotate the pair once the latest observation is
+    ///         already MIN_TWAP_PERIOD old, so this slot is always seasoned
+    ///         once it is populated and a fresh refresh can never deny
+    ///         executeBuyback its 30-minute-old observation.
+    uint256 public twapTimbsPerEthCumulativePrev;
+    uint32  public twapTimestampPrev;
     /// @notice Max downward deviation of the buyback fill from the TWAP the
     ///         buyback will accept, in bps. Default 3%. Owner/timelock-set.
     uint256 public buybackMaxDeviationBps = 300;
@@ -281,6 +288,7 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     error TransferFailed();
     error OperatorCapExceeded(uint256 requested, uint256 remaining);
     error TwapNotReady(uint256 elapsed, uint256 required);
+    error TwapTooSoon(uint256 elapsed, uint256 required);
     error BuybackTooLarge(uint256 requested, uint256 max);
     error EscrowMismatch(address timbPrize);
     error NotWethPair(address pair);
@@ -382,13 +390,44 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
      *         schedule. executeBuyback requires a snapshot at least
      *         MIN_TWAP_PERIOD old, so the average it prices against cannot be
      *         moved within a block (or a few) to enable a sandwich.
+     * @dev    TS-016: an unprivileged caller may only rotate the observation
+     *         once the latest one is MIN_TWAP_PERIOD old, and the previous
+     *         observation is kept. A griefer refreshing every block therefore
+     *         cannot keep the buyback's clock at zero: the rotated-out
+     *         observation is always seasoned. Owner / operator may refresh at
+     *         any time (they only ever delay their own buyback).
      */
     function updateTwap() public {
         if (timbsEthPair == address(0)) revert ZeroAddress();
         (uint256 cumulative, uint32 ts) = _timbsPerEthCumulative();
+        if (twapTimestampLast != 0 && msg.sender != owner() && msg.sender != operator) {
+            uint32 elapsed;
+            unchecked { elapsed = ts - twapTimestampLast; }
+            if (elapsed < MIN_TWAP_PERIOD) revert TwapTooSoon(elapsed, MIN_TWAP_PERIOD);
+        }
+        twapTimbsPerEthCumulativePrev = twapTimbsPerEthCumulativeLast;
+        twapTimestampPrev             = twapTimestampLast;
         twapTimbsPerEthCumulativeLast = cumulative;
         twapTimestampLast             = ts;
         emit TwapUpdated(cumulative, ts);
+    }
+
+    /// @dev TS-016: the observation executeBuyback prices against — the latest
+    ///      one if it is MIN_TWAP_PERIOD old, else the previous one if that is.
+    function _seasonedTwap(uint32 tsNow)
+        internal view returns (uint256 cumulative, uint32 elapsed)
+    {
+        uint32 e;
+        if (twapTimestampLast != 0) {
+            unchecked { e = tsNow - twapTimestampLast; }
+            if (e >= MIN_TWAP_PERIOD) return (twapTimbsPerEthCumulativeLast, e);
+        }
+        if (twapTimestampPrev != 0) {
+            uint32 ep;
+            unchecked { ep = tsNow - twapTimestampPrev; }
+            if (ep >= MIN_TWAP_PERIOD) return (twapTimbsPerEthCumulativePrev, ep);
+        }
+        revert TwapNotReady(e, MIN_TWAP_PERIOD);
     }
 
     /// @notice Max downward deviation from the TWAP a buyback will accept (bps).
@@ -467,15 +506,11 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         uint256 effectiveMin = minTimbsOut;
         {
             (uint256 cumNow, uint32 tsNow) = _timbsPerEthCumulative();
-            uint32 elapsed;
-            unchecked { elapsed = tsNow - twapTimestampLast; }
-            if (twapTimestampLast == 0 || elapsed < MIN_TWAP_PERIOD) {
-                revert TwapNotReady(elapsed, MIN_TWAP_PERIOD);
-            }
+            (uint256 cumThen, uint32 elapsed) = _seasonedTwap(tsNow); // TS-016
             uint256 avgPriceUQ;
             unchecked {
                 // UQ112x112 average TIMBS-per-ETH over the window.
-                avgPriceUQ = (cumNow - twapTimbsPerEthCumulativeLast) / elapsed;
+                avgPriceUQ = (cumNow - cumThen) / elapsed;
             }
             uint256 twapExpectedOut = (avgPriceUQ * ethAmount) >> 112; // decode
             uint256 twapFloor = (twapExpectedOut * (TWAP_BPS - buybackMaxDeviationBps)) / TWAP_BPS;
