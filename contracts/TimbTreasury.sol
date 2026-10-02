@@ -679,6 +679,7 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         IERC20(address(timbsToken)).forceApprove(timbStaking, timbsAmount);
         ITimbStaking(timbStaking).notifyRewardAmount(timbsAmount, duration);
         IERC20(address(timbsToken)).forceApprove(timbStaking, 0);
+        totalTimbsDistributed += timbsAmount; // TS-023: was declared but never written
 
         emit StakingFunded(timbsAmount, duration);
     }
