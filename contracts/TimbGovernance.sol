@@ -45,6 +45,11 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     uint256 public proposalCount;
 
     mapping(uint256 => Proposal) public proposals;
+    /// @notice Cap on proposals whose voting window is still open (TS-021).
+    ///         Keeps withdrawVotingPower's quorum ratchet bounded.
+    uint256 public constant MAX_OPEN_PROPOSALS = 16;
+    /// @dev Ids of proposals created and not yet past votingEndsAt.
+    uint256[] internal _openProposals;
     mapping(address => uint256) public votingPowerDeposited;
     uint256 public totalVotingPower;
     mapping(address => mapping(uint256 => bool)) public hasVoted;
@@ -92,6 +97,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     error AlreadyExecuted();
     error InvalidPeriod();
     error InvalidBps();
+    error TooManyOpenProposals();
 
     constructor(
         address _timbsToken,
@@ -136,6 +142,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
 
         votingPowerDeposited[voter] -= amount;
         totalVotingPower -= amount;
+        _sweepOpenProposals(true); // TS-021: departed power stops propping quorum
         timbsToken.transfer(voter, amount);
         emit VotingPowerWithdrawn(voter, amount);
     }
@@ -166,7 +173,37 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
             executed: false
         });
 
+        _sweepOpenProposals(false);
+        if (_openProposals.length >= MAX_OPEN_PROPOSALS) revert TooManyOpenProposals();
+        _openProposals.push(proposalId);
+
         emit ProposalCreated(proposalId, msg.sender, title, votingStartsAt, votingEndsAt);
+    }
+
+    /// @dev TS-021: a proposal's quorum base is the LOWEST total voting power
+    ///      seen between its creation and the end of its voting window. Power
+    ///      that is withdrawn mid-vote no longer props the bar up (a parked
+    ///      deposit could otherwise inflate quorum, leave, and still veto), and
+    ///      nothing can move the base once voting has ended. Proposals past
+    ///      votingEndsAt are dropped from the open list as it is walked.
+    function _sweepOpenProposals(bool ratchet) internal {
+        uint256 live = totalVotingPower;
+        uint256 i = 0;
+        while (i < _openProposals.length) {
+            Proposal storage p = proposals[_openProposals[i]];
+            if (block.timestamp > p.votingEndsAt) {
+                _openProposals[i] = _openProposals[_openProposals.length - 1];
+                _openProposals.pop();
+                continue;
+            }
+            if (ratchet && live < p.totalVotingPower) p.totalVotingPower = live;
+            i++;
+        }
+    }
+
+    /// @notice Number of proposals currently tracked as open (TS-021).
+    function openProposalCount() external view returns (uint256) {
+        return _openProposals.length;
     }
 
     function castVote(uint256 proposalId, bool support) external nonReentrant {

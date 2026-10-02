@@ -24,6 +24,7 @@ interface IPair {
     function mint(address) external returns (uint256);
     function burn(address) external returns (uint256, uint256);
     function token0() external view returns (address);
+    function totalSupply() external view returns (uint256);
 }
 
 interface IEligibleTokenRegistry {
@@ -834,6 +835,14 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         address tokenA,
         LiquidityParams memory p
     ) internal view returns (uint256 amountA, uint256 amountB) {
+        // TS-020: a pair with no LP supply is still unseeded, whatever its
+        // reserves say. Anyone can send 1 wei of one token and sync(), leaving
+        // (dust, 0) reserves that made _quote revert on every router add. The
+        // pair's first mint prices off balance - reserve, so the desired
+        // amounts are exactly right here and the dust is simply donated.
+        if (IPair(pair).totalSupply() == 0) {
+            return (p.amountADesired, p.amountBDesired);
+        }
         (uint256 reserveA, uint256 reserveB) = _getReserves(pair, tokenA);
         return _optimalAmounts(
             p.amountADesired,

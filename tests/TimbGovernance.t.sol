@@ -130,6 +130,45 @@ contract TimbGovernanceTest is Test {
         gov.executeProposal(pid);
     }
 
+    // ─── TS-021: quorum base ratchets down while voting is open ───────────────
+
+    function test_TS021_WithdrawnParkedPowerNoLongerVetoes() public {
+        _deposit(alice, 100e18);                 // parks, never votes
+        _deposit(bob, 1e18);
+        uint256 pid = gov.createProposal("veto", "attempt"); // snapshot 101e18
+        vm.prank(alice);
+        gov.withdrawVotingPower(100e18);         // leaves right after creation
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(bob);
+        gov.castVote(pid, true);
+        vm.warp(block.timestamp + VOTING_PERIOD + 1);
+        gov.executeProposal(pid);                // quorum now on 1e18 → passes
+    }
+
+    function test_TS021_BaseFrozenAfterVotingEnds() public {
+        _deposit(alice, 100e18);
+        _deposit(bob, 1e18);
+        uint256 pid = gov.createProposal("late", "withdraw");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(bob);
+        gov.castVote(pid, true);
+        vm.warp(block.timestamp + VOTING_PERIOD + 1); // voting over: failed quorum
+        vm.prank(alice);
+        gov.withdrawVotingPower(100e18);         // must not flip the result now
+        vm.expectRevert(TimbGovernance.ProposalNotPassed.selector);
+        gov.executeProposal(pid);
+    }
+
+    function test_TS021_OpenProposalCapAndPrune() public {
+        uint256 cap = gov.MAX_OPEN_PROPOSALS();
+        for (uint256 i = 0; i < cap; i++) gov.createProposal("p", "d");
+        vm.expectRevert(TimbGovernance.TooManyOpenProposals.selector);
+        gov.createProposal("one", "too many");
+        vm.warp(block.timestamp + VOTING_DELAY + VOTING_PERIOD + 1);
+        gov.createProposal("after", "prune");    // ended ones are swept out
+        assertEq(gov.openProposalCount(), 1);
+    }
+
     // ─── Happy path: quorum met, FOR wins → passes and executes ───────────────
 
     function test_HappyPath_PassesAndExecutes() public {
