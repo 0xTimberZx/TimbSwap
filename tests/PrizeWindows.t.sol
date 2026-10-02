@@ -196,6 +196,44 @@ contract PrizeWindowsTest is Test {
         assertEq(w[0], player, "fixture: wrong winner");
     }
 
+    // ─── TS-018: prize migration keeps old winners claimable ────────────────
+
+    function test_TS018_OldWinnerClaimsAfterEscrowRepoint() public {
+        uint256 T = makeWinner();                       // winner on the old game
+        TimbPrize prize2 = new TimbPrize(address(escrow), address(registry), address(this));
+        escrow.setTimbPrize(address(prize2));           // migration repoints the escrow
+        assertTrue(escrow.retiredPrize(address(prize)), "old prize retired, not cut off");
+
+        uint256 balBefore = player.balance;
+        vm.startPrank(player);
+        prize.claimWinnings(T);                         // used to revert NotTimbPrize
+        vm.stopPrank();
+        assertGt(player.balance, balBefore, "old winner paid after migration");
+
+        // A retired prize can pay out but can never take deposits.
+        vm.expectRevert();
+        prize.fundPot{value: 0.1 ether}();
+    }
+
+    function test_TS018_RevokedRetiredPrizeCannotPay() public {
+        uint256 T = makeWinner();
+        escrow.setTimbPrize(address(0xBEEF2));
+        escrow.setRetiredPrize(address(prize), false);  // owner closes the old game out
+        vm.startPrank(player);
+        vm.expectRevert(PrizeEscrow.NotTimbPrize.selector);
+        prize.claimWinnings(T);
+        vm.stopPrank();
+    }
+
+    function test_TS018_RepointBackClearsRetiredFlag() public {
+        address live = escrow.timbPrize();
+        escrow.setTimbPrize(address(0xBEEF2));
+        assertTrue(escrow.retiredPrize(live));
+        escrow.setTimbPrize(live);
+        assertFalse(escrow.retiredPrize(live), "live prize is not also retired");
+        assertTrue(escrow.retiredPrize(address(0xBEEF2)));
+    }
+
     // ─── §13.2 Jitter ────────────────────────────────────────────────────────
 
     function test_LockedCharMatchesKeccakMirror() public {
