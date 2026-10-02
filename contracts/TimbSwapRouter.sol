@@ -958,6 +958,13 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         uint256 amountETHMin
     ) internal returns (LiquidityState memory s) {
         s.pair = _getOrCreatePair(token, weth);
+        // TS-024: same zero-supply guard as the token/token path (TS-020). A
+        // dusted, unseeded pair must not block the first ETH-side seed either.
+        if (IPair(s.pair).totalSupply() == 0) {
+            s.amountA = amountTokenDesired;
+            s.amountB = ethDesired;
+            return s;
+        }
         (uint256 resToken, uint256 resETH) = _getReserves(s.pair, token);
         (s.amountA, s.amountB) = _optimalAmounts(
             amountTokenDesired,
