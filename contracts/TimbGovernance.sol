@@ -52,6 +52,12 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     uint256[] internal _openProposals;
     mapping(address => uint256) public votingPowerDeposited;
     uint256 public totalVotingPower;
+    /// @dev TS-034: per-voter deposit history so a vote is weighed by the power
+    ///      held when the proposal was CREATED, never by a deposit made after
+    ///      it existed. One entry per deposit/withdraw; same-second updates
+    ///      overwrite the last entry.
+    struct Checkpoint { uint64 at; uint192 power; }
+    mapping(address => Checkpoint[]) internal _powerHistory;
     mapping(address => mapping(uint256 => bool)) public hasVoted;
     /// @notice Append-only history of proposals a voter has voted on. Kept for
     ///         off-chain history; NO LONGER iterated on-chain (M6).
@@ -124,6 +130,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         timbsToken.transferFrom(msg.sender, address(this), amount);
         votingPowerDeposited[msg.sender] += amount;
         totalVotingPower += amount;
+        _checkpoint(msg.sender);
         emit VotingPowerDeposited(msg.sender, amount);
     }
 
@@ -142,6 +149,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
 
         votingPowerDeposited[voter] -= amount;
         totalVotingPower -= amount;
+        _checkpoint(voter);
         _sweepOpenProposals(true); // TS-021: departed power stops propping quorum
         timbsToken.transfer(voter, amount);
         emit VotingPowerWithdrawn(voter, amount);
@@ -201,6 +209,32 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         }
     }
 
+    /// @notice Voting power `voter` held at `timestamp` (TS-034). Deposits
+    ///         and withdrawals are checkpointed, so this is a binary search.
+    function votingPowerAt(address voter, uint256 timestamp) public view returns (uint256) {
+        Checkpoint[] storage h = _powerHistory[voter];
+        uint256 n = h.length;
+        if (n == 0 || h[0].at > timestamp) return 0;
+        uint256 lo = 0;
+        uint256 hi = n - 1;
+        while (lo < hi) {
+            uint256 mid = (lo + hi + 1) / 2;
+            if (h[mid].at <= timestamp) lo = mid; else hi = mid - 1;
+        }
+        return h[lo].power;
+    }
+
+    function _checkpoint(address voter) internal {
+        Checkpoint[] storage h = _powerHistory[voter];
+        uint192 power = uint192(votingPowerDeposited[voter]);
+        uint256 n = h.length;
+        if (n > 0 && h[n - 1].at == uint64(block.timestamp)) {
+            h[n - 1].power = power;
+        } else {
+            h.push(Checkpoint({ at: uint64(block.timestamp), power: power }));
+        }
+    }
+
     /// @notice Number of proposals currently tracked as open (TS-021).
     function openProposalCount() external view returns (uint256) {
         return _openProposals.length;
@@ -213,7 +247,10 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         if (block.timestamp > p.votingEndsAt) revert VotingEnded(p.votingEndsAt);
         if (hasVoted[msg.sender][proposalId]) revert AlreadyVoted();
 
-        uint256 power = votingPowerDeposited[msg.sender];
+        // TS-034: weigh the vote by the power held at proposal creation. A
+        // deposit made after the proposal existed cannot vote on it (the
+        // mirror of TS-021, which stops withdrawn power propping quorum).
+        uint256 power = votingPowerAt(msg.sender, p.createdAt);
         if (power == 0) revert InsufficientVotingPower();
 
         if (support) p.forVotes += power;
