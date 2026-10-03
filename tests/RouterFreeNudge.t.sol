@@ -12,12 +12,17 @@ contract MockPrize {
     uint256 public currentRound;
     uint256 public currentSegment;
     uint256 public nudged;
+    uint256 public positionCounter;
+    bool    public frozen; // TS-029: awaiting VRF — nudgeScroll is a no-op
+    function setFrozen(bool f) external { frozen = f; }
 
     function set(uint256 r, uint256 s) external { currentRound = r; currentSegment = s; }
     uint256 public settleAt; // nudge number that settles (0 = never)
     function setSettleAt(uint256 n) external { settleAt = n; }
     function nudgeScroll() external {
+        if (frozen) return;
         nudged++;
+        positionCounter++;
         if (nudged == settleAt) currentSegment++; // this nudge settled the segment
     }
     function isSettlementWindow() external pure returns (bool) { return false; }
@@ -112,5 +117,21 @@ contract RouterFreeNudgeTest is Test {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(TimbSwapRouter.FreeNudgeCapReached.selector, 1, 3));
         router.advanceScroll(1);
+    }
+
+    // TS-029: a no-op nudge (segment awaiting its VRF word) must not spend the
+    // caller's free allowance, and the batch ends at the first no-op.
+    function test_TS029_NoopNudgeIsNotCharged() public {
+        prizeA.setFrozen(true);
+        vm.prank(alice);
+        router.advanceScroll(5);
+        assertEq(prizeA.nudged(), 0, "nothing applied");
+        assertEq(router.freeNudgesRemaining(alice), CAP, "allowance untouched");
+
+        prizeA.setFrozen(false);
+        vm.prank(alice);
+        router.advanceScroll(3);
+        assertEq(prizeA.nudged(), 3);
+        assertEq(router.freeNudgesRemaining(alice), CAP - 3, "real nudges still charged");
     }
 }
