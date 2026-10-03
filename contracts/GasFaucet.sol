@@ -23,6 +23,7 @@ interface IGameRegistry {
     enum TicketStatus { Pending, Active, Conceded, Ineligible, Cancelled, Closed }
     function activeTicketOf(address wallet) external view returns (uint256);
     function effectiveStatus(uint256 ticketId) external view returns (TicketStatus);
+    function isTicketLive(uint256 ticketId) external view returns (bool);
 }
 
 /// @notice Prize pot sink — the "pot half" of each claim grows the live round.
@@ -232,9 +233,13 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         if (!doEth && !doTimbs) revert NothingToDispense();
 
         // ── Eligibility (on-chain Sybil gate): a live Active ticket. ──
+        //    TS-025: the stored status outlives the game — a ticket left Active
+        //    in a retired generation, or past its last eligible round, must not
+        //    keep drawing the faucet. isTicketLive checks both.
         uint256 ticketId = registry.activeTicketOf(claimant);
         if (ticketId == 0 ||
-            registry.effectiveStatus(ticketId) != IGameRegistry.TicketStatus.Active) {
+            registry.effectiveStatus(ticketId) != IGameRegistry.TicketStatus.Active ||
+            !registry.isTicketLive(ticketId)) {
             revert NotEligible(claimant);
         }
 

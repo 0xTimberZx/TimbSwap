@@ -442,6 +442,16 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         return false;
     }
 
+    /// @notice Whether a ticket is live in the CURRENT game: current generation
+    ///         and not past its last eligible round (TS-025). External gates
+    ///         such as the faucet must use this, not the stored status, which
+    ///         a retired generation's ticket keeps forever.
+    function isTicketLive(uint256 ticketId) external view returns (bool) {
+        Ticket storage t = tickets[ticketId];
+        if (t.id == 0) return false;
+        return _isLive(t);
+    }
+
     /// @dev Mints a ticket and indexes it into every round it plays.
     function _mintTicket(
         address owner_,
