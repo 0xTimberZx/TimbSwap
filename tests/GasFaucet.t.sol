@@ -161,7 +161,17 @@ contract GasFaucetTest is Test {
         faucet.dispense(alice);
         assertEq(faucet.timbsClaimedBy(alice), 2 * TIMB, "two claims taken");
 
-        // Off cooldown and under the global cap, but out of personal headroom.
+        // Off cooldown and under the global cap, but out of personal headroom:
+        // TS-033 — the TIMBS leg retires, the ETH drip still flows.
+        vm.warp(faucet.lastClaimAt(alice) + faucet.cooldown() + 1);
+        uint256 ethBefore = alice.balance;
+        faucet.dispense(alice);
+        assertEq(timbs.balanceOf(alice), 2 * TIMB, "no third TIMBS payout");
+        assertEq(alice.balance, ethBefore + DRIP, "eth drip still flows");
+
+        // With the ETH leg paused nothing is left, so it reverts with the reason.
+        vm.prank(guardian);
+        faucet.setEthPaused(true);
         vm.warp(faucet.lastClaimAt(alice) + faucet.cooldown() + 1);
         vm.expectRevert(abi.encodeWithSelector(GasFaucet.WalletTimbsCapExceeded.selector, TIMB, 0));
         faucet.dispense(alice);
@@ -174,8 +184,8 @@ contract GasFaucetTest is Test {
 
         faucet.dispense(alice);
         vm.warp(faucet.lastClaimAt(alice) + faucet.cooldown() + 1);
-        vm.expectRevert(abi.encodeWithSelector(GasFaucet.WalletTimbsCapExceeded.selector, TIMB, 0));
-        faucet.dispense(alice);
+        faucet.dispense(alice); // TS-033: ETH only, TIMBS leg retired for alice
+        assertEq(timbs.balanceOf(alice), TIMB, "alice capped at one TIMBS claim");
 
         // bob is untouched by alice exhausting hers.
         faucet.dispense(bob);
@@ -368,9 +378,19 @@ contract GasFaucetTest is Test {
         faucet.recoverTimbs(address(this), timbs.balanceOf(address(faucet)));
         _eligible(alice);
 
+        // TS-033: the TIMBS leg retires on a balance shortfall; ETH still flows.
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(alice.balance, DRIP, "eth drip still flows");
+        assertEq(timbs.balanceOf(alice), 0, "no timbs without budget");
+
+        // With the ETH leg paused nothing is left, so it reverts with the reason.
+        vm.prank(guardian);
+        faucet.setEthPaused(true);
+        _eligible(bob);
         vm.prank(dispatcher);
         vm.expectRevert(abi.encodeWithSelector(GasFaucet.InsufficientTimbsBalance.selector, TIMB, uint256(0)));
-        faucet.dispense(alice);
+        faucet.dispense(bob);
     }
 
     // ── Access control ──
