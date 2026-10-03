@@ -299,15 +299,21 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
     function _updatePool(uint256 pid) internal {
         PoolInfo storage pool = poolInfo[pid];
         uint256 applicable = lastTimeRewardApplicable();
-        if (applicable <= pool.lastRewardTime) return;
 
-        if (!pool.paused && pool.totalStaked > 0 && totalWeight > 0) {
+        if (applicable > pool.lastRewardTime &&
+            !pool.paused && pool.totalStaked > 0 && totalWeight > 0) {
             uint256 elapsed    = applicable - pool.lastRewardTime;
             uint256 poolReward = elapsed * rewardRatePerSecond * pool.weight / totalWeight;
             pool.accRewardPerShare += poolReward * 1e18 / pool.totalStaked;
             totalOwed += poolReward;
         }
-        pool.lastRewardTime = applicable;
+        // TS-030: park the clock at NOW, not at periodFinish. Nothing accrues
+        // between periodFinish and now (rate is dead there), and a later
+        // retarget must not charge that dead window at the new rate — the gap
+        // TS-002's roll-forward left open.
+        if (block.timestamp > pool.lastRewardTime) {
+            pool.lastRewardTime = block.timestamp;
+        }
     }
 
     /**
