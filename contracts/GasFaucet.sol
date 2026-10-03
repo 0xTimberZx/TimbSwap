@@ -165,6 +165,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     error InsufficientTimbsBalance(uint256 requested, uint256 held);
     error WalletTimbsCapExceeded(uint256 requested, uint256 remaining);
     error EthTransferFailed();
+    error EthLegUnavailable();
     error RoundNotSettled(uint256 round);
     error ResetAlreadyGranted(uint256 round);
 
@@ -272,29 +273,51 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
 
         // ── Effects (before any external call). ──
         lastClaimAt[claimant] = block.timestamp;
-        if (doEth)   ethDistributed   += ethOut;
         if (doTimbs) {
             timbsDistributed          += timbsOut;
             timbsClaimedBy[claimant]  += timbsOut;
         }
 
         // ── Interactions. ──
+        // TS-035: the ETH leg is best-effort against its counterparties. A
+        // treasury pull that fails (operator window exhausted) or a pot deposit
+        // the prize refuses (stale pointer) must not take the independent,
+        // pre-funded TIMBS leg down with it. ETH counters apply only to what
+        // actually left; the call reverts only when no leg could pay.
+        uint256 ethToWallet;
+        uint256 ethToPot;
         if (doEth) {
-            // Pull drip + pot from the treasury (capped operator withdrawal).
-            treasury.withdrawOperational(address(this), ethOut);
-            if (dripEth > 0) {
-                (bool ok, ) = payable(claimant).call{value: dripEth}("");
-                if (!ok) revert EthTransferFailed();
-            }
-            if (potEth > 0) {
-                prize.addToPot{value: potEth}();
-            }
+            (ethToWallet, ethToPot) = _runEthLeg(claimant);
+            if (ethToWallet + ethToPot == 0 && !doTimbs) revert EthLegUnavailable();
+            ethDistributed += ethToWallet + ethToPot;
         }
         if (doTimbs) {
             timbs.safeTransfer(claimant, timbsOut);
         }
 
-        emit Dispensed(claimant, doEth ? dripEth : 0, doEth ? potEth : 0, timbsOut);
+        emit Dispensed(claimant, ethToWallet, ethToPot, timbsOut);
+    }
+
+    /// @dev Pull drip + pot from the treasury and deliver them. Returns what
+    ///      was actually paid out: (0, 0) if the treasury pull failed; the pot
+    ///      share is returned to the treasury if the prize refuses it.
+    function _runEthLeg(address claimant) internal returns (uint256 toWallet, uint256 toPot) {
+        uint256 want = dripEth + potEth;
+        try treasury.withdrawOperational(address(this), want) {} catch { return (0, 0); }
+        if (dripEth > 0) {
+            (bool ok, ) = payable(claimant).call{value: dripEth}("");
+            if (!ok) revert EthTransferFailed();
+            toWallet = dripEth;
+        }
+        if (potEth > 0) {
+            try prize.addToPot{value: potEth}() {
+                toPot = potEth;
+            } catch {
+                // Hand the pot share straight back; a plain deposit, not a fee.
+                (bool back, ) = payable(address(treasury)).call{value: potEth}("");
+                if (!back) revert EthTransferFailed();
+            }
+        }
     }
 
     /// @dev Why the TIMBS leg cannot pay `out` to `claimant`, if it cannot:

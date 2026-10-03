@@ -14,7 +14,10 @@ contract MockTIMBS is ERC20 {
 
 // Holds ETH; the faucet is its (unmodelled) operator. Sends ETH on request.
 contract MockTreasury is ITreasury {
+    bool public windowExhausted; // TS-035: operator window spent
+    function setWindowExhausted(bool x) external { windowExhausted = x; }
     function withdrawOperational(address to, uint256 amount) external {
+        require(!windowExhausted, "operator window exhausted");
         (bool ok, ) = payable(to).call{value: amount}("");
         require(ok, "treasury send failed");
     }
@@ -45,7 +48,9 @@ contract MockRegistry is IGameRegistry {
 contract MockPrize is IPrize {
     uint256 public potBalance;
     mapping(uint256 => bytes6) public roundWinningString;
-    function addToPot() external payable { potBalance += msg.value; }
+    bool public retired; // TS-035: escrow refuses deposits from a retired prize
+    function setRetired(bool r) external { retired = r; }
+    function addToPot() external payable { require(!retired, "NotTimbPrize"); potBalance += msg.value; }
     function settle(uint256 round, bytes6 w) external { roundWinningString[round] = w; }
 }
 
@@ -111,6 +116,41 @@ contract GasFaucetTest is Test {
         assertTrue(faucet.claimable(alice));
         registry.retire(alice);
         assertFalse(faucet.claimable(alice), "view agrees with the TS-025 gate");
+    }
+
+    // TS-035: counterparty reverts on the ETH leg must not take the TIMBS leg down.
+    function test_TS035_TreasuryWindowExhaustedStillPaysTimbs() public {
+        _eligible(alice);
+        treasury.setWindowExhausted(true);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(alice.balance, 0, "no drip");
+        assertEq(prize.potBalance(), 0, "no pot");
+        assertEq(faucet.ethDistributed(), 0, "eth counter untouched");
+        assertEq(timbs.balanceOf(alice), TIMB, "timbs still flows");
+    }
+
+    function test_TS035_RetiredPrizeStillPaysDripAndTimbs() public {
+        _eligible(alice);
+        prize.setRetired(true);
+        uint256 treasuryBefore = address(treasury).balance;
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(alice.balance, DRIP, "drip still flows");
+        assertEq(prize.potBalance(), 0, "pot refused");
+        assertEq(address(treasury).balance, treasuryBefore - DRIP, "pot share returned to treasury");
+        assertEq(faucet.ethDistributed(), DRIP, "only the drip is counted");
+        assertEq(timbs.balanceOf(alice), TIMB, "timbs still flows");
+    }
+
+    function test_TS035_NoLegLeftReverts() public {
+        _eligible(alice);
+        treasury.setWindowExhausted(true);
+        vm.prank(guardian);
+        faucet.setTimbsPaused(true);
+        vm.prank(dispatcher);
+        vm.expectRevert(GasFaucet.EthLegUnavailable.selector);
+        faucet.dispense(alice);
     }
 
     function test_HappyDualDispense() public {
