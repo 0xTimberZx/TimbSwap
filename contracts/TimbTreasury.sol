@@ -965,7 +965,12 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     receive() external payable {
         if (msg.sender == weth) return;
         if (msg.value == 0) return;
-        if (authorisedFeeSenders[msg.sender]) {
+        // TS-032: the router's plain ETH is never fee revenue. Its ETH-side
+        // fees arrive as WETH; the only plain ETH it sends here is the
+        // excess-ETH refund from provideLiquidityETH, which must not inflate
+        // totalFeesReceived. Other authorised senders (the escrow's protocol
+        // cut) still count.
+        if (authorisedFeeSenders[msg.sender] && msg.sender != router) {
             totalFeesReceived += msg.value;
             emit FeesReceived(msg.sender, msg.value);
         } else {
