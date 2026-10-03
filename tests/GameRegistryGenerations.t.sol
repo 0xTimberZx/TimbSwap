@@ -74,6 +74,20 @@ contract GameRegistryGenerationsTest is Test {
         return t.status;
     }
 
+    // TS-025: isTicketLive is generation-aware; the stored status is not.
+    function test_TS025_IsTicketLiveFollowsGeneration() public {
+        uint256 id = _submitETH(player, STR_A);
+        (GameRegistry.Ticket memory t,) = registry.getTicket(id);
+        _activate(player, t.playRound);
+        assertTrue(registry.isTicketLive(id), "live in its own generation");
+        assertEq(uint8(_status(id)), uint8(GameRegistry.TicketStatus.Active));
+
+        registry.onGameStarted();              // generation bump, no sweep
+        assertFalse(registry.isTicketLive(id), "retired generation is not live");
+        assertEq(uint8(_status(id)), uint8(GameRegistry.TicketStatus.Active), "stored status unchanged");
+        assertEq(registry.activeTicketOf(player), id, "slot not cleared by the bump");
+    }
+
     // TS-022: a ticket whose activation was missed frees the wallet once its
     // run ends, instead of blocking re-entry until the LER+4 forfeiture sweep.
     function test_TS022_EndedPendingTicketFreesWallet() public {

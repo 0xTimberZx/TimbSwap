@@ -33,9 +33,13 @@ contract MockRegistry is IGameRegistry {
         _status[id] = s;
     }
     function clear(address w) external { _ticket[w] = 0; }
+    /// @dev TS-025: a retired-generation ticket keeps its stored status but is no longer live.
+    mapping(uint256 => bool) internal _retired;
+    function retire(address w) external { _retired[_ticket[w]] = true; }
 
     function activeTicketOf(address w) external view returns (uint256) { return _ticket[w]; }
     function effectiveStatus(uint256 id) external view returns (TicketStatus) { return _status[id]; }
+    function isTicketLive(uint256 id) external view returns (bool) { return id != 0 && !_retired[id]; }
 }
 
 contract MockPrize is IPrize {
@@ -92,6 +96,15 @@ contract GasFaucetTest is Test {
     }
 
     // ── Happy path: both legs in one tx ──
+
+    // TS-025: a ticket left Active by a retired game is not faucet-eligible.
+    function test_TS025_RetiredGenerationTicketNotEligible() public {
+        _eligible(alice);
+        registry.retire(alice);                 // stored status still Active
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(GasFaucet.NotEligible.selector, alice));
+        faucet.dispense(alice);
+    }
 
     function test_HappyDualDispense() public {
         _eligible(alice);
