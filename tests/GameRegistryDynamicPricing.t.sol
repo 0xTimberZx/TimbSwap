@@ -309,8 +309,17 @@ contract GameRegistryDynamicPricingTest is Test {
         assertGt(reg.activeTimbEntries(), 0);
         assertGt(reg.totalEthEscrow(), 0);
 
+        // TS-028: the FIRST start keeps generation 1 and its pre-start seats,
+        // so the meters survive it. Only a fresh generation clears them.
+        uint256 timbSeats = reg.activeTimbEntries();
+        uint256 ethEscrow = reg.totalEthEscrow();
         reg.onGameStarted();
+        assertEq(reg.generation(), 1, "first game keeps generation 1");
+        assertEq(reg.activeTimbEntries(), timbSeats, "timb meter kept on first start");
+        assertEq(reg.totalEthEscrow(), ethEscrow, "eth meter kept on first start");
 
+        reg.onGameStarted();
+        assertEq(reg.generation(), 2, "fresh generation");
         assertEq(reg.activeTimbEntries(), 0, "timb meter cleared");
         assertEq(reg.totalEthEscrow(), 0, "eth meter cleared");
         assertEq(reg.timbsPriceRefCount(), 0, "ref cleared");
