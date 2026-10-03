@@ -7,8 +7,14 @@ import "../contracts/GameRegistry.sol";
 
 // Minimal mintable TIMBS for escrow.
 contract MockTIMBS is ERC20 {
+    bool public paused; // TS-031: stand-in for TIMBSToken.pause()
     constructor() ERC20("TIMBS", "TIMBS") {}
     function mint(address to, uint256 a) external { _mint(to, a); }
+    function setPaused(bool p) external { paused = p; }
+    function _update(address from, address to, uint256 v) internal override {
+        require(!paused, "paused");
+        super._update(from, to, v);
+    }
 }
 
 /**
@@ -266,6 +272,26 @@ contract GameRegistryDynamicPricingTest is Test {
         reg.onRoundSettled(5, 0); // forfeitRound == 5 → Ineligible, escrow to sink
         assertEq(reg.activeTimbEntries(), 0, "forfeit releases the seat");
         assertEq(timbs.balanceOf(SINK), TIMBS_FLOOR, "escrow absorbed to sink");
+    }
+
+    // TS-031: a failing TIMBS sink transfer must not revert the sweep. The
+    // ticket keeps its escrow for a later admin refund; settlement completes.
+    function test_TS031_ForfeitSurvivesFailingTimbsTransfer() public {
+        _fundTimbs(address(0xA1));
+        vm.prank(address(0xA1));
+        reg.submitEntry(S1, false, 0);
+        uint256 id = reg.activeTicketOf(address(0xA1));
+        reg.setCurrentRound(1);
+        reg.activateRoundEntries(1, _one(address(0xA1)));
+        reg.setCurrentRound(6);
+
+        timbs.setPaused(true);
+        assertTrue(reg.onRoundSettled(5, 0), "sweep completes despite the failing leg");
+        assertEq(timbs.balanceOf(SINK), 0, "nothing moved");
+        (GameRegistry.Ticket memory t,) = reg.getTicket(id);
+        assertEq(uint8(t.status), uint8(GameRegistry.TicketStatus.Ineligible));
+        assertEq(t.escrowAmount, TIMBS_FLOOR, "escrow stays on the ticket");
+        assertEq(reg.activeTimbEntries(), 0, "seat released");
     }
 
     // H2: onRoundSettled is paginated — the cursor resumes across chunked calls,

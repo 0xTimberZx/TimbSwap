@@ -959,6 +959,17 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     /// @dev Forfeit one ticket whose forfeitRound == settledRound (Phase B). The
     ///      forfeitRound check (not LER alone) respects the §14 "later of
     ///      claim/active" anchor — a late winner is skipped until its own round.
+    /// @dev ERC-20 transfer that reports failure instead of reverting. True
+    ///      only when the call succeeded and returned true (or nothing).
+    function _tryTransferTimbs(address token, address to, uint256 amount)
+        internal
+        returns (bool)
+    {
+        (bool ok, bytes memory ret) =
+            token.call(abi.encodeCall(IERC20.transfer, (to, amount)));
+        return ok && (ret.length == 0 || abi.decode(ret, (bool)));
+    }
+
     function _forfeitOne(uint256 g, uint256 ler, uint256 settledRound, address who) internal {
         uint256 id = ticketAt[g][who][ler];
         if (id == 0) return;
@@ -1005,9 +1016,16 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
                 emit LapseSwept(id, toPot, toSink, token);
             } else {
                 // Lapsed TIMBS → sink (treasury buys back + burns for holders).
-                t.escrowAmount = 0;
-                IERC20(token).safeTransfer(protocolSink, amount);
-                emit LapseSwept(id, 0, amount, token);
+                // TS-031: best-effort like the ETH legs. A failing transfer
+                // (paused token, transfer cap) leaves the amount on the ticket
+                // for adminRefundStuck / a later sweep instead of reverting the
+                // whole settlement call and parking the cursor.
+                if (_tryTransferTimbs(token, protocolSink, amount)) {
+                    t.escrowAmount = 0;
+                    emit LapseSwept(id, 0, amount, token);
+                } else {
+                    emit LapseSwept(id, 0, 0, token);
+                }
             }
         }
         emit TicketIneligible(id, amount, token);
