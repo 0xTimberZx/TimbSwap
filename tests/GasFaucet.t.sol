@@ -106,6 +106,13 @@ contract GasFaucetTest is Test {
         faucet.dispense(alice);
     }
 
+    function test_TS027_ClaimableRequiresLiveTicket() public {
+        _eligible(alice);
+        assertTrue(faucet.claimable(alice));
+        registry.retire(alice);
+        assertFalse(faucet.claimable(alice), "view agrees with the TS-025 gate");
+    }
+
     function test_HappyDualDispense() public {
         _eligible(alice);
         vm.prank(dispatcher);
@@ -294,6 +301,47 @@ contract GasFaucetTest is Test {
         vm.prank(dispatcher);
         faucet.dispense(alice);
 
+        // TS-027: an exhausted ETH cap retires the ETH leg; TIMBS still flows.
+        vm.prank(dispatcher);
+        faucet.dispense(bob);
+        assertEq(bob.balance, 0, "no drip once eth cap is exhausted");
+        assertEq(faucet.ethDistributed(), DRIP + POT, "eth stays at cap");
+        assertEq(timbs.balanceOf(bob), TIMB, "timbs leg still dispenses");
+    }
+
+    function test_TS027_ClaimableAgreesWithDispenseWhenEthCapped() public {
+        faucet.setEthCap(DRIP + POT);
+        _eligible(alice);
+        _eligible(bob);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertTrue(faucet.claimable(bob), "view says yes");
+        vm.prank(dispatcher);
+        faucet.dispense(bob); // and dispense agrees
+        assertEq(timbs.balanceOf(bob), TIMB);
+    }
+
+    function test_TS027_BothCapsExhaustedReverts() public {
+        faucet.setEthCap(DRIP + POT);
+        faucet.setTimbsCap(TIMB);
+        _eligible(alice);
+        _eligible(bob);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertFalse(faucet.claimable(bob), "view says no");
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(GasFaucet.EthCapExceeded.selector, DRIP + POT, uint256(0)));
+        faucet.dispense(bob);
+    }
+
+    function test_TS027_EthCappedAndTimbsPausedReverts() public {
+        faucet.setEthCap(DRIP + POT);
+        _eligible(alice);
+        _eligible(bob);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        vm.prank(guardian);
+        faucet.setTimbsPaused(true);
         vm.prank(dispatcher);
         vm.expectRevert(abi.encodeWithSelector(GasFaucet.EthCapExceeded.selector, DRIP + POT, uint256(0)));
         faucet.dispense(bob);
@@ -307,9 +355,12 @@ contract GasFaucetTest is Test {
         vm.prank(dispatcher);
         faucet.dispense(alice);
 
+        // TS-027: an exhausted TIMBS cap retires the TIMBS leg; ETH still flows.
         vm.prank(dispatcher);
-        vm.expectRevert(abi.encodeWithSelector(GasFaucet.TimbsCapExceeded.selector, TIMB, uint256(0)));
         faucet.dispense(bob);
+        assertEq(bob.balance, DRIP, "drip still flows");
+        assertEq(timbs.balanceOf(bob), 0, "no timbs once cap is exhausted");
+        assertEq(faucet.timbsDistributed(), TIMB, "timbs stays at cap");
     }
 
     function test_InsufficientTimbsBalanceReverts() public {
