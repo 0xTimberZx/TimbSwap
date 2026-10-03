@@ -51,6 +51,8 @@ interface ITimbFactoryLike {
  *     and every notify (top-up) recalculates rate = reserve / emissionWindow.
  *   - Per-pool pause: a paused pool stops accruing and its weight leaves
  *     totalWeight, so the remaining pools compete for the full emission.
+ *     An EMPTY pool is treated the same way (TS-026): its weight leaves when
+ *     the last LP exits and rejoins on the next deposit.
  *   - NOT part of the game loop: boosted pool assets are never added to
  *     EligibleTokenRegistry (whitelist) and never count toward swap nudges.
  *     Nothing in this contract touches the prize meter — keep it that way.
@@ -116,7 +118,10 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
     /// @notice Emission stops here unless retargeted first (reserve exhausted).
     uint256 public periodFinish;
 
-    /// @notice Sum of weights of ACTIVE (non-paused) pools.
+    /// @notice Sum of weights of ACTIVE pools: unpaused AND holding stake.
+    ///         An empty pool leaves totalWeight the moment its last LP exits
+    ///         and rejoins on the next deposit (TS-026), so emission is never
+    ///         split toward a pool that cannot accrue it.
     uint256 public totalWeight;
 
     /// @notice Reward reserve accounting — TIMBS received minus TIMBS claimed.
@@ -353,6 +358,24 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         }
     }
 
+    /// @dev A pool's weight competes for emission only while it is unpaused
+    ///      and has stake (TS-026).
+    function _isActive(PoolInfo storage pool) internal view returns (bool) {
+        return !pool.paused && pool.totalStaked > 0;
+    }
+
+    /**
+     * @dev Pool `pid` just went empty (unpaused): roll every pool forward at
+     *      the old split, then release its weight so the others compete for
+     *      the full emission. Mirrors pausePool.
+     */
+    function _releaseWeightIfEmpty(uint256 pid) internal {
+        PoolInfo storage pool = poolInfo[pid];
+        if (pool.paused || pool.totalStaked != 0) return;
+        _updateAllPools();
+        totalWeight -= pool.weight;
+    }
+
     // ─── Deposit / Withdraw ──────────────────────────────────────────────────
 
     /**
@@ -369,7 +392,14 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         PoolInfo storage pool = poolInfo[pid];
         if (pool.paused) revert PoolIsPaused();
 
-        _updatePool(pid);
+        bool wasEmpty = pool.totalStaked == 0;
+        if (wasEmpty) {
+            // Weight rejoins: settle every pool at the old split first (TS-026).
+            _updateAllPools();
+            totalWeight += pool.weight;
+        } else {
+            _updatePool(pid);
+        }
         _snapshotUser(pid, msg.sender);
 
         UserInfo storage user = userInfo[pid][msg.sender];
@@ -403,6 +433,7 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         user.amount      -= amount;
         pool.totalStaked -= amount;
         user.rewardDebt   = user.amount * pool.accRewardPerShare / 1e18;
+        _releaseWeightIfEmpty(pid);
 
         pool.lpToken.safeTransfer(msg.sender, amount);
         _notifyHooks(1, pid, msg.sender, amount, user.amount);
@@ -471,6 +502,7 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         if (staked > 0) {
             user.amount       = 0;
             pool.totalStaked -= staked;
+            _releaseWeightIfEmpty(pid);
             pool.lpToken.safeTransfer(msg.sender, staked);
             _notifyHooks(1, pid, msg.sender, staked, 0);
             emit Withdrawn(msg.sender, pid, staked);
@@ -554,7 +586,7 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
             totalStaked:       0,
             paused:            false
         }));
-        totalWeight += weight;
+        // Empty at birth: its weight joins totalWeight on the first deposit.
         poolIdPlusOne[lp] = poolInfo.length; // pid + 1
 
         emit PoolAdded(poolInfo.length - 1, lp, weight);
@@ -572,7 +604,7 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         if (weight == 0) revert ZeroAmount();
         _updateAllPools();
         PoolInfo storage pool = poolInfo[pid];
-        if (!pool.paused) {
+        if (_isActive(pool)) {
             totalWeight = totalWeight - pool.weight + weight;
         }
         pool.weight = weight;
@@ -588,8 +620,8 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         PoolInfo storage pool = poolInfo[pid];
         if (pool.paused) revert PoolIsPaused();
         _updateAllPools();
-        pool.paused  = true;
-        totalWeight -= pool.weight;
+        if (pool.totalStaked > 0) totalWeight -= pool.weight;
+        pool.paused = true;
         emit PoolPaused(pid);
     }
 
@@ -602,7 +634,7 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         _updateAllPools();
         pool.paused         = false;
         pool.lastRewardTime = lastTimeRewardApplicable();
-        totalWeight        += pool.weight;
+        if (pool.totalStaked > 0) totalWeight += pool.weight;
         emit PoolUnpaused(pid);
     }
 
@@ -763,6 +795,7 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         user.rewardDebt  = 0;
         user.pending     = 0;
         pool.totalStaked -= staked;
+        _releaseWeightIfEmpty(pid);
 
         pool.lpToken.safeTransfer(msg.sender, staked);
         _notifyHooks(3, pid, msg.sender, staked, 0);
