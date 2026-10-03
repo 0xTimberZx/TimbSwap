@@ -1046,20 +1046,15 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     function onGameStarted() external onlyTimbPrize {
         if (_firstGameStarted) {
             generation += 1;
+            _resetPricingMeters();
         } else {
+            // TS-028: the very first game keeps generation 1 so pre-start
+            // tickets stay valid. They keep backing the price, so the meters
+            // already reflect them and must NOT be wiped: doing so under-priced
+            // the whole first game and made their later disposal clamp at zero.
             _firstGameStarted = true;
         }
         currentRound = 1;
-
-        // Reset the dynamic-pricing meters for the fresh generation. Prior-game
-        // seats belong to the retired generation and no longer back the price;
-        // _onTicketDeactivated skips them, so clearing here can't underflow.
-        activeTimbEntries  = 0;
-        totalEthEscrow     = 0;
-        timbsPriceRefCount = 0;
-        fixedTimbsCost     = 0;
-        fixedEthCost       = 0;
-        pricedForRound     = 0;
 
         // TS-014: retire the prior generation's yield weight in one step —
         // abandoned tickets must not keep drawing on the vault reserve.
@@ -1071,6 +1066,18 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
 
         emit GenerationStarted(generation);
         emit CurrentRoundUpdated(1);
+    }
+
+    /// @dev Reset the dynamic-pricing meters for a fresh generation. Prior-game
+    ///      seats belong to the retired generation and no longer back the price;
+    ///      _onTicketDeactivated skips them, so clearing here can't underflow.
+    function _resetPricingMeters() internal {
+        activeTimbEntries  = 0;
+        totalEthEscrow     = 0;
+        timbsPriceRefCount = 0;
+        fixedTimbsCost     = 0;
+        fixedEthCost       = 0;
+        pricedForRound     = 0;
     }
 
     // ─── Dual-Layer Verification (TimbPrize settlement) ──────────────────────
