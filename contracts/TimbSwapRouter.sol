@@ -33,6 +33,7 @@ interface IEligibleTokenRegistry {
 
 interface ITimbPrize {
     function nudgeScroll() external;
+    function positionCounter() external view returns (uint256);
     function isSettlementWindow() external view returns (bool);
     function currentRound() external view returns (uint256);
     function currentSegment() external view returns (uint256);
@@ -720,9 +721,14 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         // rest of the batch would land in the NEXT segment. Charge each nudge to
         // the segment it actually landed in, and end the batch as soon as the
         // segment moves — the next segment's allowance is never bypassed.
+        // TS-029: while the segment awaits its VRF word, nudgeScroll is a
+        // deliberate no-op. A no-op must not spend the caller's allowance, and
+        // every later call in the batch would no-op too, so end the batch.
         for (uint256 i = 0; i < count; i++) {
             if (_freeNudgeRoom(round, seg) == 0) break;
+            uint256 posBefore = ITimbPrize(timbPrize).positionCounter();
             ITimbPrize(timbPrize).nudgeScroll();
+            if (ITimbPrize(timbPrize).positionCounter() == posBefore) break;
             uint256 r2 = ITimbPrize(timbPrize).currentRound();
             uint256 s2 = ITimbPrize(timbPrize).currentSegment();
             // Namespaced by the prize instance so a reused router doesn't carry
