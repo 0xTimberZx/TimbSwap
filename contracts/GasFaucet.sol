@@ -52,8 +52,9 @@ interface IPrize {
  *             one leg and the other still dispenses; pause both and claims revert.
  *           - `ethCap` / `timbsCap` are the MAX approved to ever distribute
  *             (cumulative). A claim that would push `*Distributed` past its cap
- *             reverts. Raising a cap "approves" more; lowering it below what's
- *             already gone out simply stops further outflow of that asset.
+ *             skips that leg (the other leg still dispenses; TS-027). Raising
+ *             a cap "approves" more; lowering it below what's already gone
+ *             out simply stops further outflow of that asset.
  *
  *         FUNDING MODEL (asymmetric by treasury design):
  *           - ETH stays in the treasury and is pulled live per claim — the
@@ -250,14 +251,22 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         uint256 ethOut = doEth ? dripEth + potEth : 0;
         uint256 timbsOut = doTimbs ? timbsPerClaim : 0;
 
-        // ── Cap headroom for the legs that will run. ──
-        if (doEth) {
-            uint256 remaining = ethCap > ethDistributed ? ethCap - ethDistributed : 0;
-            if (ethOut > remaining) revert EthCapExceeded(ethOut, remaining);
+        // ── Cap headroom: an exhausted cap retires ITS leg, like a pause, and
+        //    the other leg still dispenses (TS-027). Only when no leg is left
+        //    does the call revert, naming the cap that stopped it.
+        uint256 ethRemaining = ethCap > ethDistributed ? ethCap - ethDistributed : 0;
+        uint256 timbsRemaining = timbsCap > timbsDistributed ? timbsCap - timbsDistributed : 0;
+        bool ethCapped   = doEth   && ethOut   > ethRemaining;
+        bool timbsCapped = doTimbs && timbsOut > timbsRemaining;
+        if (ethCapped)   { doEth = false;   }
+        if (timbsCapped) { doTimbs = false; }
+        if (!doEth && !doTimbs) {
+            if (ethCapped) revert EthCapExceeded(ethOut, ethRemaining);
+            revert TimbsCapExceeded(timbsOut, timbsRemaining);
         }
+        if (ethCapped)   ethOut = 0;
+        if (timbsCapped) timbsOut = 0;
         if (doTimbs) {
-            uint256 remaining = timbsCap > timbsDistributed ? timbsCap - timbsDistributed : 0;
-            if (timbsOut > remaining) revert TimbsCapExceeded(timbsOut, remaining);
             uint256 held = timbs.balanceOf(address(this));
             if (timbsOut > held) revert InsufficientTimbsBalance(timbsOut, held);
             if (maxTimbsPerWallet != 0) {
@@ -305,7 +314,8 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
 
         uint256 ticketId = registry.activeTicketOf(claimant);
         if (ticketId == 0 ||
-            registry.effectiveStatus(ticketId) != IGameRegistry.TicketStatus.Active) {
+            registry.effectiveStatus(ticketId) != IGameRegistry.TicketStatus.Active ||
+            !registry.isTicketLive(ticketId)) {
             return false;
         }
         if (!_offCooldown(claimant)) return false;
