@@ -251,33 +251,24 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         uint256 ethOut = doEth ? dripEth + potEth : 0;
         uint256 timbsOut = doTimbs ? timbsPerClaim : 0;
 
-        // ── Cap headroom: an exhausted cap retires ITS leg, like a pause, and
-        //    the other leg still dispenses (TS-027). Only when no leg is left
-        //    does the call revert, naming the cap that stopped it.
+        // ── Leg headroom: a leg that cannot pay retires itself, like a pause,
+        //    and the other leg still dispenses (TS-027 for the global caps,
+        //    TS-033 for a TIMBS balance shortfall or the per-wallet TIMBS cap).
+        //    Only when no leg is left does the call revert, naming the reason.
         uint256 ethRemaining = ethCap > ethDistributed ? ethCap - ethDistributed : 0;
-        uint256 timbsRemaining = timbsCap > timbsDistributed ? timbsCap - timbsDistributed : 0;
-        bool ethCapped   = doEth   && ethOut   > ethRemaining;
-        bool timbsCapped = doTimbs && timbsOut > timbsRemaining;
-        if (ethCapped)   { doEth = false;   }
-        if (timbsCapped) { doTimbs = false; }
+        bool ethCapped = doEth && ethOut > ethRemaining;
+        if (ethCapped) doEth = false;
+        (uint8 timbsBlock, uint256 timbsAvail) =
+            doTimbs ? _timbsShortfall(claimant, timbsOut) : (uint8(0), uint256(0));
+        if (timbsBlock != 0) doTimbs = false;
         if (!doEth && !doTimbs) {
-            if (ethCapped) revert EthCapExceeded(ethOut, ethRemaining);
-            revert TimbsCapExceeded(timbsOut, timbsRemaining);
+            if (ethCapped)        revert EthCapExceeded(ethOut, ethRemaining);
+            if (timbsBlock == 1)  revert TimbsCapExceeded(timbsOut, timbsAvail);
+            if (timbsBlock == 2)  revert InsufficientTimbsBalance(timbsOut, timbsAvail);
+            revert WalletTimbsCapExceeded(timbsOut, timbsAvail);
         }
-        if (ethCapped)   ethOut = 0;
-        if (timbsCapped) timbsOut = 0;
-        if (doTimbs) {
-            uint256 held = timbs.balanceOf(address(this));
-            if (timbsOut > held) revert InsufficientTimbsBalance(timbsOut, held);
-            if (maxTimbsPerWallet != 0) {
-                uint256 taken = timbsClaimedBy[claimant];
-                uint256 walletRemaining =
-                    maxTimbsPerWallet > taken ? maxTimbsPerWallet - taken : 0;
-                if (timbsOut > walletRemaining) {
-                    revert WalletTimbsCapExceeded(timbsOut, walletRemaining);
-                }
-            }
-        }
+        if (ethCapped) ethOut = 0;
+        if (!doTimbs)  timbsOut = 0;
 
         // ── Effects (before any external call). ──
         lastClaimAt[claimant] = block.timestamp;
@@ -304,6 +295,26 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         }
 
         emit Dispensed(claimant, doEth ? dripEth : 0, doEth ? potEth : 0, timbsOut);
+    }
+
+    /// @dev Why the TIMBS leg cannot pay `out` to `claimant`, if it cannot:
+    ///      1 = global cap, 2 = contract balance, 3 = per-wallet cap; 0 = fine.
+    ///      Second value is the headroom that was short.
+    function _timbsShortfall(address claimant, uint256 out)
+        internal
+        view
+        returns (uint8, uint256)
+    {
+        uint256 remaining = timbsCap > timbsDistributed ? timbsCap - timbsDistributed : 0;
+        if (out > remaining) return (1, remaining);
+        uint256 held = timbs.balanceOf(address(this));
+        if (out > held) return (2, held);
+        if (maxTimbsPerWallet != 0) {
+            uint256 taken = timbsClaimedBy[claimant];
+            uint256 walletRemaining = maxTimbsPerWallet > taken ? maxTimbsPerWallet - taken : 0;
+            if (out > walletRemaining) return (3, walletRemaining);
+        }
+        return (0, 0);
     }
 
     /// @notice True if `claimant` could claim right now (eligible, off cooldown,
