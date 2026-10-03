@@ -183,4 +183,49 @@ contract TimbGovernanceTest is Test {
         vm.expectRevert(TimbGovernance.AlreadyExecuted.selector);
         gov.executeProposal(pid);
     }
+
+    // ─── TS-034: votes weigh the power held at proposal creation ────────────
+
+    function test_TS034_PostCreationDepositCannotVote() public {
+        _deposit(alice, 100e18);
+        uint256 pid = gov.createProposal("capture", "me"); // base 100e18
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        _deposit(bob, 50_000e18);                           // after creation
+        vm.prank(bob);
+        vm.expectRevert(TimbGovernance.InsufficientVotingPower.selector);
+        gov.castVote(pid, true);
+        // alice's pre-creation power still votes at full weight
+        vm.prank(alice);
+        gov.castVote(pid, false);
+        (, , , , , , , , uint256 forV, uint256 againstV, , ,) = gov.proposals(pid);
+        assertEq(forV, 0);
+        assertEq(againstV, 100e18);
+    }
+
+    function test_TS034_TopUpAfterCreationIsNotCounted() public {
+        _deposit(alice, 100e18);
+        uint256 pid = gov.createProposal("topup", "me");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        _deposit(alice, 900e18);                            // top-up after creation
+        vm.prank(alice);
+        gov.castVote(pid, true);
+        (, , , , , , , , uint256 forV, , , ,) = gov.proposals(pid);
+        assertEq(forV, 100e18, "only the creation-time power counts");
+    }
+
+    function test_TS034_SnapshotFollowsLaterProposals() public {
+        _deposit(alice, 100e18);
+        uint256 p1 = gov.createProposal("one", "");
+        vm.warp(block.timestamp + 10);
+        _deposit(alice, 400e18);
+        vm.warp(block.timestamp + 10);
+        uint256 p2 = gov.createProposal("two", "");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        assertEq(gov.votingPowerAt(alice, _createdAt(p1)), 100e18);
+        assertEq(gov.votingPowerAt(alice, _createdAt(p2)), 500e18);
+    }
+
+    function _createdAt(uint256 pid) internal view returns (uint256 c) {
+        (, , , , c, , , , , , , ,) = gov.proposals(pid);
+    }
 }
