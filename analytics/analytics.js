@@ -163,22 +163,14 @@ async function loadLiveMetrics() {
     const wethFloat  = parseFloat(ethers.utils.formatUnits(wethReserve, 18));
     const priceETH   = timbsFloat > 0 ? (wethFloat / timbsFloat).toFixed(8) : "—";
 
-    // USD anchor: the USDC/WETH pool prices ETH in dollars, and every
-    // native pair derives its USD value through it (TIMBS→ETH→USD).
-    // No pool yet (or empty) → USD readouts simply don't render.
+    // USD anchor: the shared site oracle (config.js _oracleEthUsd via
+    // usdPriceOf), the same ETH_USD_PRICE the landing and compete pages quote
+    // the pot in. This card used to read the USDC/WETH pool directly; on an
+    // unarbitraged testnet that pool drifts (it implied ~$1,480/ETH while the
+    // landing said $3,000 for the same pot), so the two pages disagreed.
     let usdPerEth = null;
-    try {
-      const factory  = new ethers.Contract(ADDRESSES.TimbSwapFactory, FACTORY_MIN_ABI, prov);
-      const usdcPair = await factory.getPairAddress(ADDRESSES.USDC, ADDRESSES.WETH);
-      if (usdcPair !== ethers.constants.AddressZero) {
-        const pc = new ethers.Contract(usdcPair, PAIR_ABI, prov);
-        const [ur, ut0] = await Promise.all([pc.getReserves(), pc.token0()]);
-        const usdcIs0 = ut0.toLowerCase() === ADDRESSES.USDC.toLowerCase();
-        const usdc = parseFloat(ethers.utils.formatUnits(usdcIs0 ? ur.reserve0 : ur.reserve1, 6));
-        const weth = parseFloat(ethers.utils.formatUnits(usdcIs0 ? ur.reserve1 : ur.reserve0, 18));
-        if (usdc > 0 && weth > 0) usdPerEth = usdc / weth;
-      }
-    } catch {}
+    try { usdPerEth = await ethUsdPrice(prov); } catch {}
+    if (!(usdPerEth > 0)) usdPerEth = null;
     const usd = (eth) => {
       if (usdPerEth === null) return null;
       const v = eth * usdPerEth;
