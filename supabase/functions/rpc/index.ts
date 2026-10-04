@@ -8,12 +8,12 @@
 // divergent-head fake reverts (see config.js §#360) — and survive Shields.
 //
 // verify_jwt is OFF: ethers POSTs plain JSON-RPC with no auth header.
-// Env: ALCHEMY_RPC_URL overrides the upstream (defaults to the public keyed URL
-// already shipped in config.js — a frontend RPC is public regardless).
+// Env: ALCHEMY_RPC_URL is REQUIRED (supabase secrets set ALCHEMY_RPC_URL=...).
+// There is no in-source fallback: this repo is public, so a keyed URL here is a
+// leaked key. Unset → every request answers 503 instead of relaying.
 // Deploy: supabase functions deploy rpc --no-verify-jwt
 
-const DEFAULT_UPSTREAM = "https://arb-mainnet.g.alchemy.com/v2/REPLACE_WITH_MAINNET_ALCHEMY_KEY";
-const UPSTREAM = Deno.env.get("ALCHEMY_RPC_URL") || DEFAULT_UPSTREAM;
+const UPSTREAM = Deno.env.get("ALCHEMY_RPC_URL") || "";
 
 // Shared comma-separated allowlist (per-website, never per-wallet). Default "*"
 // so reads work out of the box; pin FAUCET_ALLOWED_ORIGIN to lock it down.
@@ -40,6 +40,12 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "POST only" }), {
       status: 405, headers: { ...cors, "content-type": "application/json" },
+    });
+  }
+
+  if (!UPSTREAM) {
+    return new Response(JSON.stringify({ error: "rpc upstream not configured" }), {
+      status: 503, headers: { ...cors, "content-type": "application/json" },
     });
   }
 
