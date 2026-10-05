@@ -316,6 +316,35 @@ function _isNotTimbPrizeRevert(e) {
   }
 }
 
+// Send a registry bookkeeping tx, log its hash, and retry ONCE after a short
+// pause if it reverts. The drain runs seconds after the settle tx confirms, and
+// a lagging RPC node can still serve the registry's old round pointer at that
+// instant (seen 2026-10-05: activateRoundEntries(121) reverted, then the
+// catch-up 70s later succeeded untouched). Logging the hash lets a revert be
+// checked on the explorer instead of inferred.
+const DRAIN_RETRY_MS = Number(process.env.SETTLE_DRAIN_RETRY_MS || 8_000);
+async function sendBookkeeping(label, send) {
+  for (let attempt = 1; ; attempt++) {
+    let tx;
+    try {
+      tx = await send();
+      console.log(`[settler] ${label} submitted: ${tx.hash}`);
+      await tx.wait();
+      return;
+    } catch (e) {
+      const hash = tx?.hash || e?.receipt?.hash || e?.transactionHash || e?.transaction?.hash;
+      const msg  = e?.shortMessage || e?.message || String(e);
+      if (attempt === 1 && !_isNotTimbPrizeRevert(e)) {
+        console.warn(`[settler] ${label} failed${hash ? ` (tx ${hash})` : ""}: ${msg} — retrying once in ${DRAIN_RETRY_MS / 1000}s`);
+        await sleep(DRAIN_RETRY_MS);
+        continue;
+      }
+      if (hash) e.loggedTxHash = hash;
+      throw e;
+    }
+  }
+}
+
 // ─── H2: drain paginated settlement bookkeeping after a rollover ────────────────
 // TimbPrize advances the round O(1) and no longer runs expiry/forfeiture/
 // activation inline (a sybil flood could OOG-freeze that). The keeper drains
@@ -329,9 +358,9 @@ async function drainSettlement(registry, settledRound, newRound) {
   for (let i = 0; i < 500; i++) {
     try {
       if (await registry.settleDone(gen, settledRound)) break;
-      await (await registry.onRoundSettled(settledRound, DRAIN_CHUNK)).wait();
+      await sendBookkeeping(`onRoundSettled(${settledRound})`, () => registry.onRoundSettled(settledRound, DRAIN_CHUNK));
     } catch (e) {
-      const msg = e?.shortMessage || e?.message || String(e);
+      const msg = (e?.shortMessage || e?.message || String(e)) + (e?.loggedTxHash ? ` (tx ${e.loggedTxHash})` : "");
       console.warn(`[settler] onRoundSettled(${settledRound}) drain paused: ${msg}`);
       await notify(`⚠️ Settler drain paused — onRoundSettled(#${settledRound})\n${msg}\nExpiry/forfeiture bookkeeping is incomplete; will retry next run.`);
       break;
@@ -348,9 +377,9 @@ async function drainSettlement(registry, settledRound, newRound) {
   for (let i = 0; i < entrants.length; i += DRAIN_CHUNK) {
     const chunk = entrants.slice(i, i + DRAIN_CHUNK);
     try {
-      await (await registry.activateRoundEntries(newRound, chunk)).wait();
+      await sendBookkeeping(`activateRoundEntries(${newRound})`, () => registry.activateRoundEntries(newRound, chunk));
     } catch (e) {
-      const msg = e?.shortMessage || e?.message || String(e);
+      const msg = (e?.shortMessage || e?.message || String(e)) + (e?.loggedTxHash ? ` (tx ${e.loggedTxHash})` : "");
       if (_isNotTimbPrizeRevert(e)) {
         console.warn(`[settler] activateRoundEntries(${newRound}) skipped: registry gates it to TimbPrize (pre-gen-3) — no-op until migration.`);
       } else {
@@ -396,9 +425,9 @@ async function healCurrentRoundActivation(registry, prize) {
   for (let i = 0; i < entrants.length; i += DRAIN_CHUNK) {
     const chunk = entrants.slice(i, i + DRAIN_CHUNK);
     try {
-      await (await registry.activateRoundEntries(round, chunk)).wait();
+      await sendBookkeeping(`activation catch-up(${round})`, () => registry.activateRoundEntries(round, chunk));
     } catch (e) {
-      const msg = e?.shortMessage || e?.message || String(e);
+      const msg = (e?.shortMessage || e?.message || String(e)) + (e?.loggedTxHash ? ` (tx ${e.loggedTxHash})` : "");
       if (_isNotTimbPrizeRevert(e)) {
         console.warn(`[settler] activation catch-up for #${round} skipped: registry gates activateRoundEntries to TimbPrize (pre-gen-3). No-op until migration — see dev-docs/GEN3_MIGRATION.md.`);
       } else {
