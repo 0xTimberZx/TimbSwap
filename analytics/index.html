@@ -121,17 +121,17 @@
     <div id="metric-filter" class="metric-filter hidden">
       <button class="mf-btn mf-active" data-cat="all" onclick="setMetricFilter('all')">All</button>
       <button class="mf-btn" data-cat="platform" onclick="setMetricFilter('platform')">Platform</button>
-      <button class="mf-btn" data-cat="token" onclick="setMetricFilter('token')">Token</button>
+      <button class="mf-btn" data-cat="token" data-timbs onclick="setMetricFilter('token')">Token</button>
       <button class="mf-btn" data-cat="earnings" onclick="setMetricFilter('earnings')">Earnings</button>
     </div>
 
     <div class="metrics-grid" id="live-metrics-grid">
-      <div class="metric-card" data-cat="token" data-public="1">
+      <div class="metric-card" data-cat="token" data-public="1" data-timbs>
         <div class="metric-label">TIMBS Price</div>
         <div class="metric-val" id="m-price">—</div>
         <div class="metric-sub" id="m-price-sub">per ETH</div>
       </div>
-      <div class="metric-card" data-cat="platform" data-public="1">
+      <div class="metric-card" data-cat="platform" data-public="1" data-timbs>
         <div class="metric-label">Pool Reserves</div>
         <div class="metric-val" id="m-timbs-reserve">—</div>
         <div class="metric-sub" id="m-weth-reserve">— WETH</div>
@@ -146,17 +146,17 @@
         <div class="metric-val metric-mono" id="m-scroll">—</div>
         <div class="metric-sub">nudges since genesis</div>
       </div>
-      <div class="metric-card" data-cat="earnings">
+      <div class="metric-card" data-cat="earnings" data-timbs>
         <div class="metric-label">Total Staked</div>
         <div class="metric-val" id="m-staked">—</div>
         <div class="metric-sub">TIMBS single-asset</div>
       </div>
-      <div class="metric-card" data-cat="earnings">
+      <div class="metric-card" data-cat="earnings" data-timbs>
         <div class="metric-label">LP Staked</div>
         <div class="metric-val" id="m-lp-staked">—</div>
         <div class="metric-sub">TIMBS/WETH LP tokens</div>
       </div>
-      <div class="metric-card" data-cat="token" data-public="1">
+      <div class="metric-card" data-cat="token" data-public="1" data-timbs>
         <div class="metric-label">Circulating Supply</div>
         <div class="metric-val" id="m-supply">—</div>
         <div class="metric-sub">of 100M hard cap</div>
