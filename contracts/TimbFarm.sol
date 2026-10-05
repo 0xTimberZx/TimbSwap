@@ -381,11 +381,20 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
     {
         // Low: reward-solvency assert — while a period is active, the new rate
         // must be coverable over the remaining period by the funded TIMBS balance.
+        // TS-037: the balance also carries rewards ALREADY accrued but not yet
+        // claimed, which the old check ignored, so a hike could pass and still
+        // leave claims reverting until a refill. rewardReserve is everything
+        // funded and not yet paid out; subtracting what the OLD rate would still
+        // emit leaves the accrued liability, which the new promise must sit on
+        // top of.
         if (block.timestamp < periodFinish) {
             uint256 remaining     = periodFinish - block.timestamp;
             uint256 rewardBalance = timbsToken.balanceOf(address(this));
-            if (_ratePerSecond * remaining > rewardBalance) {
-                revert InsufficientRewardBalance(_ratePerSecond * remaining, rewardBalance);
+            uint256 leftover      = remaining * rewardRatePerSecond;
+            uint256 accrued       = rewardReserve > leftover ? rewardReserve - leftover : 0;
+            uint256 required      = _ratePerSecond * remaining + accrued;
+            if (required > rewardBalance) {
+                revert InsufficientRewardBalance(required, rewardBalance);
             }
         }
         rewardRatePerSecond = _ratePerSecond;
