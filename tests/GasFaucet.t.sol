@@ -56,6 +56,10 @@ contract MockPrize is IPrize {
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
+contract RejectingWallet {
+    receive() external payable { revert("no eth"); }
+}
+
 contract GasFaucetTest is Test {
     MockTIMBS    timbs;
     MockTreasury treasury;
@@ -536,5 +540,32 @@ contract GasFaucetTest is Test {
         vm.prank(dispatcher);
         vm.expectRevert(abi.encodeWithSelector(GasFaucet.NotEligible.selector, alice));
         faucet.dispense(alice);
+    }
+
+    // TS-038: a claimant that cannot receive ETH must not take the TIMBS leg down.
+    function test_TS038_ClaimantRejectsDripStillPaysTimbs() public {
+        RejectingWallet w = new RejectingWallet();
+        _eligible(address(w));
+        uint256 treBefore = address(treasury).balance;
+        vm.prank(dispatcher);
+        faucet.dispense(address(w));
+        assertEq(address(w).balance, 0, "drip not delivered");
+        assertEq(prize.potBalance(), POT, "pot share still funded");
+        assertEq(faucet.ethDistributed(), POT, "only the pot share counted");
+        assertEq(address(treasury).balance, treBefore - POT, "drip refunded to treasury");
+        assertEq(address(faucet).balance, 0, "nothing stranded");
+        assertEq(timbs.balanceOf(address(w)), TIMB, "timbs still flows");
+    }
+
+    function test_TS038_ClaimantRejectsDripAndPrizeRetired() public {
+        RejectingWallet w = new RejectingWallet();
+        _eligible(address(w));
+        prize.setRetired(true);
+        uint256 treBefore = address(treasury).balance;
+        vm.prank(dispatcher);
+        faucet.dispense(address(w));
+        assertEq(faucet.ethDistributed(), 0, "eth counter untouched");
+        assertEq(address(treasury).balance, treBefore, "both shares refunded");
+        assertEq(timbs.balanceOf(address(w)), TIMB, "timbs still flows");
     }
 }

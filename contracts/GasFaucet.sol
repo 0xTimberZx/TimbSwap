@@ -299,24 +299,32 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     }
 
     /// @dev Pull drip + pot from the treasury and deliver them. Returns what
-    ///      was actually paid out: (0, 0) if the treasury pull failed; the pot
-    ///      share is returned to the treasury if the prize refuses it.
+    ///      was actually paid out: (0, 0) if the treasury pull failed. Either
+    ///      share that cannot be delivered (claimant without a receive path,
+    ///      prize refusing the deposit) is handed back to the treasury instead
+    ///      of reverting (TS-038): nothing on this leg may take the independent,
+    ///      pre-funded TIMBS leg down. A refund the treasury itself refuses
+    ///      stays here for `sweepEth`.
     function _runEthLeg(address claimant) internal returns (uint256 toWallet, uint256 toPot) {
         uint256 want = dripEth + potEth;
         try treasury.withdrawOperational(address(this), want) {} catch { return (0, 0); }
+        uint256 refund;
         if (dripEth > 0) {
             (bool ok, ) = payable(claimant).call{value: dripEth}("");
-            if (!ok) revert EthTransferFailed();
-            toWallet = dripEth;
+            if (ok) toWallet = dripEth; else refund += dripEth;
         }
         if (potEth > 0) {
             try prize.addToPot{value: potEth}() {
                 toPot = potEth;
             } catch {
-                // Hand the pot share straight back; a plain deposit, not a fee.
-                (bool back, ) = payable(address(treasury)).call{value: potEth}("");
-                if (!back) revert EthTransferFailed();
+                refund += potEth;
             }
+        }
+        if (refund > 0) {
+            // Hand the undeliverable share straight back; a plain deposit, not
+            // a fee. Best-effort: a refused refund is swept by the owner later.
+            (bool back, ) = payable(address(treasury)).call{value: refund}("");
+            back;
         }
     }
 
