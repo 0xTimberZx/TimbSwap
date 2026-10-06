@@ -292,6 +292,7 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
     error BuybackTooLarge(uint256 requested, uint256 max);
     error EscrowMismatch(address timbPrize);
     error NotWethPair(address pair);
+    error NotFactoryPair(address pair);
     error NoFeeLp(address pair);
 
     // ─── Modifiers ─────────────────────────────────────────────────────────────
@@ -619,6 +620,14 @@ contract TimbTreasury is Ownable2Step, ReentrancyGuard {
         address t0 = ITimbSwapPair(pair).token0();
         address t1 = ITimbSwapPair(pair).token1();
         if (t0 != weth && t1 != weth) revert NotWethPair(pair);
+        // TS-041: the pair must be the factory's own. A contract that merely
+        // claims a WETH side and returns a chosen amount from burn() could
+        // otherwise make the treasury unwrap its real WETH into the pot and
+        // inflate the fee-split counter. Same round-trip TimbBoostFarm.addPool
+        // uses.
+        if (router == address(0)) revert ZeroAddress();
+        address factory = ITimbSwapRouter(router).factory();
+        if (ITimbSwapFactoryView(factory).getPair(t0, t1) != pair) revert NotFactoryPair(pair);
 
         uint256 bal = IERC20(pair).balanceOf(address(this));
         uint256 pol = polLp[pair];
