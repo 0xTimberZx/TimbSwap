@@ -286,6 +286,11 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         Stale rows (conceded/replaced) are filtered at verification.
     mapping(uint256 => mapping(uint256 => mapping(bytes6 => address[]))) public stringEntrants;
 
+    /// @dev generation → round → string → wallet → (index in stringEntrants + 1).
+    ///      Lets cancel/concede prune the row in O(1) so a mint-and-cancel loop
+    ///      cannot fill `maxEntrantsPerString` for gas alone (TS-039).
+    mapping(uint256 => mapping(uint256 => mapping(bytes6 => mapping(address => uint256)))) private _stringSlot;
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     event TicketMinted(
@@ -490,6 +495,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
                 revert StringFull(string6, r);
             }
             stringEntrants[g][r][string6].push(owner_);
+            _stringSlot[g][r][string6][owner_] = stringEntrants[g][r][string6].length;
             if (!hasEntryInRound[g][r][owner_]) {
                 hasEntryInRound[g][r][owner_] = true;
                 roundEntrants[g][r].push(owner_);
@@ -591,6 +597,29 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
             totalEthEscrow = amount >= totalEthEscrow ? 0 : totalEthEscrow - amount;
         } else if (activeTimbEntries > 0) {
             activeTimbEntries -= 1;
+        }
+    }
+
+    /// @dev TS-039: drop a cancelled or conceded ticket's wallet from every
+    ///      per-string row it occupies, so the per-string cap only counts
+    ///      tickets that can still win. Swap-remove via `_stringSlot`.
+    function _pruneStringEntrants(Ticket storage t) internal {
+        uint256 g      = t.generation;
+        bytes6  s      = t.string6;
+        address owner_ = t.owner;
+        for (uint256 r = t.playRound; r <= t.lastEligibleRound; r++) {
+            uint256 slot = _stringSlot[g][r][s][owner_];
+            if (slot == 0) continue;
+            address[] storage row = stringEntrants[g][r][s];
+            uint256 idx  = slot - 1;
+            uint256 last = row.length - 1;
+            if (idx != last) {
+                address moved = row[last];
+                row[idx] = moved;
+                _stringSlot[g][r][s][moved] = slot;
+            }
+            row.pop();
+            delete _stringSlot[g][r][s][owner_];
         }
     }
 
@@ -728,6 +757,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         old.status        = TicketStatus.Conceded;
         old.escrowAmount  = 0;
         _vaultRemove(oldId);
+        _pruneStringEntrants(old);
 
         uint256 playRound = currentRound + 1;
         uint256 newId = _mintTicket(
@@ -765,6 +795,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         uint256 amount = t.escrowAmount;
         address token  = t.escrowToken;
         _onTicketDeactivated(t);
+        _pruneStringEntrants(t);
         t.status       = TicketStatus.Cancelled;
         t.escrowAmount = 0;
         activeTicketOf[msg.sender] = 0;
