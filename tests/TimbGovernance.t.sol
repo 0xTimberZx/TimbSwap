@@ -106,9 +106,11 @@ contract TimbGovernanceTest is Test {
         // Snapshot totalVotingPower == 0 at creation (nothing deposited yet).
         uint256 pid = gov.createProposal("zero", "snapshot");
         // Deposit + vote FOR *after* creation — must not rescue quorum.
+        // (Since TS-034/TS-040 the vote itself is refused: no power at creation.)
         _deposit(alice, 100e18);
         vm.warp(block.timestamp + VOTING_DELAY + 1);
         vm.prank(alice);
+        vm.expectRevert(TimbGovernance.InsufficientVotingPower.selector);
         gov.castVote(pid, true);
         // After voting ends the outcome is Failed → not executable.
         vm.warp(block.timestamp + VOTING_PERIOD + 1);
@@ -227,5 +229,44 @@ contract TimbGovernanceTest is Test {
 
     function _createdAt(uint256 pid) internal view returns (uint256 c) {
         (, , , , c, , , , , , , ,) = gov.proposals(pid);
+    }
+
+    // ─── TS-040: the creation second is sealed against backrun deposits ──────
+
+    function test_TS040_SameSecondDepositAfterCreationCannotVote() public {
+        uint256 pid = gov.createProposal("ts040", "seal");
+        _deposit(alice, 100e18);                       // same second, later tx
+        assertEq(gov.votingPowerAt(alice, block.timestamp), 0, "not held at creation");
+        assertEq(gov.votingPowerAt(alice, block.timestamp + 1), 100e18, "visible next second");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        vm.expectRevert(TimbGovernance.InsufficientVotingPower.selector);
+        gov.castVote(pid, true);
+    }
+
+    function test_TS040_SameSecondDepositBeforeCreationStillVotes() public {
+        _deposit(alice, 100e18);                       // same second, earlier tx
+        uint256 pid = gov.createProposal("ts040", "before");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        gov.castVote(pid, true);
+        (, , , , , , , , uint256 forVotes, , , , ) = gov.proposals(pid);
+        assertEq(forVotes, 100e18, "pre-creation deposit weighs in full");
+    }
+
+    function test_TS040_SealedHistoryStaysMonotonic() public {
+        vm.warp(2_000_000);
+        gov.createProposal("ts040", "mono");
+        _deposit(alice, 10e18);                        // sealed to 2_000_001
+        _deposit(alice, 5e18);                         // same second again: overwrite sealed entry
+        assertEq(gov.votingPowerAt(alice, 2_000_001), 15e18, "sealed entry updated");
+        vm.warp(2_000_001);
+        _deposit(alice, 1e18);                         // real checkpoint overwrites, no dup
+        assertEq(gov.votingPowerAt(alice, 2_000_001), 16e18, "reflects all deposits");
+        vm.warp(2_000_002);
+        _deposit(alice, 1e18);
+        assertEq(gov.votingPowerAt(alice, 2_000_000), 0,     "nothing at creation second");
+        assertEq(gov.votingPowerAt(alice, 2_000_001), 16e18, "history preserved");
+        assertEq(gov.votingPowerAt(alice, 2_000_002), 17e18, "latest");
     }
 }

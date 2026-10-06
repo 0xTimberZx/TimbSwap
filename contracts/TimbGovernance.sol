@@ -58,6 +58,11 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     ///      overwrite the last entry.
     struct Checkpoint { uint64 at; uint192 power; }
     mapping(address => Checkpoint[]) internal _powerHistory;
+    /// @dev TS-040: the second the latest proposal was created in. Any power
+    ///      change landing in that same second is checkpointed one second
+    ///      later, so a deposit backrun into the creation second cannot read
+    ///      as "held at creation".
+    uint64 internal _lastProposalAt;
     mapping(address => mapping(uint256 => bool)) public hasVoted;
     /// @notice Append-only history of proposals a voter has voted on. Kept for
     ///         off-chain history; NO LONGER iterated on-chain (M6).
@@ -184,6 +189,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         _sweepOpenProposals(false);
         if (_openProposals.length >= MAX_OPEN_PROPOSALS) revert TooManyOpenProposals();
         _openProposals.push(proposalId);
+        _lastProposalAt = uint64(block.timestamp); // TS-040
 
         emit ProposalCreated(proposalId, msg.sender, title, votingStartsAt, votingEndsAt);
     }
@@ -228,10 +234,18 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         Checkpoint[] storage h = _powerHistory[voter];
         uint192 power = uint192(votingPowerDeposited[voter]);
         uint256 n = h.length;
-        if (n > 0 && h[n - 1].at == uint64(block.timestamp)) {
+        uint64 at = uint64(block.timestamp);
+        // TS-040: checkpoints have one-second granularity, so a change mined in
+        // the same second as createProposal (a strictly later tx) would
+        // otherwise overwrite the creation-second entry and be weighed as
+        // held at creation. Seal that second: the change takes effect at the
+        // next one. Changes mined before the proposal in the same second
+        // still land at `at` and still count, as they should.
+        if (at == _lastProposalAt) at += 1;
+        if (n > 0 && h[n - 1].at >= at) {
             h[n - 1].power = power;
         } else {
-            h.push(Checkpoint({ at: uint64(block.timestamp), power: power }));
+            h.push(Checkpoint({ at: at, power: power }));
         }
     }
 
