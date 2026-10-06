@@ -23,6 +23,18 @@ contract SplitToken is ERC20 {
  *         sends the WETH side (half the value) to the pot, keeping the other
  *         token. Treasury-owned liquidity is never redeemed.
  */
+/// TS-041: a contract that claims a WETH side and returns a chosen burn amount.
+contract FakePair is ERC20 {
+    address public token0;
+    address public token1;
+    uint256 public lie;
+    constructor(address weth_, address other_, uint256 lie_) ERC20("FAKE", "FAKE") {
+        token0 = weth_; token1 = other_; lie = lie_;
+        _mint(msg.sender, 1e18);
+    }
+    function burn(address) external view returns (uint256, uint256) { return (lie, 0); }
+}
+
 contract TreasuryLpFeeSplitTest is Test {
     RehearsalWETH weth;
     SplitToken tkn;
@@ -169,5 +181,28 @@ contract TreasuryLpFeeSplitTest is Test {
         vm.stopPrank();
         assertEq(weth.balanceOf(careful), 0, "debit equals amountInMax");
         assertEq(tkn.balanceOf(careful), 10 ether);
+    }
+
+    // ─── TS-041: only factory pairs may be split ─────────────────────────────
+
+    function test_TS041_FakePairCannotDrainTreasuryWeth() public {
+        weth.transfer(address(treasury), 10 ether);          // stray WETH on the treasury
+        FakePair fake = new FakePair(address(weth), address(tkn), 10 ether);
+        fake.transfer(address(treasury), 1);                  // satisfies feeLp > 0
+        uint256 potBefore = prize.currentAccumulatedRewards();
+        vm.prank(address(0xBAD));
+        vm.expectRevert(abi.encodeWithSelector(TimbTreasury.NotFactoryPair.selector, address(fake)));
+        treasury.splitLpFees(address(fake));
+        assertEq(weth.balanceOf(address(treasury)), 10 ether, "treasury WETH untouched");
+        assertEq(prize.currentAccumulatedRewards(), potBefore, "pot untouched");
+        assertEq(treasury.totalLpFeesToPot(), 0, "counter untouched");
+    }
+
+    function test_TS041_RealPairStillSplits() public {
+        _trade(5);
+        _realiseFee();
+        vm.prank(address(0xCA11));
+        treasury.splitLpFees(pair);
+        assertGt(treasury.totalLpFeesToPot(), 0, "real pair path unaffected");
     }
 }
