@@ -67,7 +67,9 @@ const TIMBS_LIVE = false;
   if (TIMBS_LIVE || typeof document === "undefined") return;
   const style = document.createElement("style");
   style.textContent =
-    'a[href="/farm/"],a[href="/lock/"],a[href="/quests/"],a[href="../quests/"],[data-timbs]{display:none!important}';
+    // Suffix match: the site is also served under a sub-path (GitHub Pages),
+    // where nav hrefs are "../farm/" and pathnames are "/TimbSwap/farm/".
+    'a[href$="/farm/"],a[href$="/lock/"],a[href$="/quests/"],[data-timbs]{display:none!important}';
   document.head.appendChild(style);
   // The "Earn TIMBS" nav group also holds Compete and Faucet, so relabel it
   // rather than hide it.
@@ -80,7 +82,7 @@ const TIMBS_LIVE = false;
       });
     });
   });
-  const gated = /^\/(farm|lock|quests)\//.exec(location.pathname);
+  const gated = /\/(farm|lock|quests)\/?$/.exec(location.pathname);
   if (gated) {
     const quests = gated[1] === "quests";
     document.addEventListener("DOMContentLoaded", () => {
@@ -94,7 +96,7 @@ const TIMBS_LIVE = false;
           : '<h1>Opens after the beta</h1>' +
             '<p>Farming and locking pay out in TIMBS, which launches after the ' +
             'independent audit. The beta runs on ETH.</p>') +
-        '<p><a href="/compete/">Enter a round</a> · <a href="/swap/">Swap</a></p></main>';
+        '<p><a href="../compete/">Enter a round</a> · <a href="../swap/">Swap</a></p></main>';
     });
   }
 })();
