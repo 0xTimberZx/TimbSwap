@@ -215,7 +215,9 @@
   </footer>
 
   <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
-  <script src="lock.js?v=20260904c"></script>
+  <!-- Gated with TIMBS (config.js TIMBS_LIVE): while false the page script is
+       not loaded at all, so no reads, polling or reward math run. -->
+  <script>if (typeof TIMBS_LIVE === "undefined" || TIMBS_LIVE) document.write('<script src="lock.js?v=20260904c"><\/script>');</script>
   <script>
     function toggleMobileNav() {
       document.getElementById("mobile-nav").classList.toggle("open");

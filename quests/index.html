@@ -328,6 +328,8 @@
       update();
     })();
   </script>
-  <script src="../quests.js?v=1"></script>
+  <!-- Gated with TIMBS (config.js TIMBS_LIVE): while false the leaderboard
+       script is not loaded at all, so no season, rank or points reads run. -->
+  <script>if (typeof TIMBS_LIVE === "undefined" || TIMBS_LIVE) document.write('<script src="../quests.js?v=1"><\/script>');</script>
 </body>
 </html>
