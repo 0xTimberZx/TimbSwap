@@ -74,6 +74,24 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
     ///         rewards — only genuinely foreign TIMBS above staked + reserve.
     uint256 public rewardReserve;
 
+    /// @notice TS-044: rewards emitted to stakers and not yet paid or forfeited —
+    ///         the exact accrued liability, tracked as rewardPerToken advances.
+    ///         setRewardRate's solvency check uses this instead of inferring it
+    ///         from rewardReserve, which is not recalibrated on a rate cut and
+    ///         so overstated the liability after one.
+    uint256 private _accruedLiability;
+
+    /// @notice Live accrued liability: the stored counter plus whatever has
+    ///         been emitted since the last updateReward.
+    function accruedLiability() public view returns (uint256) {
+        uint256 rpt = rewardPerToken();
+        uint256 live = _accruedLiability;
+        if (rpt > rewardPerTokenStored && totalStaked > 0) {
+            live += (rpt - rewardPerTokenStored) * totalStaked / 1e18;
+        }
+        return live;
+    }
+
     /// @notice Staked balance per address.
     mapping(address => uint256) public stakedBalance;
 
@@ -121,7 +139,11 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
     }
 
     modifier updateReward(address account) {
-        rewardPerTokenStored = rewardPerToken();
+        uint256 rpt = rewardPerToken();
+        if (rpt > rewardPerTokenStored && totalStaked > 0) {
+            _accruedLiability += (rpt - rewardPerTokenStored) * totalStaked / 1e18; // TS-044
+        }
+        rewardPerTokenStored = rpt;
         lastUpdateTime       = lastTimeRewardApplicable();
         if (account != address(0)) {
             pendingRewards[account]        = earned(account);
@@ -267,7 +289,8 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
         }
 
         pendingRewards[msg.sender] = 0;
-        rewardReserve = reward < rewardReserve ? rewardReserve - reward : 0; // H2
+        rewardReserve    = reward < rewardReserve    ? rewardReserve - reward    : 0; // H2
+        _accruedLiability = reward < _accruedLiability ? _accruedLiability - reward : 0; // TS-044
         timbsToken.safeTransfer(msg.sender, reward);
 
         emit RewardsClaimed(msg.sender, reward);
@@ -296,7 +319,8 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
             uint256 contractBalance = timbsToken.balanceOf(address(this)) - totalStaked;
             if (reward <= contractBalance) {
                 pendingRewards[msg.sender] = 0;
-                rewardReserve = reward < rewardReserve ? rewardReserve - reward : 0; // H2
+                rewardReserve    = reward < rewardReserve    ? rewardReserve - reward    : 0; // H2
+                _accruedLiability = reward < _accruedLiability ? _accruedLiability - reward : 0; // TS-044
                 timbsToken.safeTransfer(msg.sender, reward);
                 emit RewardsClaimed(msg.sender, reward);
             }
@@ -376,9 +400,11 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
         if (block.timestamp < periodFinish) {
             uint256 remaining     = periodFinish - block.timestamp;
             uint256 rewardBalance = timbsToken.balanceOf(address(this)) - totalStaked;
-            uint256 leftover      = remaining * rewardRatePerSecond;
-            uint256 accrued       = rewardReserve > leftover ? rewardReserve - leftover : 0;
-            uint256 required      = _ratePerSecond * remaining + accrued;
+            // TS-044: use the tracked liability. The former proxy
+            // (rewardReserve - remaining * oldRate) overstated it after a rate
+            // cut, since the reserve is never recalibrated to the lower rate,
+            // and a later hike reverted while the contract was solvent.
+            uint256 required      = _ratePerSecond * remaining + _accruedLiability; // fresh: updateReward ran
             if (required > rewardBalance) {
                 revert InsufficientRewardBalance(required, rewardBalance);
             }
@@ -437,7 +463,8 @@ contract TimbStaking is Ownable2Step, ReentrancyGuard {
         // from rewardReserve (as claim/exit do) so recoverERC20 can reclaim it.
         uint256 forfeited = pendingRewards[msg.sender];
         if (forfeited > 0) {
-            rewardReserve = forfeited < rewardReserve ? rewardReserve - forfeited : 0;
+            rewardReserve    = forfeited < rewardReserve    ? rewardReserve - forfeited    : 0;
+            _accruedLiability = forfeited < _accruedLiability ? _accruedLiability - forfeited : 0; // TS-044
         }
 
         stakedBalance[msg.sender]        = 0;
