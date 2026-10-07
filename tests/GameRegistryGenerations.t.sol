@@ -218,4 +218,38 @@ contract GameRegistryGenerationsTest is Test {
         registry.reclaimFromPastGame(tid);
         assertEq(uint8(_status(tid)), uint8(GameRegistry.TicketStatus.Closed));
     }
+
+    // ─── TS-043: an outgoing registry can be retired so its tickets reclaim ──
+
+    function test_TS043_StrandedTicketReclaimsAfterRetire() public {
+        uint256 id = _submitETH(player, STR_A);              // gen-1 ticket holding ETH
+        uint256 before = player.balance;
+        // No further onGameStarted ever reaches an abandoned registry.
+        vm.prank(player);
+        vm.expectRevert(GameRegistry.TicketNotReclaimable.selector);
+        registry.reclaimFromPastGame(id);
+        registry.retireGame();
+        assertTrue(registry.retired(), "flag set");
+        vm.prank(player);
+        registry.reclaimFromPastGame(id);
+        assertEq(player.balance, before + ENTRY_ETH, "principal returned in full");
+    }
+
+    function test_TS043_RetiredRegistryRefusesEntriesAndStart() public {
+        registry.retireGame();
+        uint256 gen = registry.generation();
+        vm.prank(player);
+        vm.expectRevert(GameRegistry.RegistryRetired.selector);
+        registry.submitEntry{value: ENTRY_ETH}(STR_A, true, 0);
+        vm.expectRevert(GameRegistry.RegistryRetired.selector);
+        registry.onGameStarted();
+        registry.retireGame();                               // idempotent
+        assertEq(registry.generation(), gen, "second retire is a no-op");
+    }
+
+    function test_TS043_RetireIsOwnerOnly() public {
+        vm.prank(player);
+        vm.expectRevert();
+        registry.retireGame();
+    }
 }

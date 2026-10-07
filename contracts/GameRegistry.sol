@@ -257,6 +257,11 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///      prize deploy bumps to a fresh generation.
     bool private _firstGameStarted;
 
+    /// @notice TS-043: set once the owner retires this registry at a migration.
+    ///         Entries are refused; every outstanding ticket is reclaimable via
+    ///         reclaimFromPastGame. Mirrors PrizeEscrow.retiredPrize.
+    bool public retired;
+
     /// @notice Emergency pause — blocks new tickets; refunds always available.
     bool public paused;
 
@@ -317,6 +322,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     event PricesFixed(uint256 indexed round, uint256 ethCost, uint256 timbsCost);
     event CurrentRoundUpdated(uint256 round);
     event GenerationStarted(uint256 indexed generation);
+    event GameRetired(uint256 indexed generation);
     event TicketReclaimed(uint256 indexed ticketId, uint256 amount, address escrowToken);
     event TimbPrizeSet(address indexed timbPrize);
     event ProtocolSinkSet(address indexed sink);
@@ -344,6 +350,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     error ZeroAmount();
     error ContractPaused();
     error NotTimbPrize();
+    error RegistryRetired();
     error InvalidCharacter(bytes1 char);
     error RepeatingCharacter(bytes1 char);
     error ActiveTicketExists(uint256 ticketId);
@@ -370,7 +377,8 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     // ─── Modifiers ───────────────────────────────────────────────────────────
 
     modifier whenNotPaused() {
-        if (paused) revert ContractPaused();
+        if (paused)  revert ContractPaused();
+        if (retired) revert RegistryRetired(); // TS-043
         _;
     }
 
@@ -1092,7 +1100,23 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         a fresh generation, retiring the prior game's tickets from all
     ///         round-keyed state without any unbounded loop. Also resets the
     ///         round to 1.
+    /// @notice TS-043: retire this registry at a migration. A new epoch is a
+    ///         fresh GameRegistry, so the outgoing one never sees another
+    ///         onGameStarted and its generation would stay frozen at the value
+    ///         its tickets were minted with, leaving reclaimFromPastGame (the
+    ///         runbook's recovery path) unable to pass its guard. Bumping the
+    ///         generation here makes every outstanding ticket reclaimable;
+    ///         `retired` refuses new entries. Idempotent.
+    function retireGame() external onlyOwner {
+        if (retired) return;
+        retired = true;
+        generation += 1;
+        _resetPricingMeters();
+        emit GameRetired(generation);
+    }
+
     function onGameStarted() external onlyTimbPrize {
+        if (retired) revert RegistryRetired(); // TS-043
         if (_firstGameStarted) {
             generation += 1;
             _resetPricingMeters();
