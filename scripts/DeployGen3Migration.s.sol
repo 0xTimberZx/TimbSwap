@@ -189,7 +189,9 @@ contract DeployGen3Migration is Script {
         console.log("3. Update config.js: GameRegistry + TimbPrize + PrizeVRFEntropy -> new");
         console.log("4. Call new TimbPrize.startGame()  (fresh epoch, opens round 1)");
         console.log("5. Confirm settler activates round 2+ (activateRoundEntries no longer reverts)");
-        console.log("6. Call OLD GameRegistry.retireGame() (owner) -- TS-043: without it the old");
+        console.log("6. Call OLD TimbPrize.retire() (owner) -- fix-list 48: the outgoing prize must not");
+        console.log("   arm, settle or harvest again; its settled rounds stay claimable");
+        console.log("6b. Call OLD GameRegistry.retireGame() (owner) -- TS-043: without it the old");
         console.log("   generation never advances and reclaimFromPastGame can never pass its guard");
         console.log("7. Tell holders to reclaim principal from the OLD registry (user-reclaim only)");
         console.log("8. Old prize stays a retired escrow payer so its winners can still claim (TS-018).");
