@@ -271,7 +271,9 @@ contract TIMBSToken is ERC20, ERC20Burnable, Ownable2Step, ReentrancyGuard {
 
     /**
      * @dev Override to enforce pause + per-tx transfer cap.
-     *      Whitelist bypasses cap. Mint/burn paths (from/to address(0)) bypass both.
+     *      Whitelist bypasses the cap. Mint/burn paths (from/to address(0))
+     *      bypass the cap only; the pause (whenNotPaused on _update) still
+     *      applies to them.
      */
     function _update(
         address from,
