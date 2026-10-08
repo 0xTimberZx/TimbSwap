@@ -3,6 +3,9 @@ pragma solidity 0.8.24;
 
 import {PrizeWindowsTest} from "./PrizeWindows.t.sol";
 import {TimbPrize} from "../contracts/TimbPrize.sol";
+import {MockTIMBS} from "./PrizeWindows.t.sol";
+
+contract PrizeStrayToken is MockTIMBS { function mint(address to, uint256 a) external { _mint(to, a); } }
 
 /// Fix-list 48/49: retired-prize fence and wiring-setter events.
 contract PrizeRetireTest is PrizeWindowsTest {
@@ -49,5 +52,18 @@ contract PrizeRetireTest is PrizeWindowsTest {
         prize.setPrizeEscrow(address(0x44));
         vm.expectEmit(true, false, false, true); emit TimbPrize.YieldVaultSet(address(0x55));
         prize.setYieldVault(address(0x55));
+    }
+
+    // ─── Fix-list 61: stray ERC-20 exit ──────────────────────────────────────
+    function test_recoverERC20_sweepsStrayToken() public {
+        PrizeStrayToken tok = new PrizeStrayToken();
+        tok.mint(address(prize), 1 ether);
+        uint256 ethBefore = address(prize).balance;
+        prize.recoverERC20(address(tok), address(0x5EEF), 1 ether);
+        assertEq(tok.balanceOf(address(0x5EEF)), 1 ether, "swept");
+        assertEq(address(prize).balance, ethBefore, "ETH untouched");
+        vm.prank(rando);
+        vm.expectRevert();
+        prize.recoverERC20(address(tok), rando, 1);
     }
 }

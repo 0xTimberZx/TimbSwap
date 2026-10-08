@@ -286,6 +286,7 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     event UnclaimedRecycled(uint256 indexed round, uint256 amount);
     event ProtocolCutTaken(uint256 indexed round, uint256 amount);
     event ProtocolCutWithdrawn(address indexed to, uint256 amount);
+    event ERC20Recovered(address indexed token, address indexed to, uint256 amount);
     event SettlerUpdated(address indexed newSettler);
     event ProtocolCutSet(uint256 bps);
     event EntropySet(address indexed entropy);
@@ -1087,5 +1088,15 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     ///      immediately forwarded to PrizeEscrow inside _harvestYield().
     receive() external payable {
         if (msg.sender != yieldVault) revert NotYieldVault();
+    }
+
+    /// @notice Sweep a stray ERC-20 (for example WETH sent instead of ETH).
+    ///         This contract never custodies a token, so any ERC-20 balance
+    ///         here is a mistake. ERC-20 only: ETH keeps its own, bounded exit.
+    function recoverERC20(address token, address to, uint256 amount) external onlyOwner nonReentrant {
+        if (token == address(0) || to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        SafeERC20.safeTransfer(IERC20(token), to, amount);
+        emit ERC20Recovered(token, to, amount);
     }
 }

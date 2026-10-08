@@ -150,11 +150,13 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     event GuardianSet(address indexed guardian);
     event TimbsRecovered(address indexed to, uint256 amount);
     event EthSwept(address indexed to, uint256 amount);
+    event ERC20Recovered(address indexed token, address indexed to, uint256 amount);
     event ResetGranted(uint256 indexed round, address indexed wallet);
 
     // ─── Errors ─────────────────────────────────────────────────────────────────
 
     error ZeroAddress();
+    error ZeroAmount();
     error NotDispatcher();
     error NotPauser();
     error NothingToDispense();     // both legs paused
@@ -481,5 +483,16 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     }
 
     /// @dev Accept ETH pulled from the treasury during `dispense`.
+
+    /// @notice Sweep a stray ERC-20 (for example WETH sent instead of ETH).
+    ///         The faucet custodies only its TIMBS budget (recoverTimbs covers
+    ///         that); any other ERC-20 here is a mistake. ERC-20 only: ETH keeps its own, bounded exit.
+    function recoverERC20(address token, address to, uint256 amount) external onlyOwner nonReentrant {
+        if (token == address(0) || to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        SafeERC20.safeTransfer(IERC20(token), to, amount);
+        emit ERC20Recovered(token, to, amount);
+    }
+
     receive() external payable {}
 }

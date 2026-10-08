@@ -568,4 +568,19 @@ contract GasFaucetTest is Test {
         assertEq(address(treasury).balance, treBefore, "both shares refunded");
         assertEq(timbs.balanceOf(address(w)), TIMB, "timbs still flows");
     }
+
+    // ─── Fix-list 61: stray ERC-20 exit (TIMBS budget still via recoverTimbs) ─
+    function test_recoverERC20_sweepsStrayToken() public {
+        MockTIMBS stray = new MockTIMBS();
+        stray.mint(address(faucet), 1 ether);
+        uint256 timbsBefore = timbs.balanceOf(address(faucet));
+        faucet.recoverERC20(address(stray), address(0x5EEF), 1 ether);
+        assertEq(stray.balanceOf(address(0x5EEF)), 1 ether, "swept");
+        assertEq(timbs.balanceOf(address(faucet)), timbsBefore, "TIMBS budget untouched");
+        vm.prank(stranger);
+        vm.expectRevert();
+        faucet.recoverERC20(address(stray), stranger, 1);
+        vm.expectRevert(GasFaucet.ZeroAmount.selector);
+        faucet.recoverERC20(address(stray), address(0x5EEF), 0);
+    }
 }
