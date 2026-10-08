@@ -30,6 +30,10 @@ contract RecordingVault {
  *
  * Run: forge test --match-contract YieldVaultEpochTest -vvv
  */
+contract StrayToken is ERC20 {
+    constructor() ERC20("STRAY", "STRAY") { _mint(msg.sender, 1 ether); }
+}
+
 contract YieldVaultEpochTest is Test {
     TimbYieldVault vault;
     address registryA = address(0xA1);
@@ -120,5 +124,33 @@ contract YieldVaultEpochTest is Test {
         reg.onGameStarted();   // generation bump
         assertEq(reg.generation(), g0 + 1, "second start bumps the generation");
         assertEq(rv.epochs(), 2, "each game start retires the prior weight");
+    }
+
+    // ─── Stray ERC-20 recovery (fix-list 61) ──────────────────────────────────
+
+    function test_recoverERC20_sweepsStrayToken_leavesEthReserveAlone() public {
+        StrayToken tok = new StrayToken();
+        tok.transfer(address(vault), 1 ether);           // the WETH-by-mistake case
+        uint256 reserveBefore = vault.reserve();
+        address sink = address(0x5EEF);
+        vault.recoverERC20(address(tok), sink, 1 ether);
+        assertEq(tok.balanceOf(sink), 1 ether, "stray token swept");
+        assertEq(tok.balanceOf(address(vault)), 0, "nothing left");
+        assertEq(vault.reserve(), reserveBefore, "ETH reserve untouched");
+        assertEq(address(vault).balance, 5 ether, "ETH balance untouched");
+    }
+
+    function test_recoverERC20_ownerOnlyAndChecked() public {
+        StrayToken tok = new StrayToken();
+        tok.transfer(address(vault), 1 ether);
+        vm.prank(address(0xBAD));
+        vm.expectRevert();
+        vault.recoverERC20(address(tok), address(0xBAD), 1 ether);
+        vm.expectRevert(TimbYieldVault.ZeroAddress.selector);
+        vault.recoverERC20(address(tok), address(0), 1 ether);
+        vm.expectRevert(TimbYieldVault.ZeroAmount.selector);
+        vault.recoverERC20(address(tok), address(0x5EEF), 0);
+        vm.expectRevert();                                 // more than held: SafeERC20 bubbles the revert
+        vault.recoverERC20(address(tok), address(0x5EEF), 2 ether);
     }
 }
