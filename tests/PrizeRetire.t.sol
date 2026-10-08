@@ -32,6 +32,16 @@ contract PrizeRetireTest is PrizeWindowsTest {
         prize.withdrawProtocolCut(address(0xCAFE));
     }
 
+    function test_retiredPrizeCannotBeStarted() public {
+        // A fresh prize, retired before start, must never go live: every
+        // settlement path would then revert PrizeIsRetired and rounds stall.
+        TimbPrize fresh = new TimbPrize(address(escrow), address(registry), address(this));
+        fresh.setEntropy(address(entropy));
+        fresh.retire();
+        vm.expectRevert(TimbPrize.PrizeIsRetired.selector);
+        fresh.startGame();
+    }
+
     function test_retireOwnerOnlyAndIdempotent() public {
         vm.prank(rando);
         vm.expectRevert();

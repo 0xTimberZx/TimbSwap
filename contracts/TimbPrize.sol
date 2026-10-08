@@ -362,7 +362,7 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
 
     // ─── Game Lifecycle ───────────────────────────────────────────────────────
 
-    function startGame() external onlyOwner {
+    function startGame() external onlyOwner whenNotRetired {
         if (gameStarted) revert GameAlreadyStarted();
         if (address(entropy) == address(0)) revert EntropyNotSet(); // H1: VRF must be wired
         gameStarted      = true;
