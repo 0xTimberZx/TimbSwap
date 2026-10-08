@@ -14,6 +14,8 @@ import {MockTIMBS} from "./PrizeWindows.t.sol";
  *         TimbPrize.currentAccumulatedRewards and never reach a winner
  *         (TS-006), so both are refused; TimbPrize's own paths still work.
  */
+contract EscrowStrayToken is MockTIMBS { function mint(address to, uint256 a) external { _mint(to, a); } }
+
 contract PrizeEscrowDepositGuardTest is Test {
     PrizeEscrow escrow;
     TimbPrize   prize;
@@ -79,4 +81,17 @@ contract PrizeEscrowDepositGuardTest is Test {
     }
 
     receive() external payable {}
+
+    // ─── Fix-list 61: stray ERC-20 exit ──────────────────────────────────────
+    function test_recoverERC20_sweepsStrayToken() public {
+        EscrowStrayToken tok = new EscrowStrayToken();
+        tok.mint(address(escrow), 1 ether);
+        uint256 ethBefore = address(escrow).balance;
+        escrow.recoverERC20(address(tok), address(0x5EEF), 1 ether);
+        assertEq(tok.balanceOf(address(0x5EEF)), 1 ether, "swept");
+        assertEq(address(escrow).balance, ethBefore, "ETH untouched");
+        vm.prank(address(0xBAD));
+        vm.expectRevert();
+        escrow.recoverERC20(address(tok), address(0xBAD), 1);
+    }
 }

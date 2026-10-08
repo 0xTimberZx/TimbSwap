@@ -4,6 +4,8 @@ pragma solidity 0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title PrizeEscrow
@@ -55,6 +57,7 @@ contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
     event TimbPrizeSet(address indexed timbPrize);
     event RetiredPrizeSet(address indexed prize, bool allowed);
     event EmergencyWithdrawn(address indexed to, uint256 amount);
+    event ERC20Recovered(address indexed token, address indexed to, uint256 amount);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -172,5 +175,15 @@ contract PrizeEscrow is Ownable2Step, ReentrancyGuard {
     receive() external payable {
         if (msg.sender != timbPrize) revert NotTimbPrize();
         if (msg.value > 0) emit Deposited(msg.sender, msg.value);
+    }
+
+    /// @notice Sweep a stray ERC-20 (for example WETH sent instead of ETH).
+    ///         This contract never custodies a token, so any ERC-20 balance
+    ///         here is a mistake. ERC-20 only: ETH keeps its own, bounded exit.
+    function recoverERC20(address token, address to, uint256 amount) external onlyOwner nonReentrant {
+        if (token == address(0) || to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        SafeERC20.safeTransfer(IERC20(token), to, amount);
+        emit ERC20Recovered(token, to, amount);
     }
 }
