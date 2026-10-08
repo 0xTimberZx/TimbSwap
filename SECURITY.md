@@ -66,6 +66,9 @@ settlement/liveness griefing.
   (During the capped beta client telemetry is **localStorage-only** — no network
   sink, so no user-data pipeline to exploit; if an aggregated sink is re-enabled
   post-audit it will be hardened and brought explicitly into scope.)
+- **Unsupported token classes.** The AMM is Uniswap V2-style and, like V2, does
+  not support fee-on-transfer, rebasing or ERC-777 hook tokens. A swap, add or
+  remove that delivers less of such a token than quoted is by design, not a bug.
 - **Testnet** (Arbitrum Sepolia) deployments — no value, not in scope.
 - **Third-party** code and infra: Chainlink VRF, OpenZeppelin, the Arbitrum
   sequencer/bridge, RPC providers, wallets.
