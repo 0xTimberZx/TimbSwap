@@ -78,9 +78,12 @@ interface IAirdropPause {
  *   FAUCET_DRIP_ETH=2.5e14  FAUCET_POT_ETH=2.5e14  FAUCET_COOLDOWN=86400
  *   FAUCET_ETH_CAP=1.5e18   OPERATOR_ETH_CAP=1e17 per OPERATOR_PERIOD=86400
  *
- * Run (simulate first — no --broadcast — and read the PRE-FLIGHT block):
+ * Run (read-only pre-flight, then simulate without --broadcast and read the
+ * PRE-FLIGHT block, then broadcast and fill config.mainnet.js from the receipt):
+ *   R1=$ARB_RPC sh scripts/beta-preflight.sh
  *   forge script scripts/DeployBeta.s.sol --rpc-url $ARB_RPC -vvvv
  *   forge script scripts/DeployBeta.s.sol --rpc-url $ARB_RPC --broadcast --gas-estimate-multiplier 300
+ *   node scripts/fill-beta-config.js --write
  */
 interface ITimbSwapFactoryAdmin {
     function setRouter(address router) external;
@@ -268,6 +271,22 @@ contract DeployBeta is Script {
         require(d.router.protocolFeeBps() == 0,                 "router fee must be 0 (all-in 0.30%)");
         require(ITimbSwapFactoryAdmin(old.factory()).feeTo() == address(d.treasury), "pool protocol share must go to the new treasury");
         if (c.airdrop != address(0)) require(IAirdropPause(c.airdrop).paused(), "airdrop must be paused");
+        // Shared infra named the OLD game in _preflight; it must name the NEW one now.
+        require(PrizeEscrow(payable(c.escrow)).timbPrize() == address(d.prize),  "escrow must pay the new prize");
+        require(IYieldVaultAdmin(c.vault).timbPrize() == address(d.prize),       "vault must accrue to the new prize");
+        require(IYieldVaultAdmin(c.vault).gameRegistry() == address(d.registry), "vault must weigh the new registry");
+        require(d.prize.yieldVault() == c.vault && d.registry.yieldVault() == c.vault, "game must use the live vault");
+        require(d.registry.timbPrize() == address(d.prize),                     "registry must report to the new prize");
+        require(address(d.prize.entropy()) == address(d.entropy),               "prize must draw from the new entropy");
+        require(d.entropy.board() == address(d.prize),                          "entropy must serve the new prize");
+        require(d.prize.eligibleRegistry() == c.eligible,                       "prize must use the live eligible registry");
+        EligibleTokenRegistry elig = EligibleTokenRegistry(c.eligible);
+        require(elig.registeredConsumers(address(d.prize)) && elig.registeredConsumers(address(d.router)),
+                "eligible registry must know the new prize and router");
+        require(d.faucet.dispatcher() == c.dispatcher,                          "faucet dispatcher must be the mainnet hot key");
+        require(d.treasury.operator() == address(d.faucet),                     "faucet must be the treasury's operator");
+        require(d.faucet.timbsPaused() && d.faucet.timbsCap() == 0,             "faucet TIMBS leg must be off");
+        require(!d.prize.gameStarted(),                                         "deploy must not start the game");
 
         console.log("\n========== BETA DEPLOY COMPLETE ==========");
         console.log("GameRegistry:     ", address(d.registry));
