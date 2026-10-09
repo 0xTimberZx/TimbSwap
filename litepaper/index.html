@@ -229,7 +229,6 @@
           <li><strong>AMM core</strong> — Factory, Router, and Pairs generate fees (a Uniswap-V2-style constant-product exchange).</li>
           <li><strong>Game layer</strong> — TimbPrize, GameRegistry, TimbYieldVault, and PrizeEscrow run rounds and hold the pot's backing.</li>
           <li><strong>Emissions layer</strong> — Staking, Farm, BoostFarm (deployed, not yet open), and Treasury distribute rewards under the solvency rules above.</li>
-          <li><strong>SwapTables</strong> — a pari-mutuel table game on play-chips with a solvency-capped underwrite and a cross-generation jackpot, sharing the same treasury and telemetry.</li>
         </ul>
         <p>The frontend is a static site — every figure is read live from chain, users hold their own keys (an extension wallet, or an email wallet with a confirmation sheet on every action, authenticator and passkey MFA, and private-key export), and an autonomous keeper settles segments and runs the reward sweep without a human in the loop. Contract addresses are published in the <a href="../docs/#authenticity">Docs address table</a> and the <a href="../source/">published source</a> — verify before you trust any label.</p>
       </section>
