@@ -48,7 +48,7 @@ jobs:
           SUPABASE_SERVICE_KEY:  ${{ secrets.SUPABASE_SERVICE_KEY }}
           TELEGRAM_BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_BOT_USERNAME: SettlerTimbBot
+          TELEGRAM_BOT_USERNAME: TimbSwapTGBot
           REMIND_LEAD_ROUNDS:    ${{ vars.REMIND_LEAD_ROUNDS }}
           SCAN_BACK_ROUNDS:      ${{ vars.RECLAIM_SCAN_BACK_ROUNDS }}
           COMPETE_URL:           https://timbswap.xyz/compete

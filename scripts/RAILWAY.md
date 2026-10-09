@@ -32,7 +32,7 @@ One service per keeper. **Never run two settlers.**
 | `settler` | settler.yml | `ARB_SEPOLIA_RPC`, `SETTLER_PRIVATE_KEY`, `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`, `X_POST_MODE=all`, optional `X_HASHTAGS`, `X_HASHTAGS_WINNER`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_CHAT_ID_PUBLIC`, `TELEGRAM_OPS_MODE` |
 | `faucet` | faucet.yml | `ARB_SEPOLIA_RPC`, `FAUCET_DISPATCHER_PRIVATE_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, optional `FAUCET_DRAIN_LIMIT`, `FAUCET_POLL_SECONDS`, `FAUCET_LINGER_MINUTES`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 | `points-scorer` | points-scorer.yml | `ARB_SEPOLIA_RPC`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, optional `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
-| `match-notifier` | match-notifier.yml | `ARB_SEPOLIA_RPC`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME=SettlerTimbBot`, optional `TELEGRAM_CHAT_ID` |
+| `match-notifier` | match-notifier.yml | `ARB_SEPOLIA_RPC`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME=TimbSwapTGBot`, optional `TELEGRAM_CHAT_ID` |
 | `reclaim-reminder` | reclaim-reminder.yml | same as match-notifier |
 | `settler-liveness` | settler-liveness.yml | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `LIVENESS_RPC` (defaults to the public read RPC in `config.js`), `SETTLER_OVERDUE_MIN`, `SETTLER_REALERT_MIN`, `TELEGRAM_OPS_MODE` |
 
@@ -94,3 +94,18 @@ workflows are untouched, but every scheduled keeper job is gated on the repo
 variable `KEEPERS_HOST` and skips unless it is set to `actions`. To move a
 keeper back, stop its Railway service first, then set the variable. Never run
 both hosts at once: pick one host per keeper.
+
+## Telegram bots (since 2026-10-09)
+
+Three bots, so a flag or ban on one does not silence the rest. A bot can only
+DM users who started it, so the Compete opt-in button, the `/start` webhook
+and the two DM keepers must share one token, and subscribers collected under
+an earlier bot have to opt in again after a change.
+
+| Bot | Username | Carries | Where the token lives |
+|---|---|---|---|
+| Settler | unchanged | settler ops alerts, public round rollovers, settler-liveness, dead-man, epoch and recon alerts, points-scorer | `settler`, `settler-liveness`, and every keeper not listed below |
+| PSA | `@TimbSwapPSABot` | faucet alerts, waitlist alerts | `faucet` service; `waitlist` edge function |
+| Alerts | `@TimbSwapTGBot` | player DMs: the Compete "Remind me on Telegram" deep link, the `/start` webhook, first-letter match and pre-forfeit refund reminders | `match-notifier` and `reclaim-reminder` (with `TELEGRAM_BOT_USERNAME=TimbSwapTGBot`); `telegram-webhook` edge function, then re-run `setWebhook` with this token and the existing `TELEGRAM_WEBHOOK_SECRET` |
+
+Ops chat id (`TELEGRAM_CHAT_ID`) for the deployer account: `8832338301`.
