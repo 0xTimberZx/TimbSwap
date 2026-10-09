@@ -1162,7 +1162,7 @@ function renderTicketRow(t, displayStatus, opts) {
 }
 
 // Opt-in Telegram reminders: deep-link the connected wallet to the bot
-// (t.me/SettlerTimbBot?start=<wallet>). The bot stores the wallet↔chat link and
+// (t.me/TimbSwapTGBot?start=<wallet>, the Alerts bot). The bot stores the wallet↔chat link and
 // the workers DM first-letter matches + pre-forfeit refund reminders. Shown only
 // while connected; a wallet address is public, so the raw address in the link is
 // fine (it's within Telegram's start-param charset + length).
@@ -1171,7 +1171,7 @@ function updateRemindButton() {
   const note = document.getElementById("tg-remind-note");
   if (!btn) return;
   if (userAddress) {
-    btn.href = `https://t.me/SettlerTimbBot?start=${userAddress.toLowerCase()}`;
+    btn.href = `https://t.me/TimbSwapTGBot?start=${userAddress.toLowerCase()}`;
     btn.classList.remove("hidden");
     if (note) note.classList.remove("hidden");
   } else {

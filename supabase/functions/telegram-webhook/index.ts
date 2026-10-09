@@ -21,7 +21,8 @@
 // request without the matching secret, so only Telegram can drive this.
 //
 // Secrets (Supabase → Project Settings → Edge Functions):
-//   TELEGRAM_BOT_TOKEN          the bot (same token the settler/faucet send with)
+//   TELEGRAM_BOT_TOKEN          the Alerts bot, @TimbSwapTGBot (the same token
+//                               match-notifier and reclaim-reminder send with)
 //   TELEGRAM_WEBHOOK_SECRET     random string; also passed to setWebhook
 //   SUPABASE_URL                (auto-injected)
 //   SUPABASE_SERVICE_ROLE_KEY   (auto-injected) — bypasses RLS
