@@ -17,7 +17,10 @@
 //   WAITLIST_PROXY_SECRET       optional; if set, only requests carrying the matching
 //                               X-Proxy-Secret header are accepted (keeps the public
 //                               function from being spammed directly)
-//   TELEGRAM_BOT_TOKEN          optional; same bot as the settler / faucet
+//   WAITLIST_TG_BOT_TOKEN       optional; the PSA bot (@TimbSwapPSABot). Edge-function
+//                               secrets are project-wide, and TELEGRAM_BOT_TOKEN is the
+//                               Alerts bot that telegram-webhook needs, so this one has
+//                               its own name. Falls back to TELEGRAM_BOT_TOKEN if unset.
 //   WAITLIST_TG_CHAT_ID         optional; a private founder chat that gets a ping per new signup
 //   RESEND_API_KEY              optional; if set, a confirmation email is sent per NEW signup
 //   WAITLIST_FROM               optional; sender, default "TimbSwap <hello@timbswap.xyz>"
@@ -38,7 +41,7 @@ const SB_URL       = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE   = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const IP_SALT      = Deno.env.get("WAITLIST_IP_SALT") ?? "timbswap-waitlist";
 const PROXY_SECRET = Deno.env.get("WAITLIST_PROXY_SECRET") ?? "";
-const TG_TOKEN     = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+const TG_TOKEN     = Deno.env.get("WAITLIST_TG_BOT_TOKEN") ?? Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const TG_CHAT      = Deno.env.get("WAITLIST_TG_CHAT_ID") ?? "";
 // Secrets pasted from a phone often arrive wrapped in smart quotes or with stray
 // whitespace; a non-ASCII byte in the Authorization header makes fetch() throw
