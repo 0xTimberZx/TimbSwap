@@ -214,8 +214,8 @@
       <div class="nc-body">
         <div class="nc-headline">A prize round is running right now — you're one wallet away from playing.</div>
         <div class="nc-sub">Six letters lock in, one per hour, pushed upward by real trades. Match all six with
-          your ticket and the pot pays out. Your entry deposit stays refundable — and <span data-net="sepolia">it's all free testnet money</span><span data-net="mainnet">the deposit is refundable</span>,
-          so trying it costs nothing.</div>
+          your ticket and the pot pays out. Your deposit stays yours while the ticket plays: claim it back within four rounds of your last one, or it lapses.
+          <span data-net="sepolia">It's all free testnet money, so trying it costs nothing.</span><span data-net="mainnet">Claimed in time, a ticket with no extra rounds costs only gas.</span></div>
         <div class="nc-stats" id="nc-stats"></div>
       </div>
       <div class="nc-actions">
@@ -236,7 +236,7 @@
       <div class="compete-card">
         <h2 class="card-title">Set Your Entry</h2>
         <p class="card-sub">6 characters · A–Z and 0–9 · No repeats · Plays <span id="entry-plays-round">next round</span></p>
-        <p class="card-sub card-sub-yield">Choose an asset to back your ticket — it stays yours, and while the ticket's active it earns yield for the pot.</p>
+        <p class="card-sub card-sub-yield">Choose an asset to back your ticket. The deposit stays yours while the ticket plays (claim it back within four rounds of its last), and while active it earns yield for the pot.</p>
 
         <input
           id="entry-string"
@@ -305,7 +305,7 @@
         <div class="how-step"><span class="how-num">2</span><span>Each round has 6 segments. Every eligible swap nudges the active segment's digit upward.</span></div>
         <div class="how-step"><span class="how-num">3</span><span>When a segment ends, its character locks — randomized within its type (a letter stays a letter, a number stays a number), so you can aim the class but not the exact character. The next segment becomes active.</span></div>
         <div class="how-step"><span class="how-num">4</span><span>After all 6 segments, the 6 locked digits form the winning string. Exact match wins the pot.</span></div>
-        <div class="how-step"><span class="how-num">5</span><span>Your ticket principal stays withdrawable for 4 rounds after your last eligible round; while active it earns yield that grows the pot. Winners claim their prize within 2 rounds of the match — a missed prize recycles into the pot, your principal stays yours, and if you win near the end your refund window starts after your claim window closes. Replacing a ticket concedes the old one; its principal carries to the new ticket.</span></div>
+        <div class="how-step"><span class="how-num">5</span><span>Your ticket principal stays withdrawable for 4 rounds after your last eligible round; while active it earns yield that grows the pot. Winners claim their prize within 2 rounds of the match — a missed prize recycles into the pot, and if you win near the end your refund window starts after your claim window closes. A deposit left unclaimed past its window lapses: 70% of an ETH deposit goes to the live pot and 30% to the treasury; a TIMBS deposit goes to the treasury. Extra rounds are paid in TIMBS and are not refundable. Replacing a ticket concedes the old one; its principal carries to the new ticket.</span></div>
         <p class="how-note">Every step above — settling, recording, paying — is executed by <strong>open-source, permissionless smart contracts</strong>. Anyone can trigger settlement; no operator touches the funds.</p>
       </div>
 
@@ -385,7 +385,7 @@
         </div>
       </div>
 
-      <div class="howto-foot">Free to play. <strong>What you put in stays yours.</strong></div>
+      <div class="howto-foot"><span data-net="sepolia">Free to play. </span><strong>Your playing deposit stays yours</strong> — claim it back within four rounds of your last one.</div>
 
       <label class="howto-rotate">
         <span>Revolve banner?</span>
