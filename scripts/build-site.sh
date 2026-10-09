@@ -51,6 +51,8 @@ if [ "$net" = mainnet ]; then
   find "$stage" -name '*.html' -print0 | xargs -0 sed -i \
     -e '/<meta\|<title/ s/get free testnet gas and tokens, then play. Free on Arbitrum Sepolia testnet./get a little ETH, pick a ticket, then play. Capped beta on Arbitrum One./g' \
     -e '/<meta\|<title/ s/Free to try on Arbitrum testnet./Play the capped beta on Arbitrum One./g' \
+    -e '/<meta\|<title/ s/Free on Arbitrum Sepolia testnet — add the network, get test gas + tokens, play./Capped beta on Arbitrum One — add the network, get a little ETH, pick a ticket, play./g' \
+    -e '/<meta\|<title/ s/Play your first round in minutes. Free on Arbitrum Sepolia testnet./Play your first round in minutes. Capped beta on Arbitrum One./g' \
     -e '/<meta\|<title/ s/on the Arbitrum Sepolia testnet DEX/on Arbitrum One/g' \
     -e '/<meta\|<title/ s/Arbitrum Sepolia testnet/Arbitrum One/g' \
     -e '/<meta\|<title/ s/on Arbitrum Sepolia/on Arbitrum One/g' \
