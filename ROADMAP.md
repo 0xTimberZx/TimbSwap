@@ -13,9 +13,6 @@ The full incentive engine runs end-to-end, unattended.
 - **AMM core** — Factory, Router (v8), pairs; ETH auto-wrapping; add/remove liquidity.
 - **Prize game** — round-based, permissionless settlement, generation epochs, yield-funded pot,
   4-round principal refund window, 2-round claim window, block-hash jitter.
-- **SwapTables** — pari-mutuel roulette on play-chips, seven pools a table, graduated rake,
-  monotonic underwrite from a solvency-capped reserve, and a cross-generation rolling jackpot.
-  Nine board generations shipped; contracts verified `exact_match` on Sourcify.
 - **Emissions** — single-asset TIMBS staking and the TIMBS/ETH LP farm on the epoch waterfall with a
   99% solvency stop and self-retargeting rates. **Boosted farms** are deployed but deferred until the
   airdrop launch campaign ends (the boost leg is not drawn until then); pool creation stays permissionless.
