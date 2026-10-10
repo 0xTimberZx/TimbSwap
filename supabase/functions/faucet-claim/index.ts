@@ -22,7 +22,8 @@
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY   (auto-injected) — bypasses RLS
 //   FAUCET_RPC_URL             Arbitrum Sepolia RPC (read-only eligibility calls);
 //                              tried first, then the public Sepolia nodes below
-//   FAUCET_CHAIN_ID            optional; default 421614 (Arbitrum Sepolia)
+//   FAUCET_CHAIN_ID            optional; default 421614 (Arbitrum Sepolia). 42161 for
+//                              the mainnet beta: the fallbacks follow the chain.
 //   GAME_REGISTRY_ADDR         GameRegistry on Sepolia (eligibility oracle)
 //   TIMB_YIELD_VAULT_ADDR      TimbYieldVault on Sepolia (weightOf soft-check)
 //   TURNSTILE_SECRET           Cloudflare Turnstile secret key
@@ -67,16 +68,24 @@ const YIELD_ABI = [
 
 const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
 
-// RPC: the keyed FAUCET_RPC_URL first, then the public Arbitrum Sepolia nodes
-// (same list as config.js PUBLIC_RPCS). A revoked key or a dead node used to
-// 502 every claim for weeks; now it costs one failed attempt per request.
-const FALLBACK_RPCS = [
-  "https://sepolia-rollup.arbitrum.io/rpc",
-  "https://arbitrum-sepolia-rpc.publicnode.com",
-  "https://arbitrum-sepolia.drpc.org",
-  "https://arbitrum-sepolia.gateway.tenderly.co",
-];
-const RPC_URLS = [RPC_URL, ...FALLBACK_RPCS].filter((u, i, a) => u && a.indexOf(u) === i);
+// RPC: the keyed FAUCET_RPC_URL first, then the public nodes for the pinned
+// chain (the same lists as config.js PUBLIC_RPCS and config.mainnet.js). A
+// revoked key or a dead node used to 502 every claim for weeks; now it costs
+// one failed attempt per request.
+const FALLBACK_RPCS: Record<number, string[]> = {
+  421614: [
+    "https://sepolia-rollup.arbitrum.io/rpc",
+    "https://arbitrum-sepolia-rpc.publicnode.com",
+    "https://arbitrum-sepolia.drpc.org",
+    "https://arbitrum-sepolia.gateway.tenderly.co",
+  ],
+  42161: [
+    "https://arb1.arbitrum.io/rpc",
+    "https://arbitrum-one-rpc.publicnode.com",
+    "https://arbitrum.drpc.org",
+  ],
+};
+const RPC_URLS = [RPC_URL, ...(FALLBACK_RPCS[CHAIN_ID] ?? [])].filter((u, i, a) => u && a.indexOf(u) === i);
 const RPC_TIMEOUT_MS = 8_000;
 
 function hostOf(url: string): string {
