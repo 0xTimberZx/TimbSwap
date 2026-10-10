@@ -20,7 +20,9 @@
 //
 // Secrets (Supabase → Project Settings → Edge Functions):
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY   (auto-injected) — bypasses RLS
-//   FAUCET_RPC_URL             Arbitrum Sepolia RPC (read-only eligibility calls)
+//   FAUCET_RPC_URL             Arbitrum Sepolia RPC (read-only eligibility calls);
+//                              tried first, then the public Sepolia nodes below
+//   FAUCET_CHAIN_ID            optional; default 421614 (Arbitrum Sepolia)
 //   GAME_REGISTRY_ADDR         GameRegistry on Sepolia (eligibility oracle)
 //   TIMB_YIELD_VAULT_ADDR      TimbYieldVault on Sepolia (weightOf soft-check)
 //   TURNSTILE_SECRET           Cloudflare Turnstile secret key
@@ -38,6 +40,7 @@ import { ethers } from "https://esm.sh/ethers@6.13.4";
 const SB_URL        = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RPC_URL       = Deno.env.get("FAUCET_RPC_URL") ?? "";
+const CHAIN_ID      = Number(Deno.env.get("FAUCET_CHAIN_ID") ?? "421614");
 const REGISTRY_ADDR = Deno.env.get("GAME_REGISTRY_ADDR") ?? "";
 const YIELD_ADDR    = Deno.env.get("TIMB_YIELD_VAULT_ADDR") ?? "";
 const TS_SECRET     = Deno.env.get("TURNSTILE_SECRET") ?? "";
@@ -63,6 +66,61 @@ const YIELD_ABI = [
 ];
 
 const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
+
+// RPC: the keyed FAUCET_RPC_URL first, then the public Arbitrum Sepolia nodes
+// (same list as config.js PUBLIC_RPCS). A revoked key or a dead node used to
+// 502 every claim for weeks; now it costs one failed attempt per request.
+const FALLBACK_RPCS = [
+  "https://sepolia-rollup.arbitrum.io/rpc",
+  "https://arbitrum-sepolia-rpc.publicnode.com",
+  "https://arbitrum-sepolia.drpc.org",
+  "https://arbitrum-sepolia.gateway.tenderly.co",
+];
+const RPC_URLS = [RPC_URL, ...FALLBACK_RPCS].filter((u, i, a) => u && a.indexOf(u) === i);
+const RPC_TIMEOUT_MS = 8_000;
+
+function hostOf(url: string): string {
+  try { return new URL(url).host; } catch { return "?"; }
+}
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: number | undefined;
+  const timeout = new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error(`timeout after ${ms}ms`)), ms); });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(t)) as Promise<T>;
+}
+
+// Reads the eligibility state for `address`, trying each RPC in order. The
+// network is pinned (staticNetwork) so a dead endpoint fails on its first call
+// instead of looping in ethers' detect-network retry. Throws only when every
+// endpoint failed.
+async function readEligibility(address: string): Promise<{ ticketId: bigint; status: bigint; weight: bigint }> {
+  const net = ethers.Network.from(CHAIN_ID);
+  let lastErr: unknown = null;
+  for (const url of RPC_URLS) {
+    const provider = new ethers.JsonRpcProvider(url, net, { staticNetwork: net });
+    try {
+      const registry = new ethers.Contract(REGISTRY_ADDR, REGISTRY_ABI, provider);
+      const ticketId: bigint = await withTimeout(registry.activeTicketOf(address), RPC_TIMEOUT_MS);
+      let status = 0n;
+      if (ticketId !== 0n) status = BigInt(await withTimeout(registry.effectiveStatus(ticketId), RPC_TIMEOUT_MS));
+      // Soft observability weight — never blocks a claim.
+      let weight = 0n;
+      if (YIELD_ADDR && ticketId !== 0n) {
+        try {
+          const vault = new ethers.Contract(YIELD_ADDR, YIELD_ABI, provider);
+          weight = await withTimeout(vault.weightOf(ticketId), RPC_TIMEOUT_MS);
+        } catch (_e) { weight = 0n; }
+      }
+      if (url !== RPC_URL) console.warn(`faucet-claim: primary RPC failed, served by ${hostOf(url)}`);
+      return { ticketId, status, weight };
+    } catch (e) {
+      lastErr = e;
+      console.error(`faucet-claim: rpc ${hostOf(url)} failed: ${String((e as Error)?.message ?? e).slice(0, 200)}`);
+    } finally {
+      try { provider.destroy(); } catch (_e) { /* ignore */ }
+    }
+  }
+  throw lastErr ?? new Error("no RPC configured");
+}
 
 function cors(origin: string) {
   const allowed = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://timbswap.xyz";
@@ -109,7 +167,7 @@ Deno.serve(async (req) => {
   if (PROXY_SECRET && req.headers.get("X-Proxy-Secret") !== PROXY_SECRET) {
     return json({ ok: false, error: "forbidden" }, 401, origin);
   }
-  if (!RPC_URL || !REGISTRY_ADDR) {
+  if (!REGISTRY_ADDR) {
     return json({ ok: false, error: "Faucet is not configured yet." }, 503, origin);
   }
 
@@ -135,24 +193,17 @@ Deno.serve(async (req) => {
   let ticketId: bigint;
   let weight = 0n;
   try {
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    const registry = new ethers.Contract(REGISTRY_ADDR, REGISTRY_ABI, provider);
-    ticketId = await registry.activeTicketOf(address);
+    const read = await readEligibility(address);
+    ticketId = read.ticketId;
+    weight = read.weight;
     if (ticketId === 0n) {
       return json({ ok: false, error: "No active ticket for this address. Enter a round first." }, 403, origin);
     }
-    const status: bigint = BigInt(await registry.effectiveStatus(ticketId));
-    if (status !== TICKET_ACTIVE) {
+    if (read.status !== TICKET_ACTIVE) {
       return json({ ok: false, error: "Your ticket isn't Active right now." }, 403, origin);
     }
-    // Soft observability weight — never blocks a claim.
-    if (YIELD_ADDR) {
-      try {
-        const vault = new ethers.Contract(YIELD_ADDR, YIELD_ABI, provider);
-        weight = await vault.weightOf(ticketId);
-      } catch (_e) { weight = 0n; }
-    }
-  } catch (_e) {
+  } catch (e) {
+    console.error(`faucet-claim: every RPC failed: ${String((e as Error)?.message ?? e).slice(0, 200)}`);
     return json({ ok: false, error: "Couldn't read the chain just now — try again shortly." }, 502, origin);
   }
 
