@@ -6,6 +6,9 @@
 // TIMB on Arbitrum One via TimbAirdropDistributor.distribute() — then resolves
 // each row. Eligibility was already enforced on testnet by faucet-claim; here the
 // contract's claimed[round][recipient] + caps are the on-chain backstop.
+// TS-047: the contract only accepts its owner-set currentRound; a row whose
+// round is stale or wrong fails the estimateGas pre-check (WrongRound) and is
+// marked failed rather than paid under another label.
 //
 // One distribute() tx per round per run (bounded batch), so nonce handling is
 // trivial and an edge-function time limit is never a risk. Cron re-fires to drain.

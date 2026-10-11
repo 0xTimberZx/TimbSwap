@@ -81,12 +81,60 @@ contract TimbAirdropDistributorTest is Test {
     }
 
     function test_DifferentRound_AllowsAgain() public {
-        vm.startPrank(dispatcher);
+        vm.prank(dispatcher);
         d.distribute(_batch(alice), 1);
+        d.advanceRound();                                    // owner opens round 2
+        vm.prank(dispatcher);
         d.distribute(_batch(alice), 2);
-        vm.stopPrank();
         assertEq(timbs.balanceOf(alice), 2 * AMOUNT);
         assertTrue(d.isClaimed(2, alice));
+    }
+
+    // ─── TS-047: the round label is owner-set, not caller-chosen ─────────────────
+
+    function test_TS047_RelabelledRoundReverts() public {
+        vm.startPrank(dispatcher);
+        d.distribute(_batch(alice), 1);
+        // Same address, fresh label, no owner action: must NOT pay again.
+        vm.expectRevert(abi.encodeWithSelector(TimbAirdropDistributor.WrongRound.selector, uint256(2), uint256(1)));
+        d.distribute(_batch(alice), 2);
+        // A stale label is refused too.
+        vm.expectRevert(abi.encodeWithSelector(TimbAirdropDistributor.WrongRound.selector, uint256(0), uint256(1)));
+        d.distribute(_batch(bob), 0);
+        vm.stopPrank();
+        assertEq(timbs.balanceOf(alice), AMOUNT, "paid exactly once");
+        assertFalse(d.isClaimed(2, alice), "no flag under a label the owner never opened");
+    }
+
+    function test_TS047_AdvanceRoundIsOwnerOnlyAndMonotonic() public {
+        vm.prank(dispatcher);
+        vm.expectRevert();
+        d.advanceRound();
+        vm.prank(rando);
+        vm.expectRevert();
+        d.advanceRound();
+        assertEq(d.currentRound(), 1);
+        d.advanceRound();
+        d.advanceRound();
+        assertEq(d.currentRound(), 3, "one step per call");
+        // The old label is closed for good once advanced past.
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(TimbAirdropDistributor.WrongRound.selector, uint256(1), uint256(3)));
+        d.distribute(_batch(alice), 1);
+    }
+
+    function test_TS047_FloatCannotBeRelabelledToOneAddress() public {
+        // Live-shaped config: per-round cap == total cap, float below both.
+        d.setTotalCap(FLOAT);
+        d.setPerRoundCap(FLOAT);
+        vm.startPrank(dispatcher);
+        d.distribute(_batch(alice), 1);
+        for (uint256 r = 2; r <= 5; r++) {
+            vm.expectRevert(abi.encodeWithSelector(TimbAirdropDistributor.WrongRound.selector, r, uint256(1)));
+            d.distribute(_batch(alice), r);
+        }
+        vm.stopPrank();
+        assertEq(timbs.balanceOf(alice), AMOUNT, "one campaign, one payment");
     }
 
     // ─── Caps ────────────────────────────────────────────────────────────────────
@@ -103,16 +151,19 @@ contract TimbAirdropDistributorTest is Test {
     function test_TotalCap_Reverts() public {
         // Fill 5e18 in round 1 and 5e18 in round 2 = 10e18 (= totalCap), then a
         // 3rd round of any size must breach totalCap (remaining 0).
-        vm.startPrank(dispatcher);
         address[] memory five1 = new address[](5);
         address[] memory five2 = new address[](5);
         for (uint256 i = 0; i < 5; i++) { five1[i] = address(uint160(0x2000 + i)); five2[i] = address(uint160(0x3000 + i)); }
+        vm.prank(dispatcher);
         d.distribute(five1, 1);
+        d.advanceRound();
+        vm.prank(dispatcher);
         d.distribute(five2, 2);
         assertEq(d.totalDistributed(), TOTAL_CAP);
+        d.advanceRound();
+        vm.prank(dispatcher);
         vm.expectRevert(abi.encodeWithSelector(TimbAirdropDistributor.TotalCapExceeded.selector, AMOUNT, uint256(0)));
         d.distribute(_batch(alice), 3);
-        vm.stopPrank();
     }
 
     // ─── Access control + pause ────────────────────────────────────────────────────
