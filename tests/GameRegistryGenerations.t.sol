@@ -11,6 +11,19 @@ contract MockTimbsGen is ERC20 {
     constructor() ERC20("Mock TIMBS", "TIMBS") { _mint(msg.sender, 1_000_000e18); }
 }
 
+/// @dev TS-046: records every registry → vault call so the tests can assert
+///      which generation bumps retired the prior weight.
+contract RecordingVault is ITimbYieldVaultRegistry {
+    uint256 public registers;
+    uint256 public removes;
+    uint256 public epochs;
+    bool    public broken;
+    function setBroken(bool b) external { broken = b; }
+    function register(uint256, address, uint256) external { registers += 1; }
+    function remove(uint256) external { removes += 1; }
+    function newEpoch() external { if (broken) revert("vault down"); epochs += 1; }
+}
+
 /**
  * @title GameRegistryGenerationsTest
  * @notice Game-generation epochs (GameRegistry v4) — cross-game round-collision
@@ -251,5 +264,41 @@ contract GameRegistryGenerationsTest is Test {
         vm.prank(player);
         vm.expectRevert();
         registry.retireGame();
+    }
+
+    // ─── TS-046: retireGame must retire the vault weight like onGameStarted ──
+
+    function test_TS046_RetireGameRetiresVaultWeight() public {
+        RecordingVault vault = new RecordingVault();
+        registry.setYieldVault(address(vault));
+        _submitETH(player, STR_A);                           // gen-1 ticket, plays round 2
+        _activate(player, 2);                                // weight goes live here
+        assertEq(vault.registers(), 1, "ticket weight registered");
+        assertEq(vault.epochs(), 0, "no epoch yet");
+        registry.retireGame();
+        assertEq(vault.epochs(), 1, "retire bumped the vault epoch");
+        registry.retireGame();                               // idempotent: no second epoch
+        assertEq(vault.epochs(), 1, "second retire is a no-op for the vault");
+    }
+
+    function test_TS046_EveryGenerationBumpRetiresWeight() public {
+        RecordingVault vault = new RecordingVault();
+        registry.setYieldVault(address(vault));
+        registry.onGameStarted();                            // gen 2
+        assertEq(vault.epochs(), 1, "onGameStarted retires");
+        registry.onGameStarted();                            // gen 3
+        assertEq(vault.epochs(), 2, "every start retires");
+        registry.retireGame();                               // gen 4
+        assertEq(vault.epochs(), 3, "retire retires too");
+        assertEq(registry.generation(), 4, "one bump per site");
+    }
+
+    function test_TS046_RetireSurvivesBrokenVault() public {
+        RecordingVault vault = new RecordingVault();
+        registry.setYieldVault(address(vault));
+        vault.setBroken(true);
+        registry.retireGame();                               // fenced: must not brick
+        assertTrue(registry.retired(), "retired despite vault revert");
+        assertEq(vault.epochs(), 0, "no epoch recorded");
     }
 }

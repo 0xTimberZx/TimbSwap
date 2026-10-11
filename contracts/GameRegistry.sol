@@ -1112,6 +1112,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         retired = true;
         generation += 1;
         _resetPricingMeters();
+        _retirePriorGenerationWeight(); // TS-046
         emit GameRetired(generation);
     }
 
@@ -1129,16 +1130,23 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         }
         currentRound = 1;
 
-        // TS-014: retire the prior generation's yield weight in one step —
-        // abandoned tickets must not keep drawing on the vault reserve.
-        // Fenced like every other vault call so the game never bricks on it.
+        _retirePriorGenerationWeight(); // TS-014 / TS-046
+
+        emit GenerationStarted(generation);
+        emit CurrentRoundUpdated(1);
+    }
+
+    /// @dev TS-014 / TS-046: retire the prior generation's yield weight in one
+    ///      step — abandoned tickets must not keep drawing on the vault reserve.
+    ///      Called from every site that bumps `generation` (onGameStarted and
+    ///      retireGame) so a retired registry does not leave the last
+    ///      generation's weight live in the vault. Fenced like every other
+    ///      vault call so the game never bricks on it.
+    function _retirePriorGenerationWeight() internal {
         if (yieldVault != address(0)) {
             try ITimbYieldVaultRegistry(yieldVault).newEpoch() {}
             catch { emit WeightRemoveFailed(0); }
         }
-
-        emit GenerationStarted(generation);
-        emit CurrentRoundUpdated(1);
     }
 
     /// @dev Reset the dynamic-pricing meters for a fresh generation. Prior-game
