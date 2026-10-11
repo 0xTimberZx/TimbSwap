@@ -19,9 +19,16 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  *           - **Double-send is impossible.** `claimed[round][recipient]` is a
  *             one-way flag; a second `distribute` for the same (round, recipient)
  *             reverts. Even a buggy dispatcher or a wrong DB cannot pay twice.
+ *             TS-047: the round is NOT caller-chosen — `distribute` only accepts
+ *             the owner-set `currentRound`, which moves forward one step at a
+ *             time via `advanceRound()`. A queue row carrying any other label
+ *             reverts instead of opening a fresh flag, so "once per round" means
+ *             once per campaign the owner has actually opened.
  *           - **Bounded blast radius.** `totalCap` and `perRoundCap` are hard
  *             ceilings; the float is pre-funded and small. A leaked dispatcher key
  *             can drain at most the remaining cap / balance, not mint or exceed it.
+ *             Fund the float and set `perRoundCap` per campaign (below the float)
+ *             so the per-round ceiling actually binds before the total one.
  *           - **A fast stop.** `paused` (owner or guardian) halts all sends.
  *
  *         Fixed `amountPerClaim` per recipient — the dispatcher chooses WHO, never
@@ -44,6 +51,9 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
 
     uint256 public totalDistributed;
     mapping(uint256 => uint256) public roundDistributed;
+    /// @notice TS-047: the only round `distribute` accepts. Starts at 1 and only
+    ///         ever moves forward via `advanceRound()`.
+    uint256 public currentRound = 1;
     /// @notice One-way: (round, recipient) => already paid. The impossibility of a
     ///         double-send lives here.
     mapping(uint256 => mapping(address => bool)) public claimed;
@@ -61,6 +71,7 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
     event DispatcherSet(address indexed dispatcher);
     event GuardianSet(address indexed guardian);
     event PausedSet(bool paused);
+    event RoundAdvanced(uint256 round);
     event Recovered(address indexed to, uint256 amount);
 
     error ZeroAddress();
@@ -72,6 +83,7 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
     error AlreadyClaimed(uint256 round, address recipient);
     error TotalCapExceeded(uint256 requested, uint256 remaining);
     error RoundCapExceeded(uint256 requested, uint256 remaining);
+    error WrongRound(uint256 supplied, uint256 current);
 
     modifier onlyDispatcher() {
         if (msg.sender != dispatcher && msg.sender != owner()) revert NotDispatcher();
@@ -102,7 +114,10 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
 
     /**
      * @notice Send `amountPerClaim` TIMB to each recipient not yet paid in `round`.
-     * @dev All-or-nothing: reverts on the first already-claimed recipient or the
+     * @dev `round` must equal `currentRound` (TS-047); it is kept as a parameter
+     *      so a queue row labelled with a stale or wrong round reverts rather than
+     *      being silently paid under the open one.
+     *      All-or-nothing: reverts on the first already-claimed recipient or the
      *      first that would breach a cap, so the dispatcher pre-filters against
      *      `claimed()` + remaining cap and a confirmed tx means EVERY recipient in
      *      the batch was paid exactly once. Recipients must be unique within the
@@ -114,6 +129,7 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
         onlyDispatcher
     {
         if (paused) revert Paused();
+        if (round != currentRound) revert WrongRound(round, currentRound);
         uint256 n = recipients.length;
         if (n == 0) revert EmptyBatch();
         uint256 amount = amountPerClaim;
@@ -179,6 +195,14 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
     function setPerRoundCap(uint256 _cap) external onlyOwner {
         perRoundCap = _cap;
         emit PerRoundCapSet(_cap);
+    }
+
+    /// @notice TS-047: open the next campaign round. Monotonic, owner-only; the
+    ///         dispatcher cannot pick or reuse a label. Size `perRoundCap` for the
+    ///         new round before (or right after) advancing.
+    function advanceRound() external onlyOwner {
+        currentRound += 1;
+        emit RoundAdvanced(currentRound);
     }
 
     function setDispatcher(address _dispatcher) external onlyOwner {
