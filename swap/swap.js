@@ -1581,8 +1581,25 @@ async function handleRemoveLiquidity() {
     const router = await writeContract(ADDRESSES.TimbSwapRouter, ROUTER_ABI);
     const deadline = Math.floor(Date.now() / 1000) + 1200;
     const gas = await getGasParams(); const nonce = await getPendingNonce();
-    // amountAMin/amountBMin 0 — acceptable on testnet; the burn returns the pro-rata share.
-    const tx = await router.removeLiquidity(tokenIn.address, tokenOut.address, liquidity, 0, 0, userAddress, deadline, { ...gas, nonce });
+    // TS-036: the preview is a quote, not a guarantee. Re-derive the pro-rata
+    // payout from LIVE reserves at submit and apply the user's slippage
+    // tolerance as the minimums, exactly as handleAddLiquidity does — a zero
+    // minimum let a sandwich deliver less than the preview with no revert.
+    let aMin = ethers.constants.Zero, bMin = ethers.constants.Zero;
+    try {
+      const reader = new ethers.Contract(ADDRESSES.TimbSwapRouter, ROUTER_ABI, readProviderForEligibility());
+      const [rA, rB] = await reader.getReserves(tokenIn.address, tokenOut.address);
+      const supply = await lp.totalSupply();
+      if (supply.gt(0)) {
+        const slip = Math.floor((100 - slippagePct) * 100);
+        aMin = liquidity.mul(rA).div(supply).mul(slip).div(10000);
+        bMin = liquidity.mul(rB).div(supply).mul(slip).div(10000);
+      }
+    } catch (e) {
+      DebugHub.logError("handleRemoveLiquidity:quote", e);
+      throw new Error("Could not quote the live pool for slippage protection. Try again.");
+    }
+    const tx = await router.removeLiquidity(tokenIn.address, tokenOut.address, liquidity, aMin, bMin, userAddress, deadline, { ...gas, nonce });
     await confirmTx(tx);
     DebugHub.logCheckpoint("Liquidity Remove Confirmed", "pass");
 
