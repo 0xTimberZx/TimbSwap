@@ -248,7 +248,7 @@
         <h2>Compete — the Prize Scroll</h2>
         <p>The <a href="../compete/">Compete</a> page is an on-chain game. A shared meter (the “scroll”) advances as players <strong>nudge</strong> it; when a round settles, entrants split the pot.</p>
         <ul>
-          <li><strong>Nudging by swapping.</strong> An eligible swap advances the scroll by a set weight. Eligibility is checked on the <em>input</em> token — trading an eligible token forward feeds the meter and the fee/burn loop.</li>
+          <li><strong>Nudging by swapping.</strong> An eligible swap advances the scroll by a set weight. The swap must start from an eligible <em>input</em> token, clear that token's minimum size, and go through a pool the protocol has designated for nudging — so trading forward in a real pool feeds the meter and the fee/burn loop, and a pool you made yourself does not.</li>
           <li><strong>Free nudges.</strong> You can also advance the scroll directly (gas only), capped per wallet per segment so no one can dominate the meter for free. Paid swap-nudges aren't capped because they cost fees.</li>
           <li><strong>Entries &amp; settlement.</strong> Each round records its entrants; when it settles, the entry count is snapshotted and winners are drawn. Past rounds on the Compete and Analytics pages show the entries recorded at the end of each round.</li>
           <li><strong>One ticket per wallet</strong> per round, with a lineage so you can see and replace a pending entry.</li>

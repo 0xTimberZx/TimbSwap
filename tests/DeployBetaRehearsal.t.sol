@@ -13,6 +13,10 @@ import {GameRegistry} from "../contracts/GameRegistry.sol";
 import {GasFaucet} from "../contracts/GasFaucet.sol";
 import {TimbTreasury} from "../contracts/TimbTreasury.sol";
 
+contract RehearsalERC20 is ERC20 {
+    constructor(string memory n) ERC20(n, n) { _mint(msg.sender, 1e30); }
+}
+
 contract RehearsalWETH is ERC20 {
     constructor() ERC20("Wrapped Ether", "WETH") {}
     function deposit() external payable { _mint(msg.sender, msg.value); }
@@ -43,6 +47,7 @@ contract DeployBetaRehearsalTest is Test {
     TimbSwapFactory factory;
     TimbAirdropDistributor airdrop;
     RehearsalWETH weth;
+    RehearsalERC20 usdc; RehearsalERC20 wbtc; RehearsalERC20 arb;   // TS-052 nudge pairs
 
     function setUp() public {
         deployer = vm.addr(KEY);
@@ -98,6 +103,15 @@ contract DeployBetaRehearsalTest is Test {
         vm.setEnv("STAKING_ADDR", vm.toString(address(game.staking())));
         vm.setEnv("TIMBS_WETH_PAIR", vm.toString(game.timbsEthPair()));
         vm.setEnv("WETH_ADDR", vm.toString(address(weth)));
+        // TS-052: the beta designates WETH/USDC, WBTC/WETH and ARB/WETH as nudge
+        // pairs. USDC and WBTC pairs exist before the run; ARB's is created in
+        // the test, after the script has refused to run without it.
+        usdc = new RehearsalERC20("USDC"); wbtc = new RehearsalERC20("WBTC"); arb = new RehearsalERC20("ARB");
+        factory.createPair(address(weth), address(usdc));
+        factory.createPair(address(wbtc), address(weth));
+        vm.setEnv("USDC_ADDR", vm.toString(address(usdc)));
+        vm.setEnv("WBTC_ADDR", vm.toString(address(wbtc)));
+        vm.setEnv("ARB_ADDR",  vm.toString(address(arb)));
         vm.setEnv("AIRDROP_ADDR", vm.toString(address(airdrop)));
         vm.setEnv("FAUCET_DISPATCHER", vm.toString(DISPATCHER));
         vm.setEnv("EXPECT_OLD_PRIZE", vm.toString(address(game.timbPrize())));
@@ -114,8 +128,14 @@ contract DeployBetaRehearsalTest is Test {
         vm.expectRevert(bytes("PRE-FLIGHT: escrow.timbPrize != EXPECT_OLD_PRIZE"));
         wrong.run();
 
-        // 2. Named correctly, it deploys and wires everything.
+        // 1b. TS-052: a designated nudge pair that does not exist stops the run.
         vm.setEnv("EXPECT_OLD_PRIZE", vm.toString(address(game.timbPrize())));
+        DeployBeta noPair = new DeployBeta();
+        vm.expectRevert(bytes("PRE-FLIGHT: ARB/WETH pair missing, create and seed it first (TS-052)"));
+        noPair.run();
+        factory.createPair(address(arb), address(weth));
+
+        // 2. Named correctly, it deploys and wires everything.
         new DeployBeta().run();
 
         // TS-009: a new router replaces the live one; the old one is paused.
@@ -123,6 +143,11 @@ contract DeployBetaRehearsalTest is Test {
         assertTrue(address(newRouter) != address(router), "factory -> new router");
         assertTrue(router.paused(), "old router paused");
         assertEq(newRouter.minNudgeAmountIn(address(weth)), newRouter.DEFAULT_WETH_NUDGE_FLOOR(), "WETH nudge floor");
+        // TS-052: exactly the three beta pairs are designated; TIMBS/WETH is not.
+        assertTrue(newRouter.nudgePairs(factory.getPairAddress(address(weth), address(usdc))), "WETH/USDC nudge pair");
+        assertTrue(newRouter.nudgePairs(factory.getPairAddress(address(wbtc), address(weth))), "WBTC/WETH nudge pair");
+        assertTrue(newRouter.nudgePairs(factory.getPairAddress(address(arb),  address(weth))), "ARB/WETH nudge pair");
+        assertFalse(newRouter.nudgePairs(game.timbsEthPair()), "TIMBS/WETH waits for TIMBS launch");
         assertEq(newRouter.swapNudgeWeight(), router.swapNudgeWeight(), "nudge weight carried over");
         assertEq(newRouter.freeNudgeCapPerSeg(), router.freeNudgeCapPerSeg(), "free-nudge cap carried over");
 
