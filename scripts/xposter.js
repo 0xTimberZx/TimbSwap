@@ -3,11 +3,10 @@
 //
 // Opt-in and fail-safe by design:
 //   - Silently no-ops unless all four X_* secrets are configured.
-//   - X_POST_MODE: "rollover-declining" (default, mainnet policy decided
-//     2026-10-14) posts only rounds with no winner whose entry count fell
-//     from the round before, so the account speaks up when interest dips and
-//     the pot is carrying over; "all" posts every rollover, "winners" posts
-//     only rounds that paid out, "off" disables without removing secrets.
+//   - X_POST_MODE: "all" (default) posts every rollover, "winners" posts only
+//     rounds that paid out, "rollover-declining" posts only rounds with no
+//     winner whose entry count fell from the round before, "off" disables
+//     without removing secrets.
 //   - X_HASHTAGS / X_HASHTAGS_WINNER: optional trailing hashtag line. Tags are
 //     space/comma separated ("#" added if missing); several "|"-separated
 //     groups rotate by round number so posts aren't byte-identical. Winner
@@ -29,7 +28,7 @@ const X_API_KEY             = process.env.X_API_KEY;
 const X_API_SECRET          = process.env.X_API_SECRET;
 const X_ACCESS_TOKEN        = process.env.X_ACCESS_TOKEN;
 const X_ACCESS_TOKEN_SECRET = process.env.X_ACCESS_TOKEN_SECRET;
-const X_POST_MODE           = (process.env.X_POST_MODE || "rollover-declining").toLowerCase();
+const X_POST_MODE           = (process.env.X_POST_MODE || "all").toLowerCase();
 const X_HASHTAGS            = process.env.X_HASHTAGS        || "";
 const X_HASHTAGS_WINNER     = process.env.X_HASHTAGS_WINNER || "";
 
@@ -148,7 +147,7 @@ function hexPath(ctx, cx, cy, r) {
  * tiles (gold when the round paid out, green otherwise), stats, site URL.
  * Returns a PNG Buffer.
  */
-function renderRoundCard({ round, string6, entries, potEth, winners, carryEth }) {
+function renderRoundCard({ round, string6, entries, potEth, winners }) {
   const { createCanvas, GlobalFonts } = require("@napi-rs/canvas");
   let font = "sans-serif";
   try {
@@ -223,9 +222,7 @@ function renderRoundCard({ round, string6, entries, potEth, winners, carryEth })
   ctx.font = `32px ${font}`;
   const stats = won
     ? `${entries} entries  ·  ${potEth} ETH pot paid out`
-    : carryEth
-      ? `${entries} entries  ·  ${carryEth} ETH rolls into Round #${round + 1}`
-      : `${entries} entries  ·  pot snowballs to Round #${round + 1}`;
+    : `${entries} entries  ·  pot snowballs to Round #${round + 1}`;
   ctx.fillText(stats, W / 2, rowY + 148);
 
   ctx.fillStyle = C.green;
@@ -271,66 +268,45 @@ async function tweet(text, mediaId) {
 // ─── Entry point ───────────────────────────────────────────────────────────────
 
 /**
- * Whether `mode` posts this round. `result.prevEntries` is the previous
- * round's entry count, or null when unknown (round 1, or the read failed);
- * an unknown comparison never counts as a decline.
+ * True when nobody won the round and its entry count fell from the round
+ * before. `result.prevEntries` is the previous round's count, or null when
+ * unknown (round 1, or the read failed); an unknown count never counts as a
+ * decline.
  */
-function shouldPost(mode, result) {
-  const won = result.winners > 0;
-  switch (mode) {
-    case "off":     return false;
-    case "all":     return true;
-    case "winners": return won;
-    case "rollover-declining":
-      return !won
-        && Number.isFinite(result.prevEntries)
-        && result.entries < result.prevEntries;
-    default:        return false; // an unrecognised mode posts nothing rather than everything
-  }
-}
-
-/** Post text (before hashtags) for a settled round. */
-function roundText(result) {
-  if (result.winners > 0) {
-    return `🏆 Round #${result.round} SETTLED — we have ${result.winners === 1 ? "a winner" : result.winners + " winners"}!\n\n` +
-      `Winning string: ${slashZeros(result.string6)}\n${result.entries} entries · ${result.potEth} ETH paid out\n\n` +
-      `A new round is already live → timbswap.xyz/compete`;
-  }
-  const declined = Number.isFinite(result.prevEntries) && result.entries < result.prevEntries;
-  if (result.carryEth && declined) {
-    return `📜 Round #${result.round} settled with no winner. ${result.carryEth} ETH rolls into Round #${result.round + 1}.\n\n` +
-      `Winning string: ${slashZeros(result.string6)}\n` +
-      `Fewer tickets chasing it: ${result.entries} ${result.entries === 1 ? "entry" : "entries"} this round, down from ${result.prevEntries}.\n\n` +
-      `Enter the next round → timbswap.xyz/compete`;
-  }
-  if (result.carryEth) {
-    return `📜 Round #${result.round} settled with no winner. ${result.carryEth} ETH rolls into Round #${result.round + 1}.\n\n` +
-      `Winning string: ${slashZeros(result.string6)} · ${result.entries} entries\n\n` +
-      `Enter the next round → timbswap.xyz/compete`;
-  }
-  return `📜 Round #${result.round} settled\n\n` +
-    `Winning string: ${slashZeros(result.string6)} · ${result.entries} entries · pot snowballs\n\n` +
-    `Enter the next round → timbswap.xyz/compete`;
+function isDecliningRollover(result) {
+  return result.winners === 0
+    && Number.isFinite(result.prevEntries)
+    && result.entries < result.prevEntries;
 }
 
 /**
  * Post a settled round to X. `result` = { round, string6, entries, potEth,
- * winners, carryEth?, prevEntries? } with plain JS numbers/strings. `carryEth`
- * is the amount rolling into the next round (no-winner rounds); `prevEntries`
- * is the previous round's entry count, used by "rollover-declining". Throws on
- * failure — the settler wraps this in try/catch so posting can never affect
- * settlement.
+ * winners, prevEntries } with plain JS numbers/strings. Throws on failure — the settler
+ * wraps this in try/catch so posting can never affect settlement.
  */
 async function postRoundToX(result) {
   if (!xConfigured()) { console.log("[xposter] No X credentials — skipping."); return null; }
-  if (!shouldPost(X_POST_MODE, result)) {
-    console.log(`[xposter] Round #${result.round} not posted under X_POST_MODE=${X_POST_MODE} ` +
-      `(winners ${result.winners}, entries ${result.entries}, previous ${result.prevEntries ?? "unknown"}).`);
+  if (X_POST_MODE === "off") { console.log("[xposter] X_POST_MODE=off — skipping."); return null; }
+  if (X_POST_MODE === "winners" && result.winners === 0) {
+    console.log("[xposter] No winners this round and X_POST_MODE=winners — skipping.");
+    return null;
+  }
+  if (X_POST_MODE === "rollover-declining" && !isDecliningRollover(result)) {
+    console.log(`[xposter] Round #${result.round} is not a rollover with fewer entries than the last ` +
+      `(winners ${result.winners}, entries ${result.entries}, previous ${result.prevEntries ?? "unknown"}) ` +
+      `and X_POST_MODE=rollover-declining — skipping.`);
     return null;
   }
 
   const won = result.winners > 0;
-  const text = appendHashtags(roundText(result), hashtagLine(result.round, won));
+  const baseText = won
+    ? `🏆 Round #${result.round} SETTLED — we have ${result.winners === 1 ? "a winner" : result.winners + " winners"}!\n\n` +
+      `Winning string: ${slashZeros(result.string6)}\n${result.entries} entries · ${result.potEth} ETH paid out\n\n` +
+      `A new round is already live → timbswap.xyz/compete`
+    : `📜 Round #${result.round} settled\n\n` +
+      `Winning string: ${slashZeros(result.string6)} · ${result.entries} entries · pot snowballs\n\n` +
+      `Enter the next round → timbswap.xyz/compete`;
+  const text = appendHashtags(baseText, hashtagLine(result.round, won));
 
   let mediaId = null;
   try {
@@ -346,4 +322,4 @@ async function postRoundToX(result) {
 
 // `tweet` and `uploadMedia` are exported so other posters (bounty-poster.js)
 // reuse this module's OAuth signing rather than re-implementing it.
-module.exports = { postRoundToX, renderRoundCard, tweet, uploadMedia, xConfigured, shouldPost, roundText };
+module.exports = { postRoundToX, renderRoundCard, tweet, uploadMedia, xConfigured, isDecliningRollover };

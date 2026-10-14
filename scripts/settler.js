@@ -290,16 +290,13 @@ async function settleOnce(provider, wallet, prize, round, segment) {
         registry.getRoundEntrants(round).catch(() => []),
         round > 1n ? registry.getRoundEntrants(round - 1n).catch(() => null) : Promise.resolve(null)
       ]);
-      const eth = (wei) => Number(ethers.formatEther(wei)).toFixed(4).replace(/\.?0+$/, "") || "0";
-      const winners = (res.winners ?? res[2]).length;
+      const potEth = Number(ethers.formatEther(res.potAmount ?? res[1])).toFixed(4).replace(/\.?0+$/, "") || "0";
       await postRoundToX({
-        round:       Number(round),
-        string6:     bytes6ToStr(res.winningString ?? res[0]),
-        entries:     entrants.length,
-        potEth:      eth(res.potAmount ?? res[1]),
-        winners,
-        // No winner: the whole pot is the remainder and rolls into the next round.
-        carryEth:    winners === 0 ? eth(res.remainder ?? res[4]) : null,
+        round:   Number(round),
+        string6: bytes6ToStr(res.winningString ?? res[0]),
+        entries: entrants.length,
+        potEth,
+        winners: (res.winners ?? res[2]).length,
         prevEntries: prevEntrants ? prevEntrants.length : null
       });
     } catch (e) {
