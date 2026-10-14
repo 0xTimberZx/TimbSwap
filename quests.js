@@ -3,8 +3,11 @@
 // Reads the same-origin Worker route POST /api/quests (workers/timbswap-api.js),
 // which relays to the Supabase `quests` edge function. Read-only, standalone, no
 // ethers dependency: the board loads for everyone; the "your standing" lookup uses
-// either the connected wallet (window.userAddress, set by config.js) or a pasted
-// address. Degrades safely on any failure.
+// either the connected wallet or a pasted address, and the minute refresh
+// re-checks whichever address was looked up last. config.js declares
+// `let userAddress` at the top level of a classic script, which is a global
+// binding but NOT a property of window, so it is read by name below.
+// Degrades safely on any failure.
 (function () {
   var API = "/api/quests";
   var board    = document.getElementById("qs-board");
@@ -14,6 +17,11 @@
   var checkBtn = document.getElementById("qs-check");
 
   var WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
+  var lastAddr = null; // last address whose standing was looked up
+  function connectedAddress() {
+    try { if (typeof userAddress !== "undefined" && userAddress) return userAddress; } catch (e) {}
+    return window.userAddress || null;
+  }
   function short(a) { return a ? a.slice(0, 6) + "…" + a.slice(-4) : ""; }
   function tp(n) { return Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 }); }
 
@@ -64,6 +72,7 @@
   }
 
   function load(address) {
+    if (address) lastAddr = address;
     var body = address ? JSON.stringify({ address: address }) : "{}";
     return fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: body })
       .then(function (r) { return r.json(); })
@@ -92,5 +101,5 @@
   window.questsCheck = function (addr) { if (addr && WALLET_RE.test(addr)) load(addr); };
 
   load();
-  setInterval(function () { if (!document.hidden) load(window.userAddress || undefined); }, 60000);
+  setInterval(function () { if (!document.hidden) load(lastAddr || connectedAddress() || undefined); }, 60000);
 })();
