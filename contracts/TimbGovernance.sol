@@ -76,6 +76,14 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     ///         the exact per-proposal check), never less.
     mapping(address => uint256) public votingLockUntil;
 
+    /// @notice TS-050 (round-trip amendment): voting power `voter` withdrew while
+    ///         `proposalId` was open. Withdrawing ratchets the proposal's quorum
+    ///         base down (TS-021) and the base never rises again, so that power
+    ///         has left the proposal for good and must not come back into its
+    ///         votes through a redeposit. Subtracted from the creation snapshot
+    ///         in castVote.
+    mapping(uint256 => mapping(address => uint256)) public withdrawnDuring;
+
     event ProposalCreated(
         uint256 indexed id,
         address indexed proposer,
@@ -156,6 +164,12 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         totalVotingPower -= amount;
         _checkpoint(voter);
         _sweepOpenProposals(true); // TS-021: departed power stops propping quorum
+        // TS-050 amendment: remember, per proposal still open, that this power
+        // left its base. The sweep above has just pruned closed proposals, so
+        // the list holds at most MAX_OPEN_PROPOSALS live ones.
+        for (uint256 i = 0; i < _openProposals.length; i++) {
+            withdrawnDuring[_openProposals[i]][voter] += amount;
+        }
         timbsToken.transfer(voter, amount);
         emit VotingPowerWithdrawn(voter, amount);
     }
@@ -269,7 +283,15 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         // down, TS-021), move the tokens, and still vote at full weight with
         // the M6 lock guarding an empty balance. Counting min(snapshot, held)
         // keeps both parents and makes the lock cover what was counted.
+        // Amendment: a withdraw-and-redeposit round trip left the base
+        // ratcheted while `held` read full again, so the held floor alone
+        // let the same power leave the denominator and re-enter the
+        // numerator at no cost. Power withdrawn while this proposal was open
+        // is gone from it for good (withdrawnDuring), whatever the balance
+        // does afterwards.
         uint256 power = votingPowerAt(msg.sender, p.createdAt);
+        uint256 gone  = withdrawnDuring[proposalId][msg.sender];
+        power = power > gone ? power - gone : 0;
         uint256 held  = votingPowerDeposited[msg.sender];
         if (held < power) power = held;
         if (power == 0) revert InsufficientVotingPower();

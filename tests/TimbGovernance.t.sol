@@ -319,4 +319,93 @@ contract TimbGovernanceTest is Test {
         (, , , , , , , , uint256 forVotes, , , ,) = gov.proposals(pid);
         assertEq(forVotes, 10e18);
     }
+
+    // ─── TS-050 amendment: a withdraw-and-redeposit round trip cannot vote ───
+
+    function test_TS050_RoundTripCannotVote() public {
+        address honest = address(0x40E5);
+        address d00d   = address(0xD00D);
+        _fund(honest);
+        _fund(d00d);
+        _deposit(honest, 95e18);
+        _deposit(alice, 3.9e18);                 // attacker
+        _deposit(d00d, 1.1e18);
+        uint256 pid = gov.createProposal("p", "d"); // base 100e18, quorum 4e18
+        vm.warp(block.timestamp + 1 hours);
+        vm.startPrank(alice);
+        gov.withdrawVotingPower(3.9e18);         // base ratchets to 96.1e18
+        gov.depositVotingPower(3.9e18);          // held reads 3.9e18 again
+        vm.stopPrank();
+        assertEq(gov.withdrawnDuring(pid, alice), 3.9e18, "withdrawal recorded against the open proposal");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        vm.expectRevert(TimbGovernance.InsufficientVotingPower.selector);
+        gov.castVote(pid, true);                 // snapshot 3.9e18 - gone 3.9e18 = 0
+        vm.warp(block.timestamp + VOTING_PERIOD + 1);
+        vm.expectRevert(TimbGovernance.ProposalNotPassed.selector);
+        gov.executeProposal(pid);
+    }
+
+    function test_TS050_PartialRoundTripVotesAtRemainder() public {
+        _deposit(alice, 10e18);
+        uint256 pid = gov.createProposal("p", "d");
+        vm.warp(block.timestamp + 1 hours);
+        vm.startPrank(alice);
+        gov.withdrawVotingPower(6e18);           // 6e18 leaves the base
+        gov.depositVotingPower(6e18);            // and comes back to the balance
+        vm.stopPrank();
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        gov.castVote(pid, true);
+        (, , , , , , , , uint256 forVotes, , , ,) = gov.proposals(pid);
+        assertEq(forVotes, 4e18, "only the power that never left the base counts");
+    }
+
+    function test_TS050_VotesNeverExceedBase() public {
+        address[9] memory others;
+        for (uint256 k = 0; k < 9; k++) {
+            others[k] = address(uint160(0xA000 + k));
+            _fund(others[k]);
+            _deposit(others[k], 10e18);
+        }
+        _deposit(alice, 10e18);
+        uint256 pid = gov.createProposal("p", "d"); // base 100e18
+        vm.warp(block.timestamp + 1 hours);
+        // All nine leave first (base ratchets on the lowest live total), then
+        // all nine come back.
+        for (uint256 k = 0; k < 9; k++) {
+            vm.prank(others[k]);
+            gov.withdrawVotingPower(10e18);
+        }
+        for (uint256 k = 0; k < 9; k++) {
+            vm.prank(others[k]);
+            gov.depositVotingPower(10e18);
+        }
+        (, , , , , , , , , , uint256 base, ,) = gov.proposals(pid);
+        assertEq(base, 10e18, "base ratcheted to the one holder who stayed");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        for (uint256 k = 0; k < 9; k++) {
+            vm.prank(others[k]);
+            vm.expectRevert(TimbGovernance.InsufficientVotingPower.selector);
+            gov.castVote(pid, true);
+        }
+        vm.prank(alice);
+        gov.castVote(pid, true);
+        (, , , , , , , , uint256 forVotes, , , ,) = gov.proposals(pid);
+        assertEq(forVotes, 10e18, "votes cannot exceed the ratcheted base");
+    }
+
+    function test_TS050_WithdrawalBeforeCreationNotSubtracted() public {
+        _deposit(alice, 10e18);
+        vm.prank(alice);
+        gov.withdrawVotingPower(4e18);           // no proposal open: nothing recorded
+        vm.warp(block.timestamp + 1);
+        uint256 pid = gov.createProposal("p", "d"); // snapshot 6e18
+        assertEq(gov.withdrawnDuring(pid, alice), 0, "pre-creation withdrawal is not charged");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        gov.castVote(pid, true);
+        (, , , , , , , , uint256 forVotes, , , ,) = gov.proposals(pid);
+        assertEq(forVotes, 6e18, "snapshot already reflects it");
+    }
 }
