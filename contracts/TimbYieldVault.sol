@@ -26,9 +26,14 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  *     plain ETH send). Rate is governance-set.
  *
  * Weight denomination:
- *   ETH escrow counts 1:1. TIMBS escrow converts via timbsWeight1e18
- *   (weight wei per TIMBS wei, 1e18-scaled) so both entry tokens earn for
- *   the pot on a comparable basis.
+ *   GameRegistry registers a FLAT weight per activated ticket
+ *   (GameRegistry.VAULT_WEIGHT_UNIT = 1e14 wei = 0.0001 ETH, as address(0)),
+ *   whatever the ticket paid and in whichever token. So every ticket earns the
+ *   same share and the rate below applies to that unit, NOT to the escrow:
+ *   at a 0.001 ETH ticket, 10_000 bps on the weight is 10% a year on the
+ *   deposit, and 1_000 bps would be 1%. The timbsWeight1e18 conversion is kept
+ *   for callers that register a token amount directly; registry tickets never
+ *   reach it.
  *
  * Harvest:
  *   TimbPrize pulls all accrued yield at each round settlement, adds it to
@@ -45,8 +50,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * Deployment:
  *   1. Deploy TimbYieldVault()
  *   2. setGameRegistry(registry); setTimbPrize(prize)
- *   3. setTimbsWeight1e18(1e11)          // 1000 TIMBS ≙ 0.0001 ETH weight
- *   4. setYieldAPRBps(1000)              // e.g. 10% APR on active escrow
+ *   3. (leave timbsWeight1e18 at 0; registry tickets register ETH weight)
+ *   4. setYieldAPRBps(10_000)            // 100% on the 0.0001 ETH unit
+ *                                        // = 10% a year on a 0.001 ETH ticket
  *   5. fund() with ETH from the Treasury
  */
 contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
@@ -281,16 +287,21 @@ contract TimbYieldVault is Ownable2Step, ReentrancyGuard {
         emit RateSet(_rate1e18);
     }
 
-    /// @notice Convenience: set the rate as an APR in basis points
-    ///         (1000 = 10% of active escrow per year flows to the pot).
+    /// @notice Convenience: set the rate as an APR in basis points on the
+    ///         REGISTERED WEIGHT, which is a flat 0.0001 ETH per ticket (see the
+    ///         header): 10_000 = the weight earns 100% a year, which is 10% a
+    ///         year on a 0.001 ETH ticket; 1_000 would be 1%.
     function setYieldAPRBps(uint256 aprBps) external onlyOwner {
         _accrue();
         ratePerSecond1e18 = aprBps * 1e18 / 10_000 / 365 days;
         emit RateSet(ratePerSecond1e18);
     }
 
-    /// @notice ETH-weight per TIMBS (1e18-scaled). E.g. 1e11 makes
-    ///         1000 TIMBS ≙ 0.0001 ETH of weight (entry-cost parity).
+    /// @notice ETH-weight per TIMBS (1e18-scaled) for token-denominated
+    ///         register() calls. Historical: 1e11 made 1000 TIMBS ≙ 0.0001 ETH
+    ///         under the old fixed entry price. GameRegistry now registers a
+    ///         flat ETH weight for every ticket, so this is unused by the game
+    ///         and should stay 0.
     function setTimbsWeight1e18(uint256 _w) external onlyOwner {
         _accrue();
         timbsWeight1e18 = _w;

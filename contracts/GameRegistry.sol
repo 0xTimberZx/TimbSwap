@@ -218,8 +218,11 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     // Constant ETH-denominated vault weight per active ticket. Registered as
     // ETH (address(0)) for BOTH entry tokens so every ticket carries the same
     // yield weight regardless of what it paid — decoupling yield share from the
-    // variable entry cost. 1e14 wei = 0.0001 ETH matches the vault's existing
-    // per-ticket parity weight, so the vault's pot-rate tuning is unchanged.
+    // variable entry cost. 1e14 wei = 0.0001 ETH is the pre-dynamic-pricing
+    // TIMBS parity weight (1000 TIMBS ≙ 0.0001 ETH), kept so the vault's rate
+    // tuning carried over. NOTE: the vault's APR applies to THIS unit, not to
+    // the escrow — at a 0.001 ETH ticket, 10_000 bps on the unit is 10% a year
+    // on the deposit (fix-list item 71).
     uint256 public constant VAULT_WEIGHT_UNIT    = 1e14;
 
     /// @notice Live TIMBS-paid tickets in the current generation — drives the
