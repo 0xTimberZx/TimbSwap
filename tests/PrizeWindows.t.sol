@@ -55,7 +55,7 @@ contract MockPrizeVRF is IVRFCoordinatorV2Plus {
  * future round is still precomputable — which is how the winner fixtures
  * pre-commit a matching ticket. No swaps run, so every segment stays in the
  * letter class (seed 0 → locked index `mix % 26` (0-25) → next round's seed),
- * hence the exact char is `ALPHABET[mix % 26]`, independent of the counter.
+ * hence the exact char is the `mix % free`-th free letter (TS-051), independent of the counter.
  *
  * Run: forge test --match-contract PrizeWindowsTest -vvv
  */
@@ -116,13 +116,26 @@ contract PrizeWindowsTest is Test {
 
     /// @dev Mirror of TimbPrize._lockCurrentSegment under VRF (H1). `entropyFor`
     ///      returns `keccak(word, salt)`; the live char stays in the letter class
-    ///      throughout (see Determinism note), so the locked char is
-    ///      ALPHABET[mix % 26]. The counter no longer feeds the mix — it only
-    ///      selects the class, which is letter every round with no swaps.
+    ///      throughout (see Determinism note). TS-051: the distinct draw is
+    ///      uniform over the letters not locked by the earlier segments of the
+    ///      round — `mix % free`, walked over the free letters in A..Z order —
+    ///      so the mirror rebuilds the locked prefix first. The counter no
+    ///      longer feeds the mix — it only selects the class, which is letter
+    ///      every round with no swaps.
     function expectedChar(uint256 round, uint256 segment) internal view returns (bytes1) {
+        uint256 takenMask;
+        for (uint256 s = 1; s < segment; s++) {
+            takenMask |= (1 << (uint256(uint8(expectedChar(round, s))) - 0x41));
+        }
         bytes32 salt = prize.saltFor(round, segment);
         uint256 mix  = uint256(keccak256(abi.encodePacked(_wordFor(round, segment), salt)));
-        return ALPHABET[mix % 26];
+        uint256 pick = mix % (26 - (segment - 1));
+        for (uint256 k = 0; k < 26; k++) {
+            if (takenMask & (1 << k) != 0) continue;
+            if (pick == 0) return ALPHABET[k];
+            pick--;
+        }
+        revert("mirror: no free letter");
     }
 
     function expectedString(uint256 round) internal view returns (bytes6) {
