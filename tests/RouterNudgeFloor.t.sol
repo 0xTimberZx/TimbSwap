@@ -48,6 +48,9 @@ contract RouterNudgeFloorTest is Test {
         out.approve(address(router), type(uint256).max);
         router.addLiquidity(address(weth), address(out), 1000 ether, 1000 ether, 0, 0, address(this), block.timestamp);
         router.addLiquidity(address(other), address(out), 1000 ether, 1000 ether, 0, 0, address(this), block.timestamp);
+        // TS-052: swaps only nudge through designated pairs.
+        router.setNudgePair(factory.getPairAddress(address(weth), address(out)), true);
+        router.setNudgePair(factory.getPairAddress(address(other), address(out)), true);
     }
 
     function _swap(address tokenIn, uint256 amt) internal {

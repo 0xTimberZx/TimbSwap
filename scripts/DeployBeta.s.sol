@@ -86,6 +86,10 @@ interface IAirdropPause {
  *   forge script scripts/DeployBeta.s.sol --rpc-url $ARB_RPC --broadcast --gas-estimate-multiplier 300
  *   node scripts/fill-beta-config.js --write
  */
+interface IFactoryPairs {
+    function getPairAddress(address, address) external view returns (address);
+}
+
 interface ITimbSwapFactoryAdmin {
     function setRouter(address router) external;
     function router() external view returns (address);
@@ -98,6 +102,7 @@ contract DeployBeta is Script {
         address timbs; address sink; address escrow; address router; address eligible;
         address vault; address staking; address pair; address weth; address airdrop;
         address settler; address dispatcher; address guardian;
+        address usdc; address wbtc; address arb;   // TS-052 nudge pairs (each vs WETH)
         address vrfCoord; bytes32 vrfKeyHash; uint256 vrfSubId; bytes vrfExtra;
         uint16 vrfConfs; uint32 vrfCbGas;
     }
@@ -138,6 +143,9 @@ contract DeployBeta is Script {
         c.staking   = vm.envAddress("STAKING_ADDR");
         c.pair      = vm.envAddress("TIMBS_WETH_PAIR");
         c.weth      = vm.envAddress("WETH_ADDR");
+        c.usdc      = vm.envAddress("USDC_ADDR");
+        c.wbtc      = vm.envAddress("WBTC_ADDR");
+        c.arb       = vm.envAddress("ARB_ADDR");
         c.airdrop   = vm.envOr("AIRDROP_ADDR", address(0));
         c.settler   = vm.envOr("SETTLER_ADDR", address(0));
         c.dispatcher = vm.envAddress("FAUCET_DISPATCHER");
@@ -198,7 +206,20 @@ contract DeployBeta is Script {
         r = new TimbSwapRouter(old.factory(), address(t), c.eligible, address(0), c.weth);
         if (r.swapNudgeWeight() != old.swapNudgeWeight())       r.setSwapNudgeWeight(old.swapNudgeWeight());
         if (r.freeNudgeCapPerSeg() != old.freeNudgeCapPerSeg()) r.setFreeNudgeCapPerSeg(old.freeNudgeCapPerSeg());
+        // TS-052: swaps earn nudges only through designated pairs. Beta list:
+        // WETH/USDC, WBTC/WETH, ARB/WETH. The pairs must already exist (checked
+        // in _preflight; the script never creates one). TIMBS/WETH is added at
+        // TIMBS launch.
+        _designateNudgePair(r, old.factory(), c.weth, c.usdc);
+        _designateNudgePair(r, old.factory(), c.wbtc, c.weth);
+        _designateNudgePair(r, old.factory(), c.arb,  c.weth);
         t.setRouter(address(r));
+    }
+
+    function _designateNudgePair(TimbSwapRouter r, address factory, address a, address b) internal {
+        address pair = IFactoryPairs(factory).getPairAddress(a, b);
+        require(pair != address(0), "TS-052: nudge pair missing (pre-flight should have caught this)");
+        r.setNudgePair(pair, true);
     }
 
     /// @dev Point the factory at the new router, register it as an eligible-
@@ -252,6 +273,11 @@ contract DeployBeta is Script {
         require(IYieldVaultAdmin(c.vault).timbPrize() == expectPrize, "PRE-FLIGHT: vault.timbPrize != EXPECT_OLD_PRIZE");
         require(IYieldVaultAdmin(c.vault).gameRegistry() == expectRegistry, "PRE-FLIGHT: vault.gameRegistry != EXPECT_OLD_REGISTRY");
         require(TimbPrize(payable(expectPrize)).gameStarted() == false, "PRE-FLIGHT: old prize already started - this is a live game");
+        // TS-052: the three beta nudge pairs must exist before anything is sent.
+        address f = TimbSwapRouter(payable(c.router)).factory();
+        require(IFactoryPairs(f).getPairAddress(c.weth, c.usdc) != address(0), "PRE-FLIGHT: WETH/USDC pair missing, create and seed it first (TS-052)");
+        require(IFactoryPairs(f).getPairAddress(c.wbtc, c.weth) != address(0), "PRE-FLIGHT: WBTC/WETH pair missing, create and seed it first (TS-052)");
+        require(IFactoryPairs(f).getPairAddress(c.arb,  c.weth) != address(0), "PRE-FLIGHT: ARB/WETH pair missing, create and seed it first (TS-052)");
     }
 
     function _report(Cfg memory c, Deployed memory d) internal view {
@@ -268,6 +294,10 @@ contract DeployBeta is Script {
         require(d.prize.router() == address(d.router),          "prize must accept nudges from the new router");
         require(d.treasury.router() == address(d.router),       "treasury must use the new router");
         require(d.router.minNudgeAmountIn(c.weth) > 0,          "WETH nudge floor must be set (TS-009)");
+        require(d.router.nudgePairs(IFactoryPairs(old.factory()).getPairAddress(c.weth, c.usdc)), "WETH/USDC must be a nudge pair (TS-052)");
+        require(d.router.nudgePairs(IFactoryPairs(old.factory()).getPairAddress(c.wbtc, c.weth)), "WBTC/WETH must be a nudge pair (TS-052)");
+        require(d.router.nudgePairs(IFactoryPairs(old.factory()).getPairAddress(c.arb,  c.weth)), "ARB/WETH must be a nudge pair (TS-052)");
+        require(!d.router.nudgePairs(c.pair),                    "TIMBS/WETH is not a nudge pair until TIMBS launch (TS-052)");
         require(old.paused(),                                   "old router must be paused");
         require(d.router.protocolFeeBps() == 0,                 "router fee must be 0 (all-in 0.30%)");
         require(ITimbSwapFactoryAdmin(old.factory()).feeTo() == address(d.treasury), "pool protocol share must go to the new treasury");
