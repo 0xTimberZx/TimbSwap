@@ -4,7 +4,9 @@
 // Opt-in and fail-safe by design:
 //   - Silently no-ops unless all four X_* secrets are configured.
 //   - X_POST_MODE: "all" (default) posts every rollover, "winners" posts only
-//     rounds that paid out, "off" disables without removing secrets.
+//     rounds that paid out, "rollover-declining" posts only rounds with no
+//     winner whose entry count fell from the round before, "off" disables
+//     without removing secrets.
 //   - X_HASHTAGS / X_HASHTAGS_WINNER: optional trailing hashtag line. Tags are
 //     space/comma separated ("#" added if missing); several "|"-separated
 //     groups rotate by round number so posts aren't byte-identical. Winner
@@ -266,8 +268,20 @@ async function tweet(text, mediaId) {
 // ─── Entry point ───────────────────────────────────────────────────────────────
 
 /**
+ * True when nobody won the round and its entry count fell from the round
+ * before. `result.prevEntries` is the previous round's count, or null when
+ * unknown (round 1, or the read failed); an unknown count never counts as a
+ * decline.
+ */
+function isDecliningRollover(result) {
+  return result.winners === 0
+    && Number.isFinite(result.prevEntries)
+    && result.entries < result.prevEntries;
+}
+
+/**
  * Post a settled round to X. `result` = { round, string6, entries, potEth,
- * winners } with plain JS numbers/strings. Throws on failure — the settler
+ * winners, prevEntries } with plain JS numbers/strings. Throws on failure — the settler
  * wraps this in try/catch so posting can never affect settlement.
  */
 async function postRoundToX(result) {
@@ -275,6 +289,12 @@ async function postRoundToX(result) {
   if (X_POST_MODE === "off") { console.log("[xposter] X_POST_MODE=off — skipping."); return null; }
   if (X_POST_MODE === "winners" && result.winners === 0) {
     console.log("[xposter] No winners this round and X_POST_MODE=winners — skipping.");
+    return null;
+  }
+  if (X_POST_MODE === "rollover-declining" && !isDecliningRollover(result)) {
+    console.log(`[xposter] Round #${result.round} is not a rollover with fewer entries than the last ` +
+      `(winners ${result.winners}, entries ${result.entries}, previous ${result.prevEntries ?? "unknown"}) ` +
+      `and X_POST_MODE=rollover-declining — skipping.`);
     return null;
   }
 
@@ -302,4 +322,4 @@ async function postRoundToX(result) {
 
 // `tweet` and `uploadMedia` are exported so other posters (bounty-poster.js)
 // reuse this module's OAuth signing rather than re-implementing it.
-module.exports = { postRoundToX, renderRoundCard, tweet, uploadMedia, xConfigured };
+module.exports = { postRoundToX, renderRoundCard, tweet, uploadMedia, xConfigured, isDecliningRollover };

@@ -283,9 +283,12 @@ async function settleOnce(provider, wallet, prize, round, segment) {
     // failed read or post never affects settlement or the next loop turn.
     try {
       const registry = new ethers.Contract(GAMEREGISTRY_ADDR, GAMEREGISTRY_ABI, provider);
-      const [res, entrants] = await Promise.all([
+      // The previous round's entry count drives X_POST_MODE=rollover-declining;
+      // a failed read leaves it null, which never counts as a decline.
+      const [res, entrants, prevEntrants] = await Promise.all([
         prize.getRoundResult(round),
-        registry.getRoundEntrants(round).catch(() => [])
+        registry.getRoundEntrants(round).catch(() => []),
+        round > 1n ? registry.getRoundEntrants(round - 1n).catch(() => null) : Promise.resolve(null)
       ]);
       const potEth = Number(ethers.formatEther(res.potAmount ?? res[1])).toFixed(4).replace(/\.?0+$/, "") || "0";
       await postRoundToX({
@@ -293,7 +296,8 @@ async function settleOnce(provider, wallet, prize, round, segment) {
         string6: bytes6ToStr(res.winningString ?? res[0]),
         entries: entrants.length,
         potEth,
-        winners: (res.winners ?? res[2]).length
+        winners: (res.winners ?? res[2]).length,
+        prevEntries: prevEntrants ? prevEntrants.length : null
       });
     } catch (e) {
       console.warn("[xposter] round post skipped:", e?.message || e);
