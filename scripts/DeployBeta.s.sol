@@ -45,8 +45,9 @@ interface IAirdropPause {
  *
  *         Beta values set here: extra rounds free (registry default), max 6
  *         (registry default), TIMBS entries off (registry default), lapsed
- *         principal 100% to the pot, faucet 0.00025 ETH to the wallet + 0.00025
- *         ETH to the pot per claim every 24 h with the TIMBS leg off, and the
+ *         principal 100% to the pot, faucet 0.00001 ETH to the wallet + 0.00001
+ *         ETH to the pot per claim every 24 h (a gas rebate, decided 2026-10-14)
+ *         with the TIMBS leg off, and the
  *         testnet→mainnet TIMB airdrop paused (no TIMBS in circulation before
  *         the audit).
  *
@@ -75,7 +76,7 @@ interface IAirdropPause {
  *   EXPECT_OLD_REGISTRY      0x8c40ed0cce3585b694a45106314b09dff4e04137
  *   Optional overrides (beta defaults shown):
  *   TIMBS_ENTRY_FLOOR=500e18  TIMBS_STEP=100e18   (TIMBS leg is off; ctor needs non-zero)
- *   FAUCET_DRIP_ETH=2.5e14  FAUCET_POT_ETH=2.5e14  FAUCET_COOLDOWN=86400
+ *   FAUCET_DRIP_ETH=1e13    FAUCET_POT_ETH=1e13    FAUCET_COOLDOWN=86400
  *   FAUCET_ETH_CAP=1.5e18   OPERATOR_ETH_CAP=1e17 per OPERATOR_PERIOD=86400
  *
  * Run (read-only pre-flight, then simulate without --broadcast and read the
@@ -217,8 +218,8 @@ contract DeployBeta is Script {
         uint256 ethCap = vm.envOr("FAUCET_ETH_CAP", uint256(1.5e18));
         f = new GasFaucet(
             address(d.treasury), c.timbs, address(d.registry), address(d.prize),
-            vm.envOr("FAUCET_DRIP_ETH", uint256(2.5e14)),
-            vm.envOr("FAUCET_POT_ETH",  uint256(2.5e14)),
+            vm.envOr("FAUCET_DRIP_ETH", uint256(1e13)),     // 0.00001 ETH: a gas rebate
+            vm.envOr("FAUCET_POT_ETH",  uint256(1e13)),     // 0.00001 ETH to the pot
             0,                                            // no TIMBS leg in the beta
             vm.envOr("FAUCET_COOLDOWN", uint256(86_400))
         );
