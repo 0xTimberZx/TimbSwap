@@ -264,7 +264,14 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         // TS-034: weigh the vote by the power held at proposal creation. A
         // deposit made after the proposal existed cannot vote on it (the
         // mirror of TS-021, which stops withdrawn power propping quorum).
+        // TS-050: and by no more than is still deposited. The creation
+        // snapshot alone let a holder withdraw (which ratchets the quorum base
+        // down, TS-021), move the tokens, and still vote at full weight with
+        // the M6 lock guarding an empty balance. Counting min(snapshot, held)
+        // keeps both parents and makes the lock cover what was counted.
         uint256 power = votingPowerAt(msg.sender, p.createdAt);
+        uint256 held  = votingPowerDeposited[msg.sender];
+        if (held < power) power = held;
         if (power == 0) revert InsufficientVotingPower();
 
         if (support) p.forVotes += power;

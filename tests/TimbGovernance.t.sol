@@ -269,4 +269,54 @@ contract TimbGovernanceTest is Test {
         assertEq(gov.votingPowerAt(alice, 2_000_001), 16e18, "history preserved");
         assertEq(gov.votingPowerAt(alice, 2_000_002), 17e18, "latest");
     }
+
+    // ─── TS-050: withdrawn power cannot vote at its snapshot weight ──────────
+
+    function test_TS050_WithdrawThenVoteCannotPassBelowQuorum() public {
+        address honest = address(0x40E5);
+        address d00d   = address(0xD00D);
+        _fund(honest);
+        _fund(d00d);
+        _deposit(honest, 95e18);
+        _deposit(alice, 3.9e18);                 // attacker
+        _deposit(d00d, 1.1e18);
+        uint256 pid = gov.createProposal("p", "d"); // base 100e18, quorum 4e18
+        vm.prank(alice);
+        gov.withdrawVotingPower(3.9e18);         // unlocked: not voted yet; base ratchets to 96.1e18
+        vm.prank(alice);
+        timbs.transfer(bob, 3.9e18);             // tokens gone
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        vm.expectRevert(TimbGovernance.InsufficientVotingPower.selector);
+        gov.castVote(pid, true);                 // snapshot 3.9e18, held 0 → refused
+        vm.warp(block.timestamp + VOTING_PERIOD + 1);
+        vm.expectRevert(TimbGovernance.ProposalNotPassed.selector);
+        gov.executeProposal(pid);                // no votes: fails quorum
+    }
+
+    function test_TS050_PartialWithdrawalVotesAtRemaining() public {
+        _deposit(alice, 10e18);
+        uint256 pid = gov.createProposal("p", "d");
+        vm.prank(alice);
+        gov.withdrawVotingPower(6e18);           // keeps 4e18
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        gov.castVote(pid, true);
+        (, , , , , , , , uint256 forVotes, , , ,) = gov.proposals(pid);
+        assertEq(forVotes, 4e18, "counted what is still held, not the 10e18 snapshot");
+        // And the counted amount is now locked.
+        vm.prank(alice);
+        vm.expectRevert();
+        gov.withdrawVotingPower(1);
+    }
+
+    function test_TS050_HonestHolderUnchanged() public {
+        _deposit(alice, 10e18);
+        uint256 pid = gov.createProposal("p", "d");
+        vm.warp(block.timestamp + VOTING_DELAY + 1);
+        vm.prank(alice);
+        gov.castVote(pid, true);
+        (, , , , , , , , uint256 forVotes, , , ,) = gov.proposals(pid);
+        assertEq(forVotes, 10e18);
+    }
 }
