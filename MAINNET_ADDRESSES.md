@@ -90,9 +90,18 @@ calls `distribute()` here to send real TIMB from a small pre-funded float. See
 | Deployer | burner (gas-only; owns nothing after handoff) | — |
 | Gnosis Safe / multisig (`GOV_MULTISIG`) | `0xFbcD2D0581a54cEE87Ab2693B9E9b7dCC19c79F9` (2-of-3) | ✅ set (timelock proposer/executor) |
 | TimelockController | `0x13e227499b2ce81da39179d113304fa4367efe7a` | ✅ deployed |
-| Treasury / sink / initial TIMBS mint | `0xFbcD2D0581a54cEE87Ab2693B9E9b7dCC19c79F9` (the Safe) | ✅ set |
+| Game treasury / sink / initial TIMBS mint (`DeployGame`) | `0xFbcD2D0581a54cEE87Ab2693B9E9b7dCC19c79F9` (the Safe) | ✅ set |
+| DEX fee recipients: Factory `feeTo`, Router `treasury` | Set at the 2026-09-11 core deploy (`DeployCore`), separately from the row above. Read live with `feeTo()` / `treasury()` | ⏳ repointed by the beta deploy (below) |
 | Ownable2Step handoff → timelock | all 13 contracts | ⏳ pending (runbook §6) |
 
 Factory `feeTo` and Router `treasury` are owner-mutable (`setFeeTo` /
 `setTreasury`), so the fee recipient can be repointed and ultimately governed by
 the timelock after handoff.
+
+The live router above predates the current source (it has no
+`protocolFeeBps`, for example). The beta deploy (`scripts/DeployBeta.s.sol`)
+deploys a new router that pays the new `TimbTreasury`, points the factory's
+`feeTo` at that treasury, and pauses the old router. Its final checks refuse
+to pass unless `factory.router()`, `factory.feeTo()` and the new router's
+`treasury()` all name the new contracts. This happens before the ownership
+handoff, and this table is updated with the new addresses afterwards.
