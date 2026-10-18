@@ -130,9 +130,15 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     /// @notice Last claim timestamp per wallet (cooldown anchor).
     mapping(address => uint256) public lastClaimAt;
 
-    /// @notice Top-trader cooldown reset (dev-docs/BETA_ETH_ONLY.md §5): a
-    ///         wallet whose last claim predates its grant may claim again.
+    /// @notice Top-trader cooldown reset (dev-docs/BETA_ETH_ONLY.md §5): when
+    ///         the wallet's latest grant was made (informational).
     mapping(address => uint256) public resetGrantedAt;
+
+    /// @notice A granted reset the wallet has not yet spent. It lifts the
+    ///         cooldown for exactly one claim and is cleared by the wallet's
+    ///         next claim. TS-053: a flag, not a timestamp comparison, so a
+    ///         grant in the same second as the wallet's last claim still counts.
+    mapping(address => bool) public resetPending;
 
     /// @notice One reset per settled round.
     mapping(uint256 => bool) public resetUsed;
@@ -275,6 +281,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
 
         // ── Effects (before any external call). ──
         lastClaimAt[claimant] = block.timestamp;
+        if (resetPending[claimant]) resetPending[claimant] = false;
         if (doTimbs) {
             timbsDistributed          += timbsOut;
             timbsClaimedBy[claimant]  += timbsOut;
@@ -375,14 +382,14 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         return ethOk || timbsOk;
     }
 
-    /// @dev Off cooldown: never claimed, the cooldown has elapsed, or a reset
-    ///      was granted after the last claim. Claiming sets lastClaimAt to now,
-    ///      so a grant is spent by the claim that uses it.
+    /// @dev Off cooldown: never claimed, the cooldown has elapsed, or a granted
+    ///      reset is pending. Every claim clears the pending reset, so a grant
+    ///      is spent by the wallet's next claim.
     function _offCooldown(address claimant) internal view returns (bool) {
         uint256 last = lastClaimAt[claimant];
         return last == 0
             || block.timestamp >= last + cooldown
-            || last < resetGrantedAt[claimant];
+            || resetPending[claimant];
     }
 
     // ─── Dispatcher: top-trader reset ───────────────────────────────────────────
@@ -398,6 +405,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         if (resetUsed[round]) revert ResetAlreadyGranted(round);
         resetUsed[round] = true;
         resetGrantedAt[wallet] = block.timestamp;
+        resetPending[wallet] = true;
         emit ResetGranted(round, wallet);
     }
 

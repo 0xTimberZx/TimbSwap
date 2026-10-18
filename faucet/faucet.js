@@ -95,8 +95,7 @@ async function handleConnect() {
 const CLAIM_LABEL = TIMBS_LIVE ? "Claim testnet TIMBS" : "Claim ETH";
 
 const FAUCET_READ_ABI = [
-  "function lastClaimAt(address) view returns (uint256)",
-  "function resetGrantedAt(address) view returns (uint256)",
+  "function resetPending(address) view returns (bool)",
 ];
 
 // Top trader of a round gets their cooldown lifted (GasFaucet.grantReset).
@@ -104,8 +103,7 @@ const FAUCET_READ_ABI = [
 async function showResetNotice(addr) {
   try {
     const f = new ethers.Contract(ADDRESSES.GasFaucet, FAUCET_READ_ABI, sharedReadProvider());
-    const [last, grant] = await Promise.all([f.lastClaimAt(addr), f.resetGrantedAt(addr)]);
-    if (!last.isZero() && last.lt(grant) && addr === userAddress) {
+    if (await f.resetPending(addr) && addr === userAddress) {
       setStatus("Top trader last round: your cooldown is reset. Claim again now.", "ok");
     }
   } catch (_e) { /* older faucet without resets: nothing to show */ }

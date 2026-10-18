@@ -542,6 +542,84 @@ contract GasFaucetTest is Test {
         faucet.dispense(alice);
     }
 
+    // TS-053: a grant in the same second as the wallet's last claim used to
+    // fail `last < resetGrantedAt`, so the round's reset was spent for nothing.
+
+    function _expectCooldown(address w) internal {
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(
+            GasFaucet.CooldownActive.selector, faucet.lastClaimAt(w) + COOLDOWN));
+        faucet.dispense(w);
+    }
+
+    function test_TS053_SameSecondGrantAfterClaimLifts() public {
+        _claimed(alice);
+        prize.settle(1, bytes6("ABC123"));
+        vm.prank(dispatcher);
+        faucet.grantReset(1, alice);                 // same second as the claim
+        assertTrue(faucet.resetPending(alice));
+        assertTrue(faucet.claimable(alice), "reset lifts the cooldown");
+
+        vm.warp(block.timestamp + 1 hours);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(timbs.balanceOf(alice), 2 * TIMB, "bonus claim delivered");
+        assertFalse(faucet.resetPending(alice), "spent by the claim");
+        assertFalse(faucet.claimable(alice));
+        _expectCooldown(alice);
+    }
+
+    function test_TS053_GrantThenClaimSameSecondSpendsOnce() public {
+        _claimed(alice);
+        prize.settle(1, bytes6("ABC123"));
+        vm.warp(block.timestamp + 1 hours);
+        vm.prank(dispatcher);
+        faucet.grantReset(1, alice);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);                      // same second as the grant
+        assertEq(timbs.balanceOf(alice), 2 * TIMB);
+        _expectCooldown(alice);                      // still that second: no third claim
+    }
+
+    function test_TS053_TwoGrantsBeforeAClaimAreOneReset() public {
+        _claimed(alice);
+        prize.settle(1, bytes6("ABC123"));
+        prize.settle(2, bytes6("DEF456"));
+        vm.startPrank(dispatcher);
+        faucet.grantReset(1, alice);
+        faucet.grantReset(2, alice);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1 hours);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(timbs.balanceOf(alice), 2 * TIMB);
+        _expectCooldown(alice);
+    }
+
+    function test_TS053_GrantBeforeFirstClaimSpentByIt() public {
+        _eligible(alice);
+        prize.settle(1, bytes6("ABC123"));
+        vm.prank(dispatcher);
+        faucet.grantReset(1, alice);
+        vm.prank(dispatcher);
+        faucet.dispense(alice);                      // first claim, cooldown not needed
+        assertFalse(faucet.resetPending(alice), "any claim spends the reset");
+        vm.warp(block.timestamp + 1 hours);
+        _expectCooldown(alice);
+    }
+
+    function test_TS053_FailedClaimKeepsTheReset() public {
+        _claimed(alice);
+        prize.settle(1, bytes6("ABC123"));
+        vm.prank(dispatcher);
+        faucet.grantReset(1, alice);
+        registry.clear(alice);
+        vm.prank(dispatcher);
+        vm.expectRevert(abi.encodeWithSelector(GasFaucet.NotEligible.selector, alice));
+        faucet.dispense(alice);
+        assertTrue(faucet.resetPending(alice), "a reverted claim spends nothing");
+    }
+
     // TS-038: a claimant that cannot receive ETH must not take the TIMBS leg down.
     function test_TS038_ClaimantRejectsDripStillPaysTimbs() public {
         RejectingWallet w = new RejectingWallet();
