@@ -76,8 +76,8 @@ Flat and additive. Weights live in `seasons.weights` (jsonb) and are read by
 
 | key            | pts | what the scorer counts                                            |
 |----------------|----:|-------------------------------------------------------------------|
-| round_played   | 250 | each settled round a wallet's ticket was in (`getRoundEntrants`)  |
-| ticket_active  | 200 | `TicketActivated`, once per ticket, only if it then played ≥1 round |
+| round_played   | 250 | each settled round a wallet's ticket was in (`getRoundEntrants`), except a fresh deposit's first round |
+| ticket_active  | 200 | `TicketActivated`, once per fresh deposit; this is the whole score for that deposit's first round |
 | nudge_swap     |  25 | Pair `Swap` + `ScrollNudged` in the same tx (15 nudge + 10 swap)  |
 | plain_swap     |  10 | Pair `Swap` with no nudge                                         |
 | panel_nudge    |   5 | `ScrollNudged` with no `Swap` in the tx (Advance the Scroll; N events = N) |
@@ -87,9 +87,10 @@ Flat and additive. Weights live in `seasons.weights` (jsonb) and are read by
 | faucet_claim   |   1 | `faucet_claims` row with status `sent` (Supabase-side cursor)     |
 | win            |   0 | `WinningsClaimed` — kept tunable                                  |
 
-Rules of thumb behind the numbers: rounds are the headline (250/round, and
-re-entering a fresh ticket re-earns the 200, so maximising consecutive rounds is
-the dominant strategy); trading is a supporting signal; faucet is a tie-breaker.
+Rules of thumb behind the numbers: rounds are the headline (250/round from a
+deposit's second round on; its first round earns the 200 activation instead), so
+maximising consecutive rounds is the dominant strategy; trading is a supporting
+signal; faucet is a tie-breaker.
 
 **Per-segment cap.** `nudge_swap`, `plain_swap` and `panel_nudge` share ONE
 budget per wallet per segment, `segment_cap` (30). Two nudge-swaps in one segment
@@ -141,6 +142,17 @@ ticket's principal and earns no second activation; otherwise replacing every
 round with a one-round ticket earned 450 a round against about 265 for a
 13-round holder, while never being eligible to win. Rounds still count as
 before. Applies to history only after a rescore.
+
+First round of a deposit (migration `20261018000000_points_first_round_activation.sql`):
+a ticket that takes an entirely new deposit earns `ticket_active` (200) for the
+round it activates in and `round_played` (250) only from that deposit's second
+round on, including rounds carried into a replacement. Before this the first
+round earned both (450). `points_recompute` prices rounds as
+`greatest(rounds_played − tickets_activated, 0)`, which is exact because
+`tickets_activated` counts fresh deposits only and each has one first round
+inside `rounds_played`. `min_rounds` still counts every round played. Formula
+only: `select points_recompute(1)` applies it to history, no rescore. The recon
+(`expectedTp`) mirrors it.
 
 Rescore from scratch (e.g. after a weight change you want applied to history):
 ```sql
