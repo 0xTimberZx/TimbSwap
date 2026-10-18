@@ -125,6 +125,11 @@ async function main() {
   ], provider);
   const REGISTRY = new ethers.Contract(addrFromConfig("GameRegistry"), [
     "function getRoundEntrants(uint256 round) view returns (address[])",
+    // A cancelled ticket (cancelEntry before its first round, principal
+    // refunded) stays in every round's entrant list, so the wallet must be
+    // checked against the ticket it actually holds for that round.
+    "function generation() view returns (uint256)",
+    "function ticketAt(uint256 generation, address owner, uint256 round) view returns (uint256)",
     // Public `tickets` mapping getter — the owner of record, read from state.
     // Reconstructing it from TicketMinted does not work: a ticket is minted
     // during round N and activated when round N+1 opens, so the mint almost
@@ -175,6 +180,21 @@ async function main() {
   let roundsAdded = 0;
   let lastRound = s.last_processed_round != null ? Number(s.last_processed_round) : (Number(s.start_round) - 1);
   const entrantsByRound = new Map(); // round -> Set(lowercased entrants), reused by ticket activation below
+  const TICKET_CANCELLED = 4; // GameRegistry.TicketStatus.Cancelled (raw status, not effectiveStatus)
+  let generation = 1;
+  try { generation = Number(await REGISTRY.generation()); } catch (e) { console.warn(`[points] generation() failed, assuming 1: ${e.shortMessage || e.message}`); }
+  const ticketStatusCache = new Map(); // ticketId -> raw status
+  const ticketCancelledFor = async (addr, round) => {
+    let id;
+    try { id = (await REGISTRY.ticketAt(generation, addr, round)).toString(); } catch { return false; }
+    if (id === "0") return false;
+    let st = ticketStatusCache.get(id);
+    if (st === undefined) {
+      try { st = Number((await REGISTRY.tickets(id)).status); } catch { st = -1; }
+      ticketStatusCache.set(id, st);
+    }
+    return st === TICKET_CANCELLED;
+  };
   try {
     const endRound = Math.min(lastFoldableRound, lastRound + MAX_ROUNDS_RUN);
     for (let r = lastRound + 1; r <= endRound; r++) {
@@ -182,7 +202,15 @@ async function main() {
       try { entrants = await REGISTRY.getRoundEntrants(r); } catch (e) {
         console.warn(`[points] getRoundEntrants(${r}) failed: ${e.shortMessage || e.message}`); break;
       }
-      const uniq = [...new Set(entrants.map(a => a.toLowerCase()))];
+      const listed = [...new Set(entrants.map(a => a.toLowerCase()))];
+      // Drop wallets whose ticket for this round was cancelled before it
+      // started: the entrant list is written at mint and never cleaned, but a
+      // cancelled ticket never played and its principal went back.
+      const uniq = [];
+      for (const a of listed) {
+        if (await ticketCancelledFor(a, r)) continue;
+        uniq.push(a);
+      }
       entrantsByRound.set(r, new Set(uniq));
       if (uniq.length) await sbRpc("points_apply_round", { p_season: s.id, p_round: r, p_addresses: uniq });
       lastRound = r; roundsAdded++;
@@ -281,8 +309,12 @@ async function main() {
       swapsAdded = swaps.length;
     } catch (e) { scanOk = false; console.warn("[points] swap/nudge pass:", e.shortMessage || e.message); }
 
-    // Ticket activation: 200 once per ticket, only if that ticket then played the
-    // round it activated for (its owner is among the round's entrants). The owner
+    // Ticket activation: 200 once per ticket CHAIN, only if that ticket then
+    // played the round it activated for (its owner is among the round's
+    // entrants). A replacement (replaceEntry: `supersedes` != 0) carries the
+    // conceded ticket's principal and earns no second award; otherwise
+    // replacing every round with a one-round ticket farmed 200 a round for
+    // nothing (2026-10-18). The owner
     // is read from the registry's `tickets` mapping rather than rebuilt from
     // TicketMinted: activation fires when the round opens, one round after the
     // mint, so the two events are almost never in the same scan window.
@@ -294,7 +326,10 @@ async function main() {
         if (r > lastFoldableRound) continue; // can't happen inside the lagged window; defensive
         let owner = owners.get(id);
         if (owner === undefined) {
-          try { owner = (await REGISTRY.tickets(ev.args.ticketId)).owner.toLowerCase(); }
+          try {
+            const t = await REGISTRY.tickets(ev.args.ticketId);
+            owner = t.supersedes === 0n ? t.owner.toLowerCase() : null; // replacement: no award
+          }
           catch (e) { owner = null; console.warn(`[points] tickets(${id}) failed: ${e.shortMessage || e.message}`); }
           owners.set(id, owner);
         }

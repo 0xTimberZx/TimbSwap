@@ -13,12 +13,14 @@
 // What is recomputed, exactly as the scorer defines it (points-scorer.js and
 // the points_v3 migration):
 //   rounds_played      +1 per settled round r ≤ current − lag_rounds whose
-//                      GameRegistry.getRoundEntrants(r) lists the wallet
+//                      GameRegistry.getRoundEntrants(r) lists the wallet and
+//                      whose ticket for r (ticketAt) was not cancelled
 //   nudge_swaps        a TimbsEthPair Swap in a tx that also emitted ScrollNudged,
 //                      attributed to tx.from, one per Swap event
 //   plain_swaps        a Swap in a tx with no ScrollNudged
 //   panel_nudges       ScrollNudged events in a tx with no Swap, N per tx
-//   tickets_activated  a TicketActivated whose ticket's owner is among that
+//   tickets_activated  a TicketActivated for a ticket that is not a replacement
+//                      (supersedes == 0) and whose owner is among that
 //                      round's entrants
 //   farm_claims        TimbFarm RewardsClaimed ≥ 25 TIMBS; stake_claims likewise
 //   wins               WinningsClaimed per winner
@@ -35,6 +37,8 @@
 //   under    the board's counter is below the shadow's and has stayed so for
 //            POINTS_GRACE_MIN: the scorer skipped a window. The grace covers the
 //            scorer simply not having run since the lag block moved
+//            meter_tp is compared the same way, against the shadow's own
+//            capped meter points.
 //   tp       display_tp is not what the board's own counters and the weights
 //            give: the SQL recompute and the weights disagree
 //   unknown  the chain or the database could not be read
@@ -186,6 +190,26 @@ function compare(ledger, faucetOf, rows, weights, minRounds, pendingUnder, nowSe
         }
       }
     }
+    // meter_tp is numeric and priced at fold time, so it cannot ride the integer
+    // COUNTERS loop. Same over/under semantics, with an epsilon. Without this the
+    // board could bank the wrong capped points and nothing would notice: the tp
+    // check below reads the board's own meter_tp on both sides.
+    {
+      const want = Number(shadow.mt || 0), have = Number(row.meter_tp || 0);
+      if (Math.abs(have - want) > 0.005) {
+        ok = false;
+        if (have > want) {
+          findings.push({ kind: "over", detail: `${short(a)} meter_tp: board ${have}, chain ${want}` });
+        } else {
+          const k = `${a}:meter_tp`;
+          live.add(k);
+          pendingUnder[k] ??= nowSec;
+          if (nowSec - pendingUnder[k] > opts.graceMin * 60) {
+            findings.push({ kind: "under", detail: `${short(a)} meter_tp: board ${have}, chain ${want}, behind for ${fmtMin(nowSec - pendingUnder[k])}` });
+          }
+        }
+      }
+    }
     if (byAddr.has(a)) {
       const want = expectedTp(row, weights, minRounds), have = Number(row.display_tp || 0);
       if (Math.abs(have - want) > 0.005) { ok = false; findings.push({ kind: "tp", detail: `${short(a)} display_tp ${have} but the row's counters and weights give ${want}` }); }
@@ -281,10 +305,18 @@ function selfTest() {
   const led = () => ({ [A]: { ...blank(), rp: 2, ns: 1, mt: 25 } });
   { const p = {}; const r = compare(led(), { [A]: 1 }, [row()], W, 2, p, T, opts);
     eq("exact match is clean", [kinds(r), r.compared, r.matched], [[], 1, 1]); }
-  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 2, meter_tp: 50, display_tp: 551 })], W, 2, p, T, opts);
+  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 2 })], W, 2, p, T, opts);
     eq("board above chain is over", kinds(r), ["over"]); }
+  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ meter_tp: 0, display_tp: 501 })], W, 2, p, T, opts);
+    eq("meter_tp behind waits inside grace", [kinds(r), Object.keys(p)], [[], [`${A}:meter_tp`]]); }
+  { const p = { [`${A}:meter_tp`]: T - 181 * 60 }; const r = compare(led(), { [A]: 1 }, [row({ meter_tp: 0, display_tp: 501 })], W, 2, p, T, opts);
+    eq("meter_tp behind past grace is under", kinds(r), ["under"]); }
+  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ meter_tp: 60, display_tp: 561 })], W, 2, p, T, opts);
+    eq("meter_tp above chain is over", kinds(r), ["over"]); }
+  { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ meter_tp: 25.004 })], W, 2, p, T, opts);
+    eq("meter_tp within epsilon is clean", kinds(r), []); }
   { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 0, meter_tp: 0, display_tp: 501 })], W, 2, p, T, opts);
-    eq("board below chain waits inside grace", [kinds(r), Object.keys(p)], [[], [`${A}:nudge_swaps`]]); }
+    eq("board below chain waits inside grace", [kinds(r), Object.keys(p)], [[], [`${A}:nudge_swaps`, `${A}:meter_tp`]]); }
   { const p = { [`${A}:nudge_swaps`]: T - 181 * 60 }; const r = compare(led(), { [A]: 1 }, [row({ nudge_swaps: 0, meter_tp: 0, display_tp: 501 })], W, 2, p, T, opts);
     eq("board below chain past grace is under", kinds(r), ["under"]); }
   { const p = { [`${A}:nudge_swaps`]: T - 181 * 60 }; compare(led(), { [A]: 1 }, [row()], W, 2, p, T, opts);
@@ -292,11 +324,11 @@ function selfTest() {
   { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ display_tp: 500 })], W, 2, p, T, opts);
     eq("wrong display_tp is tp", kinds(r), ["tp"]); }
   { const p = {}; const r = compare(led(), { [A]: 1 }, [], W, 2, p, T, opts);
-    eq("missing row is under (pending)", [kinds(r), Object.keys(p).length], [[], 3]); }
-  { const p = {}; const r = compare({}, {}, [row({ rounds_played: 0, nudge_swaps: 0, faucet_claims: 0, display_tp: 0 })], W, 2, p, T, opts);
+    eq("missing row is under (pending)", [kinds(r), Object.keys(p).length], [[], 4]); }
+  { const p = {}; const r = compare({}, {}, [row({ rounds_played: 0, nudge_swaps: 0, faucet_claims: 0, meter_tp: 0, display_tp: 0 })], W, 2, p, T, opts);
     eq("all-zero row with no shadow is clean", kinds(r), []); }
   { const p = {}; const r = compare({}, {}, [row({ display_tp: 0 })], W, 2, p, T, opts);
-    eq("row with counters and no shadow is over", kinds(r).filter((k) => k === "over").length, 3); }
+    eq("row with counters and no shadow is over", kinds(r).filter((k) => k === "over").length, 4); }
   { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ sybil_flag: "dup", display_tp: 0 })], W, 2, p, T, opts);
     eq("sybil row scores zero and matches", kinds(r), []); }
   { const p = {}; const r = compare(led(), { [A]: 1 }, [row({ rounds_played: 1, display_tp: 0 })], W, 2, p, T, opts);
@@ -328,6 +360,8 @@ const PRIZE_ABI = [
 ];
 const REGISTRY_ABI = [
   "function getRoundEntrants(uint256 round) view returns (address[])",
+  "function generation() view returns (uint256)",
+  "function ticketAt(uint256 generation, address owner, uint256 round) view returns (uint256)",
   // The owner of record, read from the public `tickets` mapping. Rebuilding it
   // from TicketMinted does not work: a ticket is minted during round N and
   // activated when round N+1 opens, so the mint sits in an earlier window.
@@ -398,7 +432,26 @@ async function main() {
 
     // 1. Rounds.
     const entrantsOf = new Map();
-    const entrants = async (r) => { if (!entrantsOf.has(r)) entrantsOf.set(r, new Set((await registry.getRoundEntrants(r)).map((a) => a.toLowerCase()))); return entrantsOf.get(r); };
+    // Mirrors the scorer: a wallet whose ticket for round r was cancelled before
+    // it started (raw status Cancelled = 4) is still in the entrant list but
+    // never played, so it earns no round.
+    let generation = 1;
+    try { generation = Number(await registry.generation()); } catch {}
+    const ticketStatus = new Map();
+    const cancelledFor = async (a, r) => {
+      let id; try { id = (await registry.ticketAt(generation, a, r)).toString(); } catch { return false; }
+      if (id === "0") return false;
+      if (!ticketStatus.has(id)) { try { ticketStatus.set(id, Number((await registry.tickets(id)).status)); } catch { ticketStatus.set(id, -1); } }
+      return ticketStatus.get(id) === 4;
+    };
+    const entrants = async (r) => {
+      if (!entrantsOf.has(r)) {
+        const kept = new Set();
+        for (const a of new Set((await registry.getRoundEntrants(r)).map((x) => x.toLowerCase()))) if (!(await cancelledFor(a, r))) kept.add(a);
+        entrantsOf.set(r, kept);
+      }
+      return entrantsOf.get(r);
+    };
     let roundsAdded = 0;
     const endRound = Math.min(lastFoldable, state.lastRound + OPTS.maxRounds);
     for (let r = state.lastRound + 1; r <= endRound; r++) {
@@ -445,7 +498,8 @@ async function main() {
           if (r > lastFoldable) continue;
           let owner = owners.get(id);
           if (owner === undefined) {
-            try { owner = String((await registry.tickets(args.ticketId)).owner).toLowerCase(); }
+            // Mirrors the scorer: a replacement ticket (supersedes != 0) earns no award.
+            try { const t = await registry.tickets(args.ticketId); owner = BigInt(t.supersedes) === 0n ? String(t.owner).toLowerCase() : null; }
             catch { owner = null; }
             owners.set(id, owner);
           }
