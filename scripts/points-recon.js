@@ -26,7 +26,9 @@
 //   wins               WinningsClaimed per winner
 //   faucet_claims      `sent` faucet_claims rows reserved at or before the lag block
 //   display_tp         the counters × seasons.weights, zero under min_rounds or
-//                      with a sybil flag, rounded to two places
+//                      with a sybil flag, rounded to two places; a fresh
+//                      deposit's first round earns ticket_active only, so
+//                      round_played prices rounds_played − tickets_activated
 // The event window ends at the block where round (current − lag + 1) started,
 // found from RoundStarted exactly as the scorer finds it.
 //
@@ -154,8 +156,14 @@ function expectedTp(row, weights, minRounds) {
   if ((row.rounds_played || 0) < (minRounds || 0)) return 0;
   // meter_tp is already priced and capped per segment by the keeper; every other
   // counter is still counter x weight.
+  // A fresh deposit's first round earns the activation instead of a round, so
+  // one round per activation is not priced as round_played.
   let tp = Number(row.meter_tp || 0);
-  for (const [, col, wk] of COUNTERS) { if (!wk) continue; tp += (row[col] || 0) * Number(weights?.[wk] ?? DEFAULT_WEIGHTS[wk]); }
+  for (const [, col, wk] of COUNTERS) {
+    if (!wk) continue;
+    const n = col === "rounds_played" ? Math.max((row.rounds_played || 0) - (row.tickets_activated || 0), 0) : (row[col] || 0);
+    tp += n * Number(weights?.[wk] ?? DEFAULT_WEIGHTS[wk]);
+  }
   return Math.round(tp * 100) / 100;
 }
 
@@ -298,6 +306,9 @@ function selfTest() {
   eq("tp honours season weights",   expectedTp({ rounds_played: 1 }, { round_played: 7 }, 0), 7);
   eq("tp missing weight defaults",  expectedTp({ faucet_claims: 3 }, { round_played: 7 }, 0), 3);
   eq("tp takes meter points as given", expectedTp({ rounds_played: 2, meter_tp: 30 }, W, 2), 530);
+  eq("tp first round of a deposit is the activation only", expectedTp({ rounds_played: 1, tickets_activated: 1 }, W, 0), 200);
+  eq("tp later rounds of a deposit are rounds", expectedTp({ rounds_played: 13, tickets_activated: 1 }, W, 0), 3200);
+  eq("tp activation not yet folded as a round", expectedTp({ rounds_played: 0, tickets_activated: 1 }, W, 0), 200);
   eq("tp does not price raw meter counters", expectedTp({ rounds_played: 2, nudge_swaps: 9, meter_tp: 0 }, W, 2), 500);
 
   // Compare.
