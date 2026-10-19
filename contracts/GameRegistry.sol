@@ -100,13 +100,9 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     /// @notice Cap on extra rounds per ticket — bounds the round-index loop.
     uint256 public constant MAX_EXTRA_ROUNDS = 12;
 
-    /// @notice Principal refund window (in rounds). The 4-round forfeiture
-    ///         countdown begins at the LATER of (a) the round the ticket's
-    ///         eligibility ends and (b) the round its prize-claim right ends —
-    ///         so a ticket that wins its last eligible round gets its full
-    ///         refund window AFTER the 2-round claim closes (forfeit at LER+6),
-    ///         while non-winners forfeit at LER+4. §14.
-    uint256 public constant REFUND_WINDOW_ROUNDS = 4;
+    /// @notice Bounds on the principal refund window (`refundWindowRounds`).
+    uint256 public constant MIN_REFUND_WINDOW_ROUNDS = 4;
+    uint256 public constant MAX_REFUND_WINDOW_ROUNDS = 24;
 
     /// @notice Prize-claim window mirrored from TimbPrize — a winner's claim
     ///         right runs this many rounds past the round it matched. Used to
@@ -271,6 +267,24 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     /// @notice Next ticket id (first ticket = 1; 0 = null).
     uint256 public nextTicketId = 1;
 
+    /// @notice Principal refund window (in rounds). The forfeiture countdown
+    ///         begins at the LATER of (a) the round the ticket's eligibility
+    ///         ends and (b) the round its prize-claim right ends — so a ticket
+    ///         that wins its last eligible round gets its full refund window
+    ///         AFTER the 2-round claim closes (forfeit at LER+2+W), while
+    ///         non-winners forfeit at LER+W. §14.
+    /// @dev    Constant within a generation. Each ticket stores its own
+    ///         `forfeitRound` at mint, but the settlement sweep and
+    ///         recordWinners read this live value, so a mid-generation change
+    ///         would leave tickets neither refundable nor swept. A new value is
+    ///         therefore staged in `pendingRefundWindowRounds` and applied only
+    ///         when a later game starts (fresh generation), or at once while
+    ///         the registry has never minted a ticket.
+    uint256 public refundWindowRounds = MIN_REFUND_WINDOW_ROUNDS;
+
+    /// @notice Refund window staged for the next generation (0 = none).
+    uint256 public pendingRefundWindowRounds;
+
     /// @notice ticket id → ticket.
     mapping(uint256 => Ticket) public tickets;
 
@@ -342,6 +356,8 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         to the protocol sink instead.
     event PotShareForwardFailed(uint256 indexed round, uint256 amount);
     event AllowRepeatedCharsSet(bool allowed);
+    event RefundWindowSet(uint256 rounds);
+    event RefundWindowStaged(uint256 rounds);
     event TimbsEntryEnabledSet(bool enabled);
     event ExtraRoundCostTimbsSet(uint256 cost);
     event MaxExtraRoundsSet(uint256 max);
@@ -376,6 +392,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     error TimbsEntryDisabled();
     error StringFull(bytes6 string6, uint256 round);
     error InvalidEntrantCap(uint256 cap);
+    error InvalidRefundWindow(uint256 rounds);
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
 
@@ -493,7 +510,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
             createdAt:         block.timestamp,
             // Baseline forfeiture: refund window after the last eligible round.
             // recordWinners() pushes this later if the ticket wins near the end.
-            forfeitRound:      lastRound + REFUND_WINDOW_ROUNDS,
+            forfeitRound:      lastRound + refundWindowRounds,
             generation:        generation
         });
         activeTicketOf[owner_] = id;
@@ -958,10 +975,12 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         if (c < nEnded) { settleCursor[g][settledRound] = c; return false; }
 
         // Phase B — forfeiture over LER buckets hi, hi-1, hi-2 (§14 windows).
-        // Baseline LER bucket is S-4; a late win pushes forfeitRound up to LER+6,
-        // so the buckets that can forfeit at S are LER in [S-6 .. S-4].
-        if (settledRound > REFUND_WINDOW_ROUNDS) {
-            uint256 hi = settledRound - REFUND_WINDOW_ROUNDS;
+        // Baseline LER bucket is S-W; a late win pushes forfeitRound up to
+        // LER+2+W, so the buckets that can forfeit at S are LER in [S-W-2 .. S-W].
+        // W is constant within the generation (refundWindowRounds).
+        uint256 w = refundWindowRounds;
+        if (settledRound > w) {
+            uint256 hi = settledRound - w;
             uint256 lo = hi > MAX_FORFEIT_PUSH ? hi - MAX_FORFEIT_PUSH : 1;
             uint256 base = nEnded; // cursor offset where the forfeiture space begins
             for (uint256 ler = hi; ; ler--) {
@@ -1079,7 +1098,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         right is also over (§14). Idempotent and monotonic: forfeitRound
     ///         only ever moves later, and settlement calls this in round order.
     function recordWinners(uint256 round, address[] calldata winners) external onlyTimbPrize {
-        uint256 pushed = round + PRIZE_CLAIM_WINDOW_ROUNDS + REFUND_WINDOW_ROUNDS;
+        uint256 pushed = round + PRIZE_CLAIM_WINDOW_ROUNDS + refundWindowRounds;
         for (uint256 i = 0; i < winners.length; i++) {
             uint256 id = ticketAt[generation][winners[i]][round];
             if (id == 0) continue;
@@ -1124,6 +1143,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         if (_firstGameStarted) {
             generation += 1;
             _resetPricingMeters();
+            _applyPendingRefundWindow(); // fix list 70: only at a fresh generation
         } else {
             // TS-028: the very first game keeps generation 1 so pre-start
             // tickets stay valid. They keep backing the price, so the meters
@@ -1388,6 +1408,34 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     function setExtraRoundCostTimbs(uint256 cost) external onlyOwner {
         extraRoundCostTimbs = cost;
         emit ExtraRoundCostTimbsSet(cost);
+    }
+
+    /// @notice Set the principal refund window, MIN..MAX_REFUND_WINDOW_ROUNDS.
+    ///         Applies at once while the registry has never minted a ticket;
+    ///         otherwise it is staged and takes effect when the next game
+    ///         starts, so every ticket keeps the window it was minted under.
+    function setRefundWindowRounds(uint256 rounds) external onlyOwner {
+        if (rounds < MIN_REFUND_WINDOW_ROUNDS || rounds > MAX_REFUND_WINDOW_ROUNDS) {
+            revert InvalidRefundWindow(rounds);
+        }
+        if (nextTicketId == 1) {
+            refundWindowRounds        = rounds;
+            pendingRefundWindowRounds = 0;
+            emit RefundWindowSet(rounds);
+        } else {
+            pendingRefundWindowRounds = rounds;
+            emit RefundWindowStaged(rounds);
+        }
+    }
+
+    /// @dev Promote a staged refund window. Called only where a fresh
+    ///      generation begins, so no live ticket was minted under the old value.
+    function _applyPendingRefundWindow() internal {
+        uint256 p = pendingRefundWindowRounds;
+        if (p == 0) return;
+        refundWindowRounds        = p;
+        pendingRefundWindowRounds = 0;
+        emit RefundWindowSet(p);
     }
 
     /// @notice Cap on extra rounds per ticket, 0..MAX_EXTRA_ROUNDS.

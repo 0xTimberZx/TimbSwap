@@ -216,7 +216,7 @@ contract GameRegistryGenerationsTest is Test {
         registry.onGameStarted();                      // gen -> 2, round 1
 
         // In gen 2, settle a round whose lapse sweep targets LER bucket 2
-        // (settledRound - REFUND_WINDOW_ROUNDS = 6 - 4 = 2). If the sweep were
+        // (settledRound - refundWindowRounds = 6 - 4 = 2). If the sweep were
         // not generation-scoped it would forfeit the gen-1 ticket sitting in
         // roundEntrants[1][2]. It must remain untouched.
         registry.setCurrentRound(7); // H2: round 6 is "settled" once currentRound > 6
