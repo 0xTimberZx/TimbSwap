@@ -71,7 +71,7 @@ solo/competitive review of the frozen scope → Hats vault for the tail.**
 ## 5. Pre-audit checklist (tick before you engage anyone)
 
 - [ ] `contracts` CI green (build + tests) and `slither` CI triaged
-- [ ] Coverage at target on the value contracts (§3)
+- [ ] Coverage at target on the value contracts (§3) (measured 2026-10-20 at `28a343c`, `forge coverage --ir-minimum`: Line A 83.5% lines, 78.1% statements, 43.1% branches, 79.7% functions. Gaps: EligibleTokenRegistry 27% lines, TimbSwapFactory 67%, TIMBSToken 72%, VRFEntropy 75%; mostly owner setters, views and revert branches)
 - [x] Invariants written as passing fuzz/invariant tests (Line A, 2026-10-20: `tests/invariants/` — game solvency, pair `k` and LP accounting, TIMBS cap, yield-vault backing; each suite mutation-checked. `totalStaked` waits for Line C, TimbStaking is not in the beta)
 - [ ] Slither high/medium each **fixed or documented**
 - [x] Scope frozen: commit hash + `MAINNET_ADDRESSES.md` (`936288a`, 2026-10-20)
