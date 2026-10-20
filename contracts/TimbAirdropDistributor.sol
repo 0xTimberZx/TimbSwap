@@ -29,7 +29,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  *             can drain at most the remaining cap / balance, not mint or exceed it.
  *             Fund the float and set `perRoundCap` per campaign (below the float)
  *             so the per-round ceiling actually binds before the total one.
- *           - **A fast stop.** `paused` (owner or guardian) halts all sends.
+ *           - **A fast stop.** `paused` (owner or guardian) halts all sends;
+ *             only the owner can lift it (TS-054).
  *
  *         Fixed `amountPerClaim` per recipient — the dispatcher chooses WHO, never
  *         HOW MUCH. Reward is TIMB by design (illiquid pre-LP = a free Sybil
@@ -77,6 +78,7 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
     error ZeroAddress();
     error NotDispatcher();
     error NotPauser();
+    error UnpauseOwnerOnly();
     error Paused();
     error EmptyBatch();
     error ZeroAmountPerClaim();
@@ -177,7 +179,10 @@ contract TimbAirdropDistributor is Ownable2Step, ReentrancyGuard {
 
     // ─── Owner / guardian ──────────────────────────────────────────────────────────
 
+    /// @notice TS-054: the guardian may pause; only the owner (the timelock)
+    ///         may unpause, so a leaked guardian key cannot undo a stop.
     function setPaused(bool _paused) external onlyPauser {
+        if (!_paused && msg.sender != owner()) revert UnpauseOwnerOnly(); // TS-054
         paused = _paused;
         emit PausedSet(_paused);
     }

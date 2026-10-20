@@ -78,6 +78,7 @@ interface IAirdropPause {
  *   TIMBS_ENTRY_FLOOR=500e18  TIMBS_STEP=100e18   (TIMBS leg is off; ctor needs non-zero)
  *   FAUCET_DRIP_ETH=1e13    FAUCET_POT_ETH=1e13    FAUCET_COOLDOWN=86400
  *   FAUCET_ETH_CAP=1.5e18   OPERATOR_ETH_CAP=1e17 per OPERATOR_PERIOD=86400
+ *   REFUND_WINDOW_ROUNDS=4  (4..24; fix list 70 moves it to 12 at the TIMBS launch)
  *
  * Run (read-only pre-flight, then simulate without --broadcast and read the
  * PRE-FLIGHT block, then broadcast and fill config.mainnet.js from the receipt):
@@ -105,6 +106,7 @@ contract DeployBeta is Script {
         address usdc; address wbtc; address arb;   // TS-052 nudge pairs (each vs WETH)
         address vrfCoord; bytes32 vrfKeyHash; uint256 vrfSubId; bytes vrfExtra;
         uint16 vrfConfs; uint32 vrfCbGas;
+        uint256 refundWindow;                      // fix list 70
     }
 
     struct Deployed {
@@ -156,6 +158,7 @@ contract DeployBeta is Script {
         c.vrfExtra  = vm.envBytes("VRF_EXTRA_ARGS");
         c.vrfConfs  = uint16(vm.envOr("VRF_CONFIRMATIONS", uint256(3)));
         c.vrfCbGas  = uint32(vm.envOr("VRF_CALLBACK_GAS", uint256(200_000)));
+        c.refundWindow = vm.envOr("REFUND_WINDOW_ROUNDS", uint256(4));
     }
 
     /// @dev Registry + entropy + prize, wired to each other, to the new router
@@ -173,6 +176,9 @@ contract DeployBeta is Script {
         d.registry.setYieldVault(c.vault);
         // Beta: lapsed ETH principal goes 100% to the pot (default 70/30).
         d.registry.setLapsePotBps(10_000);
+        // Fix list 70: the refund window applies at once on a registry with no
+        // tickets; after the first ticket it can only change at the next game.
+        if (c.refundWindow != d.registry.refundWindowRounds()) d.registry.setRefundWindowRounds(c.refundWindow);
         // Beta defaults already in the registry: timbsEntryEnabled=false,
         // extraRoundCostTimbs=0, maxExtraRounds=6, maxEntrantsPerString=100,
         // allowRepeatedChars=false. Asserted in _report.
@@ -286,6 +292,8 @@ contract DeployBeta is Script {
         require(d.registry.maxExtraRounds() == 6,       "beta: max 6 extra rounds");
         require(!d.registry.allowRepeatedChars(),       "beta: no repeated chars");
         require(d.registry.lapsePotBps() == 10_000,     "beta: lapse 100% to pot");
+        require(d.registry.refundWindowRounds() == c.refundWindow, "beta: refund window as configured");
+        require(d.registry.pendingRefundWindowRounds() == 0, "beta: no staged refund window");
         require(d.treasury.authorisedFeeSenders(c.escrow), "treasury must count the escrow's cut");
         TimbSwapRouter old = TimbSwapRouter(payable(c.router));
         require(ITimbSwapFactoryAdmin(old.factory()).router() == address(d.router), "factory must use the new router");

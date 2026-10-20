@@ -50,6 +50,7 @@ interface IPrize {
  *         SAFETY CONTROLS (owner / guardian):
  *           - `ethPaused` and `timbsPaused` are INDEPENDENT kill switches. Pause
  *             one leg and the other still dispenses; pause both and claims revert.
+ *             The guardian may pause; only the owner may unpause (TS-054).
  *           - `ethCap` / `timbsCap` are the MAX approved to ever distribute
  *             (cumulative). A claim that would push `*Distributed` past its cap
  *             skips that leg (the other leg still dispenses; TS-027). Raising
@@ -165,6 +166,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     error ZeroAmount();
     error NotDispatcher();
     error NotPauser();
+    error UnpauseOwnerOnly();
     error NothingToDispense();     // both legs paused
     error NotEligible(address claimant);
     error CooldownActive(uint256 readyAt);
@@ -411,12 +413,16 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
 
     // ─── Owner / guardian: pauses ───────────────────────────────────────────────
 
+    /// @notice TS-054: the guardian may pause a leg; only the owner (the
+    ///         timelock) may unpause, so a leaked guardian key cannot undo a stop.
     function setEthPaused(bool paused) external onlyPauser {
+        if (!paused && msg.sender != owner()) revert UnpauseOwnerOnly(); // TS-054
         ethPaused = paused;
         emit EthPausedSet(paused);
     }
 
     function setTimbsPaused(bool paused) external onlyPauser {
+        if (!paused && msg.sender != owner()) revert UnpauseOwnerOnly(); // TS-054
         timbsPaused = paused;
         emit TimbsPausedSet(paused);
     }
