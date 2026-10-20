@@ -180,12 +180,27 @@ contract TimbAirdropDistributorTest is Test {
         vm.prank(dispatcher);
         vm.expectRevert(TimbAirdropDistributor.Paused.selector);
         d.distribute(_batch(alice), 1);
-        // Unpause and it flows again.
-        vm.prank(guardian);
+        // Unpause (owner only, TS-054) and it flows again.
         d.setPaused(false);
         vm.prank(dispatcher);
         d.distribute(_batch(alice), 1);
         assertTrue(d.isClaimed(1, alice));
+    }
+
+    // TS-054: the guardian is a fast stop only; lifting the pause is the owner's.
+    function test_TS054_GuardianCannotUnpause() public {
+        d.setPaused(true);                                  // owner pauses
+        vm.prank(guardian);
+        vm.expectRevert(TimbAirdropDistributor.UnpauseOwnerOnly.selector);
+        d.setPaused(false);
+        assertTrue(d.paused(), "still paused");
+        vm.prank(guardian);
+        d.setPaused(true);                                  // pausing again is fine
+        vm.prank(rando);
+        vm.expectRevert(TimbAirdropDistributor.NotPauser.selector);
+        d.setPaused(true);
+        d.setPaused(false);                                 // owner lifts it
+        assertFalse(d.paused());
     }
 
     function test_Recover_ReturnsFloat() public {

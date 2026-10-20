@@ -147,6 +147,23 @@ contract GasFaucetTest is Test {
         assertEq(timbs.balanceOf(alice), TIMB, "timbs still flows");
     }
 
+    // TS-054: the guardian may pause either leg but only the owner may unpause.
+    function test_TS054_GuardianPausesButCannotUnpause() public {
+        vm.startPrank(guardian);
+        faucet.setEthPaused(true);
+        faucet.setTimbsPaused(true);
+        vm.expectRevert(GasFaucet.UnpauseOwnerOnly.selector);
+        faucet.setEthPaused(false);
+        vm.expectRevert(GasFaucet.UnpauseOwnerOnly.selector);
+        faucet.setTimbsPaused(false);
+        vm.stopPrank();
+        assertTrue(faucet.ethPaused() && faucet.timbsPaused(), "both legs still paused");
+
+        faucet.setEthPaused(false);                          // owner lifts each leg
+        faucet.setTimbsPaused(false);
+        assertFalse(faucet.ethPaused() || faucet.timbsPaused());
+    }
+
     function test_TS035_NoLegLeftReverts() public {
         _eligible(alice);
         treasury.setWindowExhausted(true);
