@@ -72,10 +72,10 @@ solo/competitive review of the frozen scope → Hats vault for the tail.**
 
 - [ ] `contracts` CI green (build + tests) and `slither` CI triaged
 - [ ] Coverage at target on the value contracts (§3)
-- [ ] Invariants written as passing fuzz/invariant tests
+- [x] Invariants written as passing fuzz/invariant tests (Line A, 2026-10-20: `tests/invariants/` — game solvency, pair `k` and LP accounting, TIMBS cap, yield-vault backing; each suite mutation-checked. `totalStaked` waits for Line C, TimbStaking is not in the beta)
 - [ ] Slither high/medium each **fixed or documented**
-- [ ] Scope frozen: commit hash + `MAINNET_ADDRESSES.md`
-- [ ] Known-issues doc ready for the reviewer
+- [x] Scope frozen: commit hash + `MAINNET_ADDRESSES.md` (`936288a`, 2026-10-20)
+- [x] Known-issues doc ready for the reviewer (`audit-handover/TIMBSWAP_KNOWN_ISSUES.md`)
 - [ ] Security contact filled in `SECURITY.md` + GitHub private advisories enabled
 - [ ] Litepaper / spec current, so the auditor understands intent fast
 

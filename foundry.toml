@@ -77,3 +77,14 @@ runs = 5000
 
 [profile.lite.fuzz]
 runs = 100
+
+# Invariant suites (tests/invariants). Each call can settle a segment, so keep
+# depth moderate; the ci profile runs longer sequences.
+[invariant]
+runs = 64
+depth = 200
+fail_on_revert = false
+
+[profile.ci.invariant]
+runs = 256
+depth = 128
