@@ -92,7 +92,20 @@ calls `distribute()` here to send real TIMB from a small pre-funded float. See
 | TimelockController | `0x13e227499b2ce81da39179d113304fa4367efe7a` | ✅ deployed |
 | Game treasury / sink / initial TIMBS mint (`DeployGame`) | `0xFbcD2D0581a54cEE87Ab2693B9E9b7dCC19c79F9` (the Safe) | ✅ set |
 | DEX fee recipients: Factory `feeTo`, Router `treasury` | Set at the 2026-09-11 core deploy (`DeployCore`), separately from the row above. Read live with `feeTo()` / `treasury()` | ⏳ repointed by the beta deploy (below) |
-| Ownable2Step handoff → timelock | all 13 contracts | ⏳ pending (runbook §6) |
+| Ownership handoff → timelock | every owned contract (Ownable2Step, except VRFEntropy: one-step `Ownable`, so its `transferOwnership` is final at once) | ⏳ pending (runbook §6) |
+
+**Read it back from the chain** before editing this table, after each
+`acceptOwnership` batch, and once the handoff is done:
+
+```sh
+R1=https://arb1.arbitrum.io/rpc sh scripts/ownership-readback.sh                # before / during
+R1=https://arb1.arbitrum.io/rpc HANDOFF_DONE=1 sh scripts/ownership-readback.sh # after §6
+```
+
+It reads `owner()` / `pendingOwner()` of every contract above, `feeTo()` and
+`treasury()`, the timelock's delay and the Safe's roles, and the delay-free
+roles. It signs nothing. Add the beta's new contracts with `EXTRA`, and pin the
+fee recipient with `FEE_TO_EXPECT`; see the script header.
 
 Factory `feeTo` and Router `treasury` are owner-mutable (`setFeeTo` /
 `setTreasury`), so the fee recipient can be repointed and ultimately governed by
