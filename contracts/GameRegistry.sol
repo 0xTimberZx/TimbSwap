@@ -1380,7 +1380,13 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         emit LapsePotBpsSet(_bps);
     }
 
+    /// @dev TS-056: repointing retires the outgoing vault's ticket weight
+    ///      first, as the vault-side repoint (TS-014) and every generation
+    ///      bump (TS-046) do; otherwise the orphaned vault keeps accruing on
+    ///      dead weight against its reserve. Fenced: a broken old vault can't
+    ///      block the repoint.
     function setYieldVault(address _vault) external onlyOwner {
+        if (_vault != yieldVault) _retirePriorGenerationWeight();
         yieldVault = _vault; // address(0) allowed = yield disabled
         emit YieldVaultSet(_vault);
     }
