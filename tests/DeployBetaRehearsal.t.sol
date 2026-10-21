@@ -149,9 +149,16 @@ contract DeployBetaRehearsalTest is Test {
         assertTrue(newRouter.nudgePairs(factory.getPairAddress(address(arb),  address(weth))), "ARB/WETH nudge pair");
         assertFalse(newRouter.nudgePairs(game.timbsEthPair()), "TIMBS/WETH waits for TIMBS launch");
         assertEq(newRouter.swapNudgeWeight(), router.swapNudgeWeight(), "nudge weight carried over");
-        assertEq(newRouter.freeNudgeCapPerSeg(), router.freeNudgeCapPerSeg(), "free-nudge cap carried over");
+        // TS-055: free nudges are off in the beta, whatever the live router had.
+        assertGt(router.freeNudgeCapPerSeg(), 0, "fixture: live router had free nudges");
+        assertEq(newRouter.freeNudgeCapPerSeg(), 0, "free nudges off");
 
         TimbPrize prize = TimbPrize(payable(newRouter.timbPrize()));
+        // TS-055: the free path refuses the first nudge.
+        uint256 r0 = prize.currentRound();
+        uint256 s0 = prize.currentSegment();
+        vm.expectRevert(abi.encodeWithSelector(TimbSwapRouter.FreeNudgeCapReached.selector, r0, s0));
+        newRouter.advanceScroll(1);
         assertTrue(address(prize) != address(game.timbPrize()), "new router -> new prize");
         assertEq(prize.router(), address(newRouter), "prize accepts the new router's nudges");
         assertEq(game.prizeEscrow().timbPrize(), address(prize), "escrow -> new prize");

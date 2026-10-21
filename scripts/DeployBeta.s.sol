@@ -204,14 +204,17 @@ contract DeployBeta is Script {
 
     /// @dev New router (TS-009: swap nudges need a minimum input, which the
     ///      live router lacks). Same factory and WETH as the live router; its
-    ///      nudge settings are copied so behaviour only changes by the floor.
+    ///      swap-nudge weight is copied. Free nudges are off (TS-055).
     ///      WETH/ETH gets the default 0.001 ETH floor; any other token earns no
     ///      nudges until setMinNudgeAmountIn is called for it.
     function _deployRouter(Cfg memory c, TimbTreasury t) internal returns (TimbSwapRouter r) {
         TimbSwapRouter old = TimbSwapRouter(payable(c.router));
         r = new TimbSwapRouter(old.factory(), address(t), c.eligible, address(0), c.weth);
         if (r.swapNudgeWeight() != old.swapNudgeWeight())       r.setSwapNudgeWeight(old.swapNudgeWeight());
-        if (r.freeNudgeCapPerSeg() != old.freeNudgeCapPerSeg()) r.setFreeNudgeCapPerSeg(old.freeNudgeCapPerSeg());
+        // TS-055: the free-nudge cap is per address, so N wallets get N
+        // allowances for gas alone. Free nudges are off in the beta; only paid
+        // swaps through the designated pairs steer the class.
+        r.setFreeNudgeCapPerSeg(0);
         // TS-052: swaps earn nudges only through designated pairs. Beta list:
         // WETH/USDC, WBTC/WETH, ARB/WETH. The pairs must already exist (checked
         // in _preflight; the script never creates one). TIMBS/WETH is added at
@@ -306,6 +309,7 @@ contract DeployBeta is Script {
         require(d.router.nudgePairs(IFactoryPairs(old.factory()).getPairAddress(c.wbtc, c.weth)), "WBTC/WETH must be a nudge pair (TS-052)");
         require(d.router.nudgePairs(IFactoryPairs(old.factory()).getPairAddress(c.arb,  c.weth)), "ARB/WETH must be a nudge pair (TS-052)");
         require(!d.router.nudgePairs(c.pair),                    "TIMBS/WETH is not a nudge pair until TIMBS launch (TS-052)");
+        require(d.router.freeNudgeCapPerSeg() == 0,             "beta: free nudges must be off (TS-055)");
         require(old.paused(),                                   "old router must be paused");
         require(d.router.protocolFeeBps() == 0,                 "router fee must be 0 (all-in 0.30%)");
         require(ITimbSwapFactoryAdmin(old.factory()).feeTo() == address(d.treasury), "pool protocol share must go to the new treasury");
