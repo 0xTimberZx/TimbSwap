@@ -431,6 +431,12 @@ async function pollRoundState() {
     // Remaining free (gas-only) nudges for this wallet this segment. Silent
     // on failure (old router without the view, or RPC hiccup) → treat as
     // unknown so the panel falls back to the plain per-tx cap.
+    if (ADDRESSES.TimbSwapRouter) {
+      try {
+        const router = new ethers.Contract(ADDRESSES.TimbSwapRouter, ROUTER_NUDGE_ABI, readProv());
+        freeNudgeCap = (await router.freeNudgeCapPerSeg()).toNumber();
+      } catch { freeNudgeCap = null; }
+    }
     if (userAddress && ADDRESSES.TimbSwapRouter) {
       try {
         const router = new ethers.Contract(ADDRESSES.TimbSwapRouter, ROUTER_NUDGE_ABI, readProv());
@@ -1343,7 +1349,8 @@ async function handleReclaimPastGame(ticketId) {
 
 const ROUTER_NUDGE_ABI = [
   "function advanceScroll(uint256 count) external",
-  "function freeNudgesRemaining(address user) external view returns (uint256)"
+  "function freeNudgesRemaining(address user) external view returns (uint256)",
+  "function freeNudgeCapPerSeg() external view returns (uint256)"
 ];
 const ADVANCE_MAX = 20; // mirrors TimbSwapRouter.MAX_BATCH_NUDGE
 
@@ -1351,6 +1358,9 @@ const ADVANCE_MAX = 20; // mirrors TimbSwapRouter.MAX_BATCH_NUDGE
 // null = not yet known; the router caps the free path per address per segment
 // (paid swap-nudges are uncapped). Refreshed each poll and after an advance.
 let freeNudgesLeft = null;
+// The router's per-segment free cap; 0 = the free path is off (the mainnet
+// beta, TS-055) and the panel stays hidden. null = not yet known.
+let freeNudgeCap = null;
 
 function advanceCeiling() {
   // Chosen batch can't exceed the on-chain per-tx cap nor the wallet's
@@ -1456,7 +1466,7 @@ function updateAdvancePanel(inSettlement) {
   }
   const panel = document.getElementById("advance-panel");
   if (!panel) return;
-  panel.classList.toggle("hidden", !userAddress);
+  panel.classList.toggle("hidden", !userAddress || freeNudgeCap === 0);
   const submitBtn = document.getElementById("advance-submit-btn");
   if (submitBtn && !advanceInSettlement) submitBtn.disabled = false;
   renderAdvancePreview();
