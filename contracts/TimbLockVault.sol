@@ -94,6 +94,10 @@ contract TimbLockVault is Ownable2Step, ReentrancyGuard {
     /// @notice Emergency pause on lock() — withdrawals always permitted.
     bool public lockingPaused;
 
+    /// @notice TS-061: principal held in active locks, per token (the amount
+    ///         actually received). recoverERC20 can never reach below it.
+    mapping(address => uint256) public totalLocked;
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     event Locked(
@@ -113,6 +117,7 @@ contract TimbLockVault is Ownable2Step, ReentrancyGuard {
     event TokenWhitelisted(address indexed token, bool allowed);
     event LockingPaused(address indexed by);
     event LockingUnpaused(address indexed by);
+    event TokenRecovered(address indexed token, address indexed to, uint256 amount);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -128,6 +133,7 @@ contract TimbLockVault is Ownable2Step, ReentrancyGuard {
     error AlreadyWithdrawn(uint256 lockId);
     error LockingCurrentlyPaused();
     error TransferAmountMismatch();
+    error ExceedsRecoverable(uint256 requested, uint256 recoverable);
 
     // ─── Constructor ─────────────────────────────────────────────────────────
 
@@ -213,6 +219,7 @@ contract TimbLockVault is Ownable2Step, ReentrancyGuard {
 
         activeLockId[msg.sender][token] = lockId;
         lockerHistory[msg.sender].push(lockId);
+        totalLocked[token] += actualAmount;
 
         emit Locked(lockId, msg.sender, token, actualAmount, unlockAt, token == timbsToken);
     }
@@ -237,6 +244,7 @@ contract TimbLockVault is Ownable2Step, ReentrancyGuard {
 
         entry.status = LockStatus.Withdrawn;
         activeLockId[msg.sender][entry.token] = 0;
+        totalLocked[entry.token] -= entry.amount;
 
         IERC20(entry.token).safeTransfer(msg.sender, entry.amount);
 
@@ -295,6 +303,21 @@ contract TimbLockVault is Ownable2Step, ReentrancyGuard {
     function unpauseLocking() external onlyOwner {
         lockingPaused = false;
         emit LockingUnpaused(msg.sender);
+    }
+
+    /**
+     * @notice TS-061: owner returns tokens sent here without lock(). Only
+     *         the balance above the token's locked principal is reachable,
+     *         so no active lock can be touched.
+     */
+    function recoverERC20(address token, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0)      revert ZeroAmount();
+        uint256 bal         = IERC20(token).balanceOf(address(this));
+        uint256 recoverable = bal > totalLocked[token] ? bal - totalLocked[token] : 0;
+        if (amount > recoverable) revert ExceedsRecoverable(amount, recoverable);
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRecovered(token, to, amount);
     }
 
     // ─── View: Registry ───────────────────────────────────────────────────────
