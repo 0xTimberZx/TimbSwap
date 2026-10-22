@@ -15,6 +15,11 @@ import {EligibleTokenRegistry} from "../contracts/EligibleTokenRegistry.sol";
 ///      NEW registry (register()/remove() are onlyGameRegistry) AND the NEW
 ///      prize (harvest() is onlyTimbPrize). See scripts/vault-weight.js for the
 ///      full ABI.
+/// @dev The outgoing pair's retirement switches. Older deployed compiles may
+///      lack them, so the script calls them through try/catch and says so.
+interface IOutgoingPrize    { function retire() external; }
+interface IOutgoingRegistry { function retireGame() external; }
+
 interface IYieldVaultAdmin {
     function setGameRegistry(address) external;
     function setTimbPrize(address) external;
@@ -156,8 +161,18 @@ contract DeployGen3Migration is Script {
         prize.setYieldVault(vaultAddr);
         if (settlerAddr != address(0)) prize.setSettler(settlerAddr);
 
-        // 6. Repoint reused infra at the NEW prize (owner-only setters). Escrow
-        //    and router have payable receive()s, so cast from a payable address.
+        // 6. TS-059: retire the OUTGOING pair before the escrow stops taking its
+        //    deposits. Between the escrow repoint and retireGame(), the old
+        //    registry's permissionless lapse sweep called addToPot on a prize
+        //    the escrow no longer accepts, and the try/catch sent 100% of each
+        //    lapse to the sink instead of the 70/30 split. retireGame() moves
+        //    the old generation on, so no sweep runs there again and its tickets
+        //    become reclaimable; retire() stops the old prize arming, settling
+        //    and harvesting (fix-list 48). Its settled rounds stay claimable.
+        _retireOutgoing(vm.envAddress("EXPECT_OLD_PRIZE"), vm.envAddress("EXPECT_OLD_REGISTRY"));
+
+        // 6a. Repoint reused infra at the NEW prize (owner-only setters). Escrow
+        //     and router have payable receive()s, so cast from a payable address.
         PrizeEscrow(payable(escrowAddr)).setTimbPrize(address(prize));
         TimbSwapRouter(payable(routerAddr)).setTimbPrize(address(prize));
         EligibleTokenRegistry(eligibleAddr).registerConsumer(address(prize));
@@ -189,10 +204,9 @@ contract DeployGen3Migration is Script {
         console.log("3. Update config.js: GameRegistry + TimbPrize + PrizeVRFEntropy -> new");
         console.log("4. Call new TimbPrize.startGame()  (fresh epoch, opens round 1)");
         console.log("5. Confirm settler activates round 2+ (activateRoundEntries no longer reverts)");
-        console.log("6. Call OLD TimbPrize.retire() (owner) -- fix-list 48: the outgoing prize must not");
-        console.log("   arm, settle or harvest again; its settled rounds stay claimable");
-        console.log("6b. Call OLD GameRegistry.retireGame() (owner) -- TS-043: without it the old");
-        console.log("   generation never advances and reclaimFromPastGame can never pass its guard");
+        console.log("6. Check the OLD pair is retired (done in this broadcast, TS-059; if the log above");
+        console.log("   says a call was skipped, run it by hand NOW): OLD TimbPrize.retired() == true");
+        console.log("   and OLD GameRegistry.retired() == true (TS-043: reclaimFromPastGame needs it)");
         console.log("7. Tell holders to reclaim principal from the OLD registry (user-reclaim only)");
         console.log("8. Old prize stays a retired escrow payer so its winners can still claim (TS-018).");
         console.log("   After its last claim window (last settled round + 2): escrow.setRetiredPrize(OLD_PRIZE, false)");
@@ -205,6 +219,22 @@ contract DeployGen3Migration is Script {
     ///      stale checkout, a dev mirror, a half-applied prior migration) and the
     ///      broadcast would hijack the live game. Runs in simulation too, so a
     ///      plain `forge script` (no --broadcast) surfaces the mismatch for free.
+    /// @dev TS-059: retire the outgoing prize and registry inside the broadcast,
+    ///      before the escrow repoint. Older compiles may not have the switch;
+    ///      that is logged loudly rather than aborting the migration.
+    function _retireOutgoing(address oldPrize, address oldRegistry) internal {
+        try IOutgoingPrize(oldPrize).retire() {
+            console.log("OLD TimbPrize retired:       ", oldPrize);
+        } catch {
+            console.log("!! OLD TimbPrize.retire() unavailable -- retire it by hand before step 6a takes effect:", oldPrize);
+        }
+        try IOutgoingRegistry(oldRegistry).retireGame() {
+            console.log("OLD GameRegistry retired:    ", oldRegistry);
+        } catch {
+            console.log("!! OLD GameRegistry.retireGame() unavailable -- lapses swept on it now go 100% to the sink:", oldRegistry);
+        }
+    }
+
     function _preflight(address escrowAddr, address routerAddr, address vaultAddr) internal view {
         address expectPrize    = vm.envAddress("EXPECT_OLD_PRIZE");
         address expectRegistry = vm.envAddress("EXPECT_OLD_REGISTRY");
