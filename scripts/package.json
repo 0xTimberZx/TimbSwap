@@ -4,7 +4,7 @@
   "description": "TimbSwap keepers: settler, faucet, notifiers, scorer. Run one per process via keeper-loop.js.",
   "main": "settler.js",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "settle": "node settler.js",

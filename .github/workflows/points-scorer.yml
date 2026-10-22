@@ -45,7 +45,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install ethers
+        run: npm ci --omit=dev
         working-directory: scripts
 
       # continue-on-error: a failed scan must still linger and chain so the
