@@ -63,7 +63,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install ethers
+        run: npm ci --omit=dev
         working-directory: scripts
 
       - name: Fund rewards
