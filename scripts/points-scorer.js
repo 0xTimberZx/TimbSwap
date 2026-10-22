@@ -317,7 +317,9 @@ async function main() {
     // nothing (2026-10-18). The owner
     // is read from the registry's `tickets` mapping rather than rebuilt from
     // TicketMinted: activation fires when the round opens, one round after the
-    // mint, so the two events are almost never in the same scan window.
+    // mint, so the two events are almost never in the same scan window. A failed
+    // read fails the pass (window retried) instead of dropping the award
+    // (2026-10-22: one wallet's activation was lost this way).
     try {
       const acts = await scanEvents(REGISTRY, REGISTRY.filters.TicketActivated(), fromBlock, toBlock);
       const owners = new Map();
@@ -326,18 +328,15 @@ async function main() {
         if (r > lastFoldableRound) continue; // can't happen inside the lagged window; defensive
         let owner = owners.get(id);
         if (owner === undefined) {
-          try {
-            const t = await REGISTRY.tickets(ev.args.ticketId);
-            owner = t.supersedes === 0n ? t.owner.toLowerCase() : null; // replacement: no award
-          }
-          catch (e) { owner = null; console.warn(`[points] tickets(${id}) failed: ${e.shortMessage || e.message}`); }
+          const t = await REGISTRY.tickets(ev.args.ticketId);
+          owner = t.supersedes === 0n ? t.owner.toLowerCase() : null; // replacement: no award
           owners.set(id, owner);
         }
         if (!owner) continue;
         let entrants = entrantsByRound.get(r);
         if (!entrants) {
-          try { entrants = new Set((await REGISTRY.getRoundEntrants(r)).map(a => a.toLowerCase())); entrantsByRound.set(r, entrants); }
-          catch { entrants = new Set(); }
+          entrants = new Set((await REGISTRY.getRoundEntrants(r)).map(a => a.toLowerCase()));
+          entrantsByRound.set(r, entrants);
         }
         if (entrants.has(owner)) bump(owner, "ta", 1, ev.blockNumber);
         else console.warn(`[points] ticket ${id} activated for round ${r} but its owner is not an entrant — no award`);
@@ -355,19 +354,17 @@ async function main() {
         if (ev.args.amount >= MIN) bump(ev.args.user, "sc", 1, ev.blockNumber);
     } catch (e) { scanOk = false; console.warn("[points] claims pass:", e.shortMessage || e.message); }
 
-    const rows = [...activity.entries()].map(([a, v]) => ({ a, ...v }));
-    if (rows.length) await sbRpc("points_apply_activity", { p_season: s.id, p_rows: rows });
-
     // Wins: WinningsClaimed (weight is tunable in seasons.weights, 0 by default).
+    let winRows = [];
     try {
       const claims = await scanEvents(PRIZE, PRIZE.filters.WinningsClaimed(), fromBlock, toBlock);
       const perWinner = new Map();
       for (const ev of claims) { const w = ev.args.winner.toLowerCase(); perWinner.set(w, (perWinner.get(w) || 0) + 1); }
-      const winRows = [...perWinner.entries()].map(([a, n]) => ({ a, n }));
-      if (winRows.length) await sbRpc("points_apply_wins", { p_season: s.id, p_rows: winRows });
+      winRows = [...perWinner.entries()].map(([a, n]) => ({ a, n }));
     } catch (e) { scanOk = false; console.warn("[points] win pass:", e.shortMessage || e.message); }
 
     // Participation flags (diversity display only; unweighted in v3).
+    let frows = [];
     try {
       const flags = new Map();
       const mark = (addr, key) => { const a = addr.toLowerCase(); const cur = flags.get(a) || {}; cur[key] = true; flags.set(a, cur); };
@@ -379,9 +376,20 @@ async function main() {
       if (boost) (await scanEvents(boost, boost.filters.Deposited(), fromBlock, toBlock)).forEach(ev => mark(ev.args.user, "lp"));
       const lock = optContract("TimbLockVault", ["event Locked(uint256 indexed lockId, address indexed locker, address indexed token, uint256 amount, uint256 unlockAt, bool isTimbs)"]);
       if (lock) (await scanEvents(lock, lock.filters.Locked(), fromBlock, toBlock)).forEach(ev => mark(ev.args.locker, "lock"));
-      const frows = [...flags.entries()].map(([a, f]) => ({ a, stake: !!f.stake, lp: !!f.lp, lock: !!f.lock }));
-      if (frows.length) await sbRpc("points_apply_flags", { p_season: s.id, p_rows: frows });
+      frows = [...flags.entries()].map(([a, f]) => ({ a, stake: !!f.stake, lp: !!f.lp, lock: !!f.lock }));
     } catch (e) { scanOk = false; console.warn("[points] flags pass:", e.shortMessage || e.message); }
+
+    // Write only when every scan succeeded. The apply functions add, and a
+    // failed scan leaves the cursor where it was, so writing a partial window
+    // would count its successful passes twice when the window is retried.
+    if (scanOk) {
+      const rows = [...activity.entries()].map(([a, v]) => ({ a, ...v }));
+      if (rows.length)    await sbRpc("points_apply_activity", { p_season: s.id, p_rows: rows });
+      if (winRows.length) await sbRpc("points_apply_wins",     { p_season: s.id, p_rows: winRows });
+      if (frows.length)   await sbRpc("points_apply_flags",    { p_season: s.id, p_rows: frows });
+    } else {
+      console.warn(`[points] a scan failed: nothing written for blocks ${fromBlock}–${toBlock}`);
+    }
 
     // Faucet drips (Supabase-side), up to the lag block's timestamp.
     try {
