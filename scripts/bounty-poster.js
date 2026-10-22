@@ -119,6 +119,68 @@ function isClosed(now = Date.now()) {
   return !Number.isFinite(CLOSES_AT) || now >= CLOSES_AT;
 }
 
+// ── The close ──────────────────────────────────────────────────────────────────
+// The last three days replace the rotation with two countdown posts:
+//   "soon"  once, when 24h < time left <= 72h, on the normal MIN_HOURS gap;
+//   "final" once, when time left <= 24h, at least FINAL_GAP_HOURS after the
+//           previous post, so the last day is announced even if "soon" ran late.
+// Nothing else posts inside the window. The date is read from CLOSES_AT, so an
+// overridden close date stays correct in the text.
+const SOON_WINDOW_HOURS = 72;
+const FINAL_WINDOW_HOURS = 24;
+const FINAL_GAP_HOURS = 12;
+
+function closeLabel() {
+  const d = new Date(CLOSES_AT);
+  const month = d.toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return { day: `${d.getUTCDate()} ${month}`, time: `${hh}:${mm} UTC` };
+}
+
+const CLOSING = {
+  soon: () => {
+    const { day, time } = closeLabel();
+    return `The TimbSwap bug bounty closes on ${day} at ${time}.
+
+Unaudited, open source, live on Arbitrum Sepolia. Five severity tiers, priced by what the bug would do with real funds. Reports must land before the deadline.
+
+timbswap.xyz/gov/#bounty`;
+  },
+  final: () => {
+    const { time } = closeLabel();
+    return `Last day: the TimbSwap bug bounty closes today at ${time}.
+
+Anything submitted after that is out. If you found something, send it now.
+
+Scope and tiers → timbswap.xyz/gov/#bounty`;
+  },
+};
+
+/**
+ * What to post now, or null. Pure: takes the state and the clock, so the
+ * self-test can walk the calendar.
+ */
+function pickPost(state, now = Date.now()) {
+  if (isClosed(now)) return null;
+  const left = (CLOSES_AT - now) / 3_600_000;
+  const since = state.lastPostedAt ? (now - Date.parse(state.lastPostedAt)) / 3_600_000 : Infinity;
+  const done = state.closing || {};
+  if (left <= FINAL_WINDOW_HOURS) {
+    if (done.final || since < FINAL_GAP_HOURS) return null;
+    return { kind: "final", text: CLOSING.final() };
+  }
+  if (left <= SOON_WINDOW_HOURS) {
+    if (done.soon || since < MIN_HOURS) return null;
+    return { kind: "soon", text: CLOSING.soon() };
+  }
+  if (since < MIN_HOURS) return null;
+  // Advance the rotation rather than picking by date: an unreliable cron must
+  // not repeat a variant just because two fires landed on the same day.
+  const idx = (state.lastVariant + 1) % VARIANTS.length;
+  return { kind: "rotation", idx, text: VARIANTS[idx] };
+}
+
 async function main() {
   if (MODE === "off")     { console.log("[bounty] BOUNTY_POST_MODE=off — skipping."); return; }
   if (isClosed()) {
@@ -130,24 +192,21 @@ async function main() {
   }
 
   const state = readState();
-  const elapsed = hoursSince(state.lastPostedAt);
-  if (elapsed < MIN_HOURS) {
-    console.log(`[bounty] Last post ${elapsed.toFixed(1)}h ago (< ${MIN_HOURS}h) — nothing to do.`);
+  const post = pickPost(state);
+  if (!post) {
+    console.log(`[bounty] Last post ${hoursSince(state.lastPostedAt).toFixed(1)}h ago — nothing due.`);
     return;
   }
-
-  // Advance the rotation rather than picking by date: an unreliable cron must
-  // not repeat a variant just because two fires landed on the same day.
-  const idx = (state.lastVariant + 1) % VARIANTS.length;
-  const text = VARIANTS[idx];
+  const { text } = post;
+  const label = post.kind === "rotation" ? `variant ${post.idx}` : `closing post "${post.kind}"`;
 
   if (text.length > 280) {
     // Never silently truncate a post — fail loudly instead.
-    throw new Error(`[bounty] Variant ${idx} is ${text.length} chars (> 280). Fix VARIANTS.`);
+    throw new Error(`[bounty] ${label} is ${text.length} chars (> 280). Fix the text.`);
   }
 
   if (DRY_RUN) {
-    console.log(`[bounty] DRY RUN — variant ${idx}, ${text.length} chars:\n\n${text}\n`);
+    console.log(`[bounty] DRY RUN — ${label}, ${text.length} chars:\n\n${text}\n`);
     return;
   }
 
@@ -158,12 +217,14 @@ async function main() {
   }
 
   const id = await tweet(text, mediaId);
+  const postedAt = new Date().toISOString();
   writeState({
-    lastPostedAt: new Date().toISOString(),
-    lastVariant:  idx,
-    posts:        (state.posts || 0) + 1
+    lastPostedAt: postedAt,
+    lastVariant:  post.kind === "rotation" ? post.idx : state.lastVariant,
+    posts:        (state.posts || 0) + 1,
+    closing:      post.kind === "rotation" ? state.closing : { ...(state.closing || {}), [post.kind]: postedAt }
   });
-  console.log(`[bounty] Posted variant ${idx} → tweet ${id}`);
+  console.log(`[bounty] Posted ${label} → tweet ${id}`);
 }
 
 // ── Write-scope probe ──────────────────────────────────────────────────────────
@@ -258,6 +319,50 @@ function selfTest() {
   ok("closed after close",         isClosed(CLOSES_AT + 86400e3));
   ok("default close is 26 Oct 23:59:59 UTC",
      process.env.BOUNTY_CLOSES_AT || CLOSES_AT === Date.parse("2026-10-26T23:59:59Z"));
+
+  // The close: walk the calendar against the real default close time.
+  {
+    const H = 3_600_000;
+    const at = (h) => CLOSES_AT - h * H;              // h hours before close
+    const iso = (t) => new Date(t).toISOString();
+    const base = { lastVariant: 0, posts: 1 };
+    // Normal rotation well before the window.
+    const p1 = pickPost({ ...base, lastPostedAt: iso(at(200)) }, at(120));
+    ok("rotation before the window", p1 && p1.kind === "rotation" && p1.idx === 1);
+    // 64h left, last post 48h ago: the "soon" post.
+    const p2 = pickPost({ ...base, lastPostedAt: iso(at(112)) }, at(64));
+    ok("soon at 64h left", p2 && p2.kind === "soon");
+    // Inside the window but under the gap: nothing.
+    ok("soon waits for the gap", pickPost({ ...base, lastPostedAt: iso(at(80)) }, at(64)) === null);
+    // Soon done, 30h left: nothing (no rotation inside the window).
+    ok("no rotation inside the window",
+       pickPost({ ...base, lastPostedAt: iso(at(64)), closing: { soon: iso(at(64)) } }, at(30)) === null);
+    // 23h left, soon 41h ago: the final post.
+    const p3 = pickPost({ ...base, lastPostedAt: iso(at(64)), closing: { soon: iso(at(64)) } }, at(23));
+    ok("final on the last day", p3 && p3.kind === "final");
+    // Final needs 12h since the previous post.
+    ok("final waits 12h after soon",
+       pickPost({ ...base, lastPostedAt: iso(at(30)), closing: { soon: iso(at(30)) } }, at(23)) === null);
+    // Final even if soon never ran.
+    const p4 = pickPost({ ...base, lastPostedAt: iso(at(200)) }, at(10));
+    ok("final even without soon", p4 && p4.kind === "final");
+    // Final only once.
+    ok("final only once",
+       pickPost({ ...base, lastPostedAt: iso(at(23)), closing: { final: iso(at(23)) } }, at(1)) === null);
+    // After the close: nothing at all.
+    ok("nothing after the close", pickPost({ ...base, lastPostedAt: iso(at(200)) }, CLOSES_AT + H) === null);
+    // Closing texts: fit, link, name the date, no currency, no first person.
+    for (const k of ["soon", "final"]) {
+      const t = CLOSING[k]();
+      ok(`closing ${k} fits`, t.length <= 280);
+      ok(`closing ${k} links the page`, t.includes("timbswap.xyz/gov/#bounty"));
+      ok(`closing ${k} states the time`, t.includes(closeLabel().time));
+      ok(`closing ${k} names no currency`, !/USDT|USDC|\$\s*\d|\bUSD\b|\bdollars?\b/i.test(t));
+      ok(`closing ${k} no first person`, !FIRST_PERSON.test(t));
+    }
+    ok("soon names the day", CLOSING.soon().includes(closeLabel().day));
+    ok("closing texts distinct", CLOSING.soon() !== CLOSING.final());
+  }
 
   console.log(`${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
