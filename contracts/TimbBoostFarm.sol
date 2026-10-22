@@ -792,10 +792,15 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
         _snapshotUser(pid, msg.sender);
 
         // Forfeited pending is no longer owed to anyone — release it from
-        // the solvency ledger so it can be re-emitted.
+        // the solvency ledger so it can be re-emitted. TS-060: re-aim the
+        // rate now, as claimRewards does; without it a farm at the solvency
+        // stop kept a zero rate on the freed reserve until an unrelated
+        // claim or top-up. Bounded internal math, so the exit can't block.
         uint256 forfeited = user.pending;
         if (forfeited > 0) {
             totalOwed = totalOwed > forfeited ? totalOwed - forfeited : 0;
+            _updateAllPools();
+            _retarget();
         }
 
         user.amount      = 0;
