@@ -973,18 +973,19 @@ async function handleSwap() {
     }
 
     // Native ETH never needs an ERC20 approval; wrap pairs skip it too since
-    // WETH.deposit/withdraw act on the caller's own balance.
+    // WETH.deposit/withdraw act on the caller's own balance. Approve exactly
+    // what the router pulls: amountIn plus its fee on top (TS-057).
     if (!isNative(tokenIn) && !isWrapPair()) {
       const tokenContract = await writeContract(tokenIn.address, ERC20_ABI);
       const allowance = await tokenContract.allowance(userAddress, ADDRESSES.TimbSwapRouter);
-      if (allowance.lt(amountInWei)) {
+      if (allowance.lt(needIn)) {
         btn.disabled = true;
         btn.textContent = "Approving…";
         DebugHub.logCheckpoint("Approve Requested", "pass");
 
         const gas = await getGasParams();
         const nonce = await getPendingNonce();
-        const approveTx = await tokenContract.approve(ADDRESSES.TimbSwapRouter, ethers.constants.MaxUint256, { ...gas, nonce });
+        const approveTx = await tokenContract.approve(ADDRESSES.TimbSwapRouter, needIn, { ...gas, nonce });
 
         DebugHub.logCheckpoint("Approve Submitted", "pass");
         await confirmTx(approveTx);
@@ -1474,7 +1475,7 @@ async function handleAddLiquidity() {
     const aMin = amtA.mul(slip).div(10000);
     const bMin = amtB.mul(slip).div(10000);
 
-    // Approve both tokens to the router if needed.
+    // Approve both tokens to the router if needed, for exactly this add (TS-057).
     for (const [tok, amt] of [[tokenIn, amtA], [tokenOut, amtB]]) {
       const c = await writeContract(tok.address, ERC20_ABI);
       const allow = await c.allowance(userAddress, ADDRESSES.TimbSwapRouter);
@@ -1482,7 +1483,7 @@ async function handleAddLiquidity() {
         btn.textContent = `Approving ${tok.symbol}…`;
         DebugHub.logCheckpoint("Liquidity Approve Requested", "pass");
         const gas = await getGasParams(); const nonce = await getPendingNonce();
-        await confirmTx(await c.approve(ADDRESSES.TimbSwapRouter, ethers.constants.MaxUint256, { ...gas, nonce }));
+        await confirmTx(await c.approve(ADDRESSES.TimbSwapRouter, amt, { ...gas, nonce }));
       }
     }
 
@@ -1566,14 +1567,14 @@ async function handleRemoveLiquidity() {
     const liquidity = lpBalanceWei.mul(removePct).div(100);
     if (liquidity.isZero()) { updateLqButtons(); return; }
 
-    // Approve the LP token to the router if needed.
+    // Approve the LP token to the router if needed, for exactly this removal (TS-057).
     const lp = await writeContract(lpPairAddress, ERC20_ABI);
     const allow = await lp.allowance(userAddress, ADDRESSES.TimbSwapRouter);
     if (allow.lt(liquidity)) {
       btn.textContent = "Approving LP…";
       DebugHub.logCheckpoint("Liquidity Remove Approve", "pass");
       const gas = await getGasParams(); const nonce = await getPendingNonce();
-      await confirmTx(await lp.approve(ADDRESSES.TimbSwapRouter, ethers.constants.MaxUint256, { ...gas, nonce }));
+      await confirmTx(await lp.approve(ADDRESSES.TimbSwapRouter, liquidity, { ...gas, nonce }));
     }
 
     btn.textContent = "Removing…";

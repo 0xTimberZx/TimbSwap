@@ -478,7 +478,7 @@ async function handleBoostStake(pid) {
       DebugHub.logCheckpoint("Boost:Approve Requested", "pass");
       const lpWrite = await writeContract(info.lpToken, ERC20_ABI);
       const gas = await getGasParams(); const nonce = await getPendingNonce();
-      await confirmTx(await lpWrite.approve(boostAddr(), ethers.constants.MaxUint256, { ...gas, nonce }));
+      await confirmTx(await lpWrite.approve(boostAddr(), amountWei, { ...gas, nonce }));
       DebugHub.logCheckpoint("Boost:Approve Confirmed", "pass");
     }
 
@@ -613,7 +613,7 @@ async function handleStake(pool) {
       DebugHub.logCheckpoint("Approve Requested", "pass");
       const gas = await getGasParams();
       const nonce = await getPendingNonce();
-      const approveTx = await tokenContract.approve(cfg.address, ethers.constants.MaxUint256, { ...gas, nonce });
+      const approveTx = await tokenContract.approve(cfg.address, amountWei, { ...gas, nonce });
       DebugHub.logCheckpoint("Approve Submitted", "pass");
       await confirmTx(approveTx);
       DebugHub.logCheckpoint("Approve Confirmed", "pass");
