@@ -5,8 +5,7 @@
 //   1. X REJECTS DUPLICATE POSTS. Sending byte-identical text returns
 //      403 "You are not allowed to create a Tweet with duplicate content",
 //      so a single fixed post would fail every time after the first.
-//      VARIANTS below rotate, and the pool balance line changes on its own
-//      as the wallet is funded.
+//      VARIANTS below rotate.
 //   2. GITHUB CRON IS UNRELIABLE HERE. This repo measured roughly one tick
 //      delivered in four to six, so no cron expression can be trusted to
 //      mean "every N hours". The workflow runs hourly and THIS script decides
@@ -15,6 +14,12 @@
 //
 // State: scripts/bounty-poster-state.json — { lastPostedAt, lastVariant, posts }.
 // The workflow commits it back, exactly like the reconcilers do.
+//
+// No currency: posts never name USDT or any dollar figure (no pot size, no cap,
+// no payout token). The bounty page carries the terms; the posts only point at it.
+//
+// Cutoff: nothing is posted at or after BOUNTY_CLOSES_AT, so a closed bounty
+// is never advertised.
 //
 // Env:
 //   X_API_KEY / X_API_SECRET / X_ACCESS_TOKEN / X_ACCESS_TOKEN_SECRET
@@ -26,13 +31,7 @@
 //                        talking to itself. Seven variants at 48h is a two-week
 //                        cycle before anything repeats.
 //   BOUNTY_CARD          optional path to a PNG to attach.
-//   BOUNTY_WALLET        pool wallet, whose inbound USDT is summed.
-//   BOUNTY_FUNDING_FROM_BLOCK
-//                        Arbitrum One block of the FIRST funding transfer into
-//                        the wallet. Seeds the first scan; after that the state
-//                        file's cursor takes over. Unset ⇒ no pot line.
-//   BOUNTY_FUNDING_CHUNK default 50000. getLogs range per request.
-//   ARB_ONE_RPC          Arbitrum One RPC for the funding scan.
+//   BOUNTY_CLOSES_AT     ISO time the bounty closes; default 2026-10-26T23:59:59Z.
 //   BOUNTY_DRY_RUN       "1" prints the post and exits without sending.
 //   --verify-auth        uploads a 1x1 PNG and attaches it to nothing. Media
 //                        upload needs WRITE scope, so this proves the token can
@@ -49,66 +48,52 @@ const STATE_PATH  = path.join(__dirname, "bounty-poster-state.json");
 const MODE        = (process.env.BOUNTY_POST_MODE || "on").toLowerCase();
 const MIN_HOURS   = Number(process.env.BOUNTY_MIN_HOURS || 48);
 const CARD        = process.env.BOUNTY_CARD || "";
-const WALLET      = process.env.BOUNTY_WALLET || "0x6dc9380d32Bd7CaA16Cc079073fb54D644C6138C";
-const ARB_ONE_RPC = process.env.ARB_ONE_RPC || "https://arb1.arbitrum.io/rpc";
 const DRY_RUN     = process.env.BOUNTY_DRY_RUN === "1";
-const FUNDING_FROM_BLOCK = Number(process.env.BOUNTY_FUNDING_FROM_BLOCK || 0);
-const FUNDING_CHUNK      = Number(process.env.BOUNTY_FUNDING_CHUNK || 50000);
-
-const USDT_ARB_ONE = "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"; // canonical, 6 dec
+const CLOSES_AT   = Date.parse(process.env.BOUNTY_CLOSES_AT || "2026-10-26T23:59:59Z");
 
 // ── The rotation ───────────────────────────────────────────────────────────────
 // Every variant must stand alone: someone sees exactly one of these, on one
-// random day, with no thread above it. So each states the chain, the payout
-// rail and the cap. `pool` is substituted with the live balance line when the
-// balance reads, and dropped entirely when it doesn't — never a stale number.
+// random day, with no thread above it. None names a currency or an amount.
 const VARIANTS = [
-  (pool) =>
-`Real USDT for breaking unaudited testnet contracts — before there is anyone's money on them to lose.
+`Real rewards for breaking unaudited testnet contracts — before there is anyone's money on them to lose.
 
-5 severity tiers, $500 cap per report.${pool}
+5 severity tiers, priced by what the bug would do with real funds.
 
 timbswap.xyz/gov/#bounty`,
 
-  (pool) =>
 `Most bounties ask you to race an exploit on a contract holding strangers' savings.
 
-TimbSwap's are on testnet. Severity still priced by what the bug WOULD do with real funds. Paid in USDT on Arbitrum One.${pool}
+TimbSwap's are on testnet. Severity still priced by what the bug WOULD do with real funds. Paid on Arbitrum One.
 
 timbswap.xyz/gov/#bounty`,
 
-  (pool) =>
-`The TimbSwap bounty pool wallet is public, and the page reads its balance straight from the chain in your own browser.${pool}
+`Every accepted TimbSwap report gets a public TS entry and a fix, logged on the bounty page.
 
-Check a real number instead of taking a headline on faith.
+Read what has been found, then find what hasn't.
 
 timbswap.xyz/gov/#bounty`,
 
-  (pool) =>
 `Unaudited DEX + prize game on testnet. Find the drain before the audit does.
 
-T5 (full drain, prize manipulation, privilege escalation): up to $500, paid in USDT on Arbitrum One.${pool}
+T5 (full drain, prize manipulation, privilege escalation) is the top tier, paid on Arbitrum One.
 
 timbswap.xyz/gov/#bounty`,
 
-  (pool) =>
 `Bug bounty, still open.
 
-Pari-mutuel: each tier's share splits across every accepted report in it. First valid reporter of an issue is the one eligible.${pool}
+Pari-mutuel: each tier's share splits across every accepted report in it. First valid reporter of an issue is the one eligible.
 
 Scope and tiers → timbswap.xyz/gov/#bounty`,
 
-  (pool) =>
 `If you've been meaning to read someone's contracts properly, read these.
 
-Arbitrum Sepolia, unaudited, open source. Real USDT for anything you break.${pool}
+Arbitrum Sepolia, unaudited, open source. Real rewards for anything you break.
 
 timbswap.xyz/gov/#bounty`,
 
-  (pool) =>
 `Shipping a DEX solo means the code has had exactly one set of eyes on it.
 
-That's the problem the bounty exists to fix. Up to $500 per report, USDT on Arbitrum One.${pool}
+That's the problem the bounty exists to fix. Five severity tiers, paid on Arbitrum One.
 
 timbswap.xyz/gov/#bounty`
 ];
@@ -129,114 +114,17 @@ function hoursSince(iso) {
   return (Date.now() - t) / 3_600_000;
 }
 
-// ── Cumulative funding ─────────────────────────────────────────────────────────
-// The pot line reports TOTAL USDT EVER PAID INTO the wallet, not its current
-// balance. Balance falls when a hunter is paid, which would read as the
-// programme shrinking; cumulative funding only ever rises, so it says what it
-// looks like it says.
-//
-// It is computed by summing ERC-20 Transfer logs whose `to` is the wallet, and
-// cached incrementally in the state file: each run scans only from the last
-// block it scanned to the chain head. A chunk that fails leaves the cursor
-// where it was, so a bad scan under-reports and retries rather than skipping a
-// window and permanently losing funding.
-//
-// BOUNTY_FUNDING_FROM_BLOCK seeds the first scan. Without it (and with no
-// cursor in state) there is no honest starting point, so no line is emitted.
-const TRANSFER_TOPIC =
-  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"; // Transfer(address,address,uint256)
-
-async function rpc(method, params) {
-  const res = await fetch(ARB_ONE_RPC, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
-  });
-  const body = await res.json();
-  if (body?.error) throw new Error(`${method}: ${JSON.stringify(body.error)}`);
-  return body?.result;
-}
-
-// Sums inbound USDT (in base units) over [from, to], chunked. Returns the sum
-// and the last block actually scanned — which is < `to` if a chunk failed.
-async function scanInbound(from, to) {
-  let total = 0n;
-  let cursor = from - 1;
-  const topicWallet = "0x" + WALLET.replace(/^0x/, "").toLowerCase().padStart(64, "0");
-  for (let start = from; start <= to; start += FUNDING_CHUNK) {
-    const end = Math.min(start + FUNDING_CHUNK - 1, to);
-    let logs;
-    try {
-      logs = await rpc("eth_getLogs", [{
-        // `address` pins the real USDT contract. This is load-bearing, not
-        // tidiness: a published bounty wallet attracts address-poisoning spam
-        // — worthless lookalike tokens sent from lookalike addresses — and
-        // without this filter those would be summed as funding.
-        address:   USDT_ARB_ONE,
-        fromBlock: "0x" + start.toString(16),
-        toBlock:   "0x" + end.toString(16),
-        // topics[1] is `from`, topics[2] is `to`. The wallet goes in the `to`
-        // slot so payouts OUT are never counted as funding in.
-        topics:    [TRANSFER_TOPIC, null, topicWallet]
-      }]);
-    } catch (e) {
-      // Stop here and keep the cursor. Under-reporting is recoverable next
-      // run; skipping a window would lose that funding for good.
-      console.warn(`[bounty] getLogs ${start}-${end} failed, stopping scan:`, e?.message || e);
-      break;
-    }
-    for (const log of logs || []) total += BigInt(log.data);
-    cursor = end;
-  }
-  return { total, cursor };
-}
-
-// Returns the pot line, and the funding state to persist. On any failure the
-// line is "" — the post goes out without a number rather than with one we
-// could not verify.
-async function potLine(state) {
-  if (!WALLET) return { line: "", funding: state.funding };
-
-  const prev  = state.funding || {};
-  const start = Number.isFinite(prev.lastScannedBlock)
-    ? prev.lastScannedBlock + 1
-    : (FUNDING_FROM_BLOCK || 0);
-
-  if (!start) {
-    console.warn("[bounty] No BOUNTY_FUNDING_FROM_BLOCK and no cursor — omitting the pot line.");
-    return { line: "", funding: prev };
-  }
-
-  try {
-    const head = Number(BigInt(await rpc("eth_blockNumber", [])));
-    if (!Number.isFinite(head) || head < start) {
-      return { line: potText(prev.cumulativeBaseUnits), funding: prev };
-    }
-    const { total, cursor } = await scanInbound(start, head);
-    const cumulative = BigInt(prev.cumulativeBaseUnits || "0") + total;
-    return {
-      line: potText(cumulative.toString()),
-      funding: { cumulativeBaseUnits: cumulative.toString(), lastScannedBlock: cursor }
-    };
-  } catch (e) {
-    console.warn("[bounty] funding scan failed:", e?.message || e);
-    // Still print what we already knew, if anything.
-    return { line: potText(prev.cumulativeBaseUnits), funding: prev };
-  }
-}
-
-// Whole USDT, rounded DOWN. Flooring can only ever understate the pot;
-// rounding could print 26 for 25.6, and a bounty post must never quote more
-// money than has actually been committed.
-function potText(baseUnits) {
-  if (baseUnits === undefined || baseUnits === null) return "";
-  const usdt = Number(BigInt(baseUnits)) / 1e6;
-  if (!Number.isFinite(usdt) || usdt <= 0) return "";
-  return `\n\nBounty Pot Funded: ${Math.floor(usdt).toLocaleString("en-US")} USDT`;
+/** True once the bounty has closed (or the close time is unreadable). */
+function isClosed(now = Date.now()) {
+  return !Number.isFinite(CLOSES_AT) || now >= CLOSES_AT;
 }
 
 async function main() {
   if (MODE === "off")     { console.log("[bounty] BOUNTY_POST_MODE=off — skipping."); return; }
+  if (isClosed()) {
+    console.log(`[bounty] Bounty closed at ${process.env.BOUNTY_CLOSES_AT || "2026-10-26T23:59:59Z"} — not posting.`);
+    return;
+  }
   if (!xConfigured() && !DRY_RUN) {
     console.log("[bounty] No X credentials — skipping."); return;
   }
@@ -251,11 +139,10 @@ async function main() {
   // Advance the rotation rather than picking by date: an unreliable cron must
   // not repeat a variant just because two fires landed on the same day.
   const idx = (state.lastVariant + 1) % VARIANTS.length;
-  const { line, funding } = await potLine(state);
-  const text = VARIANTS[idx](line);
+  const text = VARIANTS[idx];
 
   if (text.length > 280) {
-    // Never silently truncate a post that names money — fail loudly instead.
+    // Never silently truncate a post — fail loudly instead.
     throw new Error(`[bounty] Variant ${idx} is ${text.length} chars (> 280). Fix VARIANTS.`);
   }
 
@@ -274,8 +161,7 @@ async function main() {
   writeState({
     lastPostedAt: new Date().toISOString(),
     lastVariant:  idx,
-    posts:        (state.posts || 0) + 1,
-    funding
+    posts:        (state.posts || 0) + 1
   });
   console.log(`[bounty] Posted variant ${idx} → tweet ${id}`);
 }
@@ -325,12 +211,17 @@ function selfTest() {
   let pass = 0, fail = 0;
   const ok = (name, cond) => { cond ? pass++ : (fail++, console.error("FAIL:", name)); };
 
-  // Every variant fits X's limit, with and without the pool line.
-  const longPool = "\n\nBounty Pot Funded: 12,345 USDT";
+  // Every variant fits X's limit and links the page.
   VARIANTS.forEach((v, i) => {
-    ok(`variant ${i} fits with pool line`, v(longPool).length <= 280);
-    ok(`variant ${i} fits without pool line`, v("").length <= 280);
-    ok(`variant ${i} links the bounty page`, v("").includes("timbswap.xyz/gov/#bounty"));
+    ok(`variant ${i} fits`, v.length <= 280);
+    ok(`variant ${i} links the bounty page`, v.includes("timbswap.xyz/gov/#bounty"));
+  });
+
+  // No currency and no amounts in any variant: not USDT, not a dollar figure.
+  const AMOUNT = /USDT|USDC|\$\s*\d|\bUSD\b|\bdollars?\b/i;
+  VARIANTS.forEach((v, i) => {
+    const m = v.match(AMOUNT);
+    ok(`variant ${i} names no currency or amount${m ? ` (found "${m[0]}")` : ""}`, !m);
   });
 
   // Public copy speaks as TimbSwap, never as a person. This guard is why:
@@ -338,12 +229,12 @@ function selfTest() {
   // into "my contracts" when adding one.
   const FIRST_PERSON = /\b(I|I'm|I'd|I've|I'll|me|my|mine|myself|we|we're|we've|our|ours|us)\b/i;
   VARIANTS.forEach((v, i) => {
-    const m = v("").match(FIRST_PERSON);
+    const m = v.match(FIRST_PERSON);
     ok(`variant ${i} has no first person${m ? ` (found "${m[0]}")` : ""}`, !m);
   });
 
   // No two variants are identical — X would reject the repeat.
-  const seen = new Set(VARIANTS.map(v => v("")));
+  const seen = new Set(VARIANTS);
   ok("all variants distinct", seen.size === VARIANTS.length);
 
   // The rotation advances and wraps.
@@ -361,20 +252,12 @@ function selfTest() {
      hoursSince(new Date(Date.now() - (MIN_HOURS * 3600e3 + 60e3)).toISOString()) >= MIN_HOURS);
   ok("garbage timestamp ⇒ due", hoursSince("not-a-date") === Infinity);
 
-  // potText: whole USDT, rounded DOWN, from base units (6 decimals).
-  ok("25.999 USDT floors to 25", potText("25999000").includes("25 USDT"));
-  ok("25.005 USDT floors to 25", potText("25005000").includes("25 USDT"));
-  ok("thousands separated",      potText("12345670000").includes("12,345 USDT"));
-  ok("label says Funded",        potText("25000000").includes("Bounty Pot Funded:"));
-  ok("no 'To Date' anywhere",    !potText("25000000").includes("To Date"));
-  ok("zero ⇒ no line",           potText("0") === "");
-  ok("undefined ⇒ no line",      potText(undefined) === "");
-  ok("null ⇒ no line",           potText(null) === "");
-
-  // Cumulative funding must never fall: a payout reduces the balance but not
-  // the total ever funded, which is the whole reason for the change.
-  const fundedThenPaid = BigInt("25000000") + BigInt("50000000"); // two top-ups
-  ok("top-ups accumulate", potText(fundedThenPaid.toString()).includes("75 USDT"));
+  // The cutoff: open before the close time, closed at and after it.
+  ok("open a second before close", !isClosed(CLOSES_AT - 1000));
+  ok("closed at close",            isClosed(CLOSES_AT));
+  ok("closed after close",         isClosed(CLOSES_AT + 86400e3));
+  ok("default close is 26 Oct 23:59:59 UTC",
+     process.env.BOUNTY_CLOSES_AT || CLOSES_AT === Date.parse("2026-10-26T23:59:59Z"));
 
   console.log(`${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
