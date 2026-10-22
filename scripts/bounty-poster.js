@@ -141,19 +141,19 @@ function closeLabel() {
 const CLOSING = {
   soon: () => {
     const { day, time } = closeLabel();
-    return `The TimbSwap bug bounty closes on ${day} at ${time}.
+    return `⏳ Final days of the TimbSwap bug bounty! It closes on ${day} at ${time}.
 
-Unaudited, open source, live on Arbitrum Sepolia. Five severity tiers, priced by what the bug would do with real funds. Reports must land before the deadline.
+Every contract is open source and live on Arbitrum Sepolia, so dig in, poke at anything, and get rewarded for what you find. Every valid report is credited publicly.
 
 timbswap.xyz/gov/#bounty`;
   },
   final: () => {
     const { time } = closeLabel();
-    return `Last day: the TimbSwap bug bounty closes today at ${time}.
+    return `🚨 Last call! The TimbSwap bug bounty closes today at ${time}.
 
-Anything submitted after that is out. If you found something, send it now.
+The code is open and the testnet is live. There's still time to find something, so send your report in. Thanks to everyone who has hunted with TimbSwap!
 
-Scope and tiers → timbswap.xyz/gov/#bounty`;
+timbswap.xyz/gov/#bounty`;
   },
 };
 
