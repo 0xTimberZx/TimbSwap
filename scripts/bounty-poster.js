@@ -15,8 +15,8 @@
 // State: scripts/bounty-poster-state.json — { lastPostedAt, lastVariant, posts }.
 // The workflow commits it back, exactly like the reconcilers do.
 //
-// No amounts: posts never quote a dollar or USDT figure (no pot size, no cap).
-// The bounty page carries the terms; the posts only point at it.
+// No currency: posts never name USDT or any dollar figure (no pot size, no cap,
+// no payout token). The bounty page carries the terms; the posts only point at it.
 //
 // Cutoff: nothing is posted at or after BOUNTY_CLOSES_AT, so a closed bounty
 // is never advertised.
@@ -53,10 +53,9 @@ const CLOSES_AT   = Date.parse(process.env.BOUNTY_CLOSES_AT || "2026-10-26T23:59
 
 // ── The rotation ───────────────────────────────────────────────────────────────
 // Every variant must stand alone: someone sees exactly one of these, on one
-// random day, with no thread above it. So each states the chain and the payout
-// rail. None quotes an amount.
+// random day, with no thread above it. None names a currency or an amount.
 const VARIANTS = [
-`Real USDT for breaking unaudited testnet contracts — before there is anyone's money on them to lose.
+`Real rewards for breaking unaudited testnet contracts — before there is anyone's money on them to lose.
 
 5 severity tiers, priced by what the bug would do with real funds.
 
@@ -64,7 +63,7 @@ timbswap.xyz/gov/#bounty`,
 
 `Most bounties ask you to race an exploit on a contract holding strangers' savings.
 
-TimbSwap's are on testnet. Severity still priced by what the bug WOULD do with real funds. Paid in USDT on Arbitrum One.
+TimbSwap's are on testnet. Severity still priced by what the bug WOULD do with real funds. Paid on Arbitrum One.
 
 timbswap.xyz/gov/#bounty`,
 
@@ -76,7 +75,7 @@ timbswap.xyz/gov/#bounty`,
 
 `Unaudited DEX + prize game on testnet. Find the drain before the audit does.
 
-T5 (full drain, prize manipulation, privilege escalation) is the top tier, paid in USDT on Arbitrum One.
+T5 (full drain, prize manipulation, privilege escalation) is the top tier, paid on Arbitrum One.
 
 timbswap.xyz/gov/#bounty`,
 
@@ -88,13 +87,13 @@ Scope and tiers → timbswap.xyz/gov/#bounty`,
 
 `If you've been meaning to read someone's contracts properly, read these.
 
-Arbitrum Sepolia, unaudited, open source. Real USDT for anything you break.
+Arbitrum Sepolia, unaudited, open source. Real rewards for anything you break.
 
 timbswap.xyz/gov/#bounty`,
 
 `Shipping a DEX solo means the code has had exactly one set of eyes on it.
 
-That's the problem the bounty exists to fix. Paid in USDT on Arbitrum One.
+That's the problem the bounty exists to fix. Five severity tiers, paid on Arbitrum One.
 
 timbswap.xyz/gov/#bounty`
 ];
@@ -218,11 +217,11 @@ function selfTest() {
     ok(`variant ${i} links the bounty page`, v.includes("timbswap.xyz/gov/#bounty"));
   });
 
-  // No amounts: no dollar figure and no USDT figure, in any variant.
-  const AMOUNT = /\$\s*\d|\d[\d,.]*\s*(USDT|USD|dollars?)\b/i;
+  // No currency and no amounts in any variant: not USDT, not a dollar figure.
+  const AMOUNT = /USDT|USDC|\$\s*\d|\bUSD\b|\bdollars?\b/i;
   VARIANTS.forEach((v, i) => {
     const m = v.match(AMOUNT);
-    ok(`variant ${i} quotes no amount${m ? ` (found "${m[0]}")` : ""}`, !m);
+    ok(`variant ${i} names no currency or amount${m ? ` (found "${m[0]}")` : ""}`, !m);
   });
 
   // Public copy speaks as TimbSwap, never as a person. This guard is why:
