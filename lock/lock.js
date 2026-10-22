@@ -159,7 +159,7 @@ async function handleCreateLock() {
       return;
     }
 
-    // Approve if needed. Read the allowance from the public RPC (not the
+    // Approve exactly this lock's amount if needed (TS-057). Read the allowance from the public RPC (not the
     // wallet's in-app provider, which can return "header not found" mid-sync).
     const ercRead = new ethers.Contract(selectedToken.address, ERC20_ABI, readProv());
     const erc = await writeContract(selectedToken.address, ERC20_ABI);
@@ -170,7 +170,7 @@ async function handleCreateLock() {
       DebugHub.logCheckpoint("Lock:Approve Requested", "pass");
       const gas = await getGasParams();
       const nonce = await getPendingNonce();
-      const approveTx = await erc.approve(ADDRESSES.TimbLockVault, ethers.constants.MaxUint256, { ...gas, nonce });
+      const approveTx = await erc.approve(ADDRESSES.TimbLockVault, amountWei, { ...gas, nonce });
       DebugHub.logCheckpoint("Lock:Approve Submitted", "pass");
       await confirmTx(approveTx);
       DebugHub.logCheckpoint("Lock:Approve Confirmed", "pass");

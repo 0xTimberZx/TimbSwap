@@ -979,7 +979,7 @@ async function handleSubmitEntry() {
         btn.textContent = "Approving TIMBS…";
         DebugHub.logCheckpoint("Prize:Approve Requested", "pass");
         const gas = await getGasParams(); const nonce = await getPendingNonce();
-        await confirmTx(await timbs.approve(ADDRESSES.GameRegistry, ethers.constants.MaxUint256, { ...gas, nonce }));
+        await confirmTx(await timbs.approve(ADDRESSES.GameRegistry, timbsNeeded, { ...gas, nonce }));
         DebugHub.logCheckpoint("Prize:Approve Confirmed", "pass");
       }
     }
