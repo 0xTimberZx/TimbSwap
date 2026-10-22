@@ -17,9 +17,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *     deposit/withdraw/claim/emergency into this contract.
  *   - Fund with notifyRewardAmount(amount); emission self-targets over
  *     emissionWindow, exactly like the farm's TIMBS stream.
- *   - REPLACE the emitted token by removing this hook and adding another
- *     rewarder; ADD another token by attaching a second rewarder (the farm
- *     allows up to MAX_HOOKS_PER_POOL).
+ *   - REPLACE the emitted token by calling retire() here, then removing this
+ *     hook and adding another rewarder; ADD another token by attaching a
+ *     second rewarder (the farm allows up to MAX_HOOKS_PER_POOL).
+ *   - TS-058: once the hook is removed nothing syncs shares again, so an
+ *     unretired rewarder keeps streaming its reserve to the shares frozen at
+ *     removal, stakers or not. retire() ends emission for good: accrued
+ *     rewards stay claimable and the owner recovers the unowed reserve.
  *
  * Mirroring model:
  *   The farm passes `stakedAfter` — the user's authoritative pool balance
@@ -74,6 +78,9 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     /// @notice Authorised funders (owner + epoch keeper).
     mapping(address => bool) public rewardNotifiers;
 
+    /// @notice TS-058: set once by retire(); emission is over for good.
+    bool public retired;
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     event Synced(uint256 indexed pid, address indexed user, uint256 sharesAfter);
@@ -82,6 +89,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     event RateRetargeted(uint256 reserve, uint256 newRate, uint256 periodFinish);
     event EmissionWindowSet(uint256 windowSeconds);
     event RewardNotifierSet(address indexed notifier, bool authorised);
+    event Retired(uint256 owedAtRetire);
 
     // ─── Errors ──────────────────────────────────────────────────────────────
 
@@ -91,6 +99,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     error NotAuthorised();
     error NoPendingRewards();
     error InsufficientRewardBalance(uint256 required, uint256 available);
+    error RewarderRetired();
 
     modifier onlyFarm() {
         if (msg.sender != farm) revert OnlyFarm();
@@ -139,6 +148,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     // Streams the FREE reserve (reserve − owed); zero rate at ≥99% owed —
     // same solvency rule as TimbBoostFarm, accrued rewards stay payable.
     function _retarget() internal {
+        if (retired) return; // TS-058: rate stays 0, period stays ended
         uint256 owedCap = rewardReserve * SOLVENCY_STOP_BPS / 10_000;
         uint256 free    = totalOwed < owedCap ? rewardReserve - totalOwed : 0;
         rewardRatePerSecond = free / emissionWindow;
@@ -222,6 +232,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
             revert NotAuthorised();
         }
         if (amount == 0) revert ZeroAmount();
+        if (retired) revert RewarderRetired();
 
         _updateAcc();
         rewardToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -234,6 +245,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     // Re-aims the rate over the new window immediately (see TimbBoostFarm note).
     function setEmissionWindow(uint256 windowSeconds) external onlyOwner {
         if (windowSeconds == 0) revert ZeroAmount();
+        if (retired) revert RewarderRetired();
         _updateAcc();
         emissionWindow = windowSeconds;
         _retarget();
@@ -247,15 +259,39 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice TS-058: end emission for good before removing this hook from
+     *         the farm. Accrual is settled up to now and then stops, so the
+     *         shares frozen at removal earn nothing more; rewards accrued
+     *         before this stay claimable, and the unowed reserve becomes
+     *         recoverable through recoverERC20.
+     */
+    function retire() external onlyOwner {
+        if (retired) revert RewarderRetired();
+        _updateAcc();
+        retired             = true;
+        rewardRatePerSecond = 0;
+        periodFinish        = block.timestamp;
+        lastUpdateTime      = block.timestamp;
+        emit Retired(totalOwed);
+    }
+
+    /**
      * @notice Owner recovers stray tokens; the reward token only above the
-     *         tracked reserve.
+     *         tracked reserve, or, once retired, above what is still owed.
      */
     function recoverERC20(address token, uint256 amount) external onlyOwner {
         if (token == address(rewardToken)) {
-            uint256 recoverable = rewardToken.balanceOf(address(this)) - rewardReserve;
+            uint256 locked = retired ? totalOwed : rewardReserve;
+            uint256 recoverable = rewardToken.balanceOf(address(this)) - locked;
             if (amount > recoverable) {
                 revert InsufficientRewardBalance(amount, recoverable);
             }
+        }
+        if (token == address(rewardToken) && retired) {
+            // Keep the reserve equal to what is still owed after recovery,
+            // so claims keep checking against the real remaining balance.
+            uint256 bal = rewardToken.balanceOf(address(this)) - amount;
+            if (rewardReserve > bal) rewardReserve = bal;
         }
         IERC20(token).safeTransfer(owner(), amount);
     }

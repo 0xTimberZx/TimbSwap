@@ -60,7 +60,8 @@ interface ITimbFactoryLike {
  *     Hooks receive every deposit/withdraw/claim/emergency callback so the
  *     boosted ecosystem can call into other vaults and secondary emitters —
  *     e.g. a BoostRewarder streaming WETH on top of the TIMBS emission.
- *     Replace the hook to replace the emitted token. Hook calls are
+ *     Replace the hook to replace the emitted token (call the old
+ *     BoostRewarder's retire() first, TS-058). Hook calls are
  *     best-effort (try/catch + HookFailed event): a broken or malicious
  *     hook can never block a withdrawal.
  *   - NO PHANTOMS: addPool validates the LP against TimbSwapFactory —
