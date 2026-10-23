@@ -18,7 +18,8 @@
 //   nudge_swaps        a TimbsEthPair Swap in a tx that also emitted ScrollNudged,
 //                      attributed to tx.from, one per Swap event
 //   plain_swaps        a Swap in a tx with no ScrollNudged
-//   panel_nudges       ScrollNudged events in a tx with no Swap, N per tx
+//   panel_nudges       ScrollNudged events in a tx with no Swap, N per tx; priced
+//                      into meter_tp only when the wallet played that round
 //   tickets_activated  a TicketActivated for a ticket that is not a replacement
 //                      (supersedes == 0) and whose owner is among that
 //                      round's entrants
@@ -107,10 +108,12 @@ const blank = () => ({ rp: 0, ta: 0, ns: 0, ps: 0, pn: 0, fc: 0, sc: 0, w: 0, mt
 const bump = (ledger, addr, key, n = 1) => { const a = addr.toLowerCase(); (ledger[a] ??= blank())[key] += n; };
 
 /**
- * Swaps and nudges the scorer's way. swaps: [{ tx }], nudges: [{ tx }],
- * fromOf: { tx → from|null }. Mutates ledger.
+ * Swaps and nudges the scorer's way. swaps: [{ tx, block }], nudges:
+ * [{ tx, block, round }], fromOf: { tx → from|null }. playedRound(addr, round)
+ * says whether the wallet played that round: a panel nudge is counted either
+ * way but priced only when it did. Mutates ledger.
  */
-function foldSwapsAndNudges(ledger, swaps, nudges, fromOf, segmentAt = () => "all", weights = {}) {
+function foldSwapsAndNudges(ledger, swaps, nudges, fromOf, segmentAt = () => "all", weights = {}, playedRound = () => true) {
   const W = (k) => Number(weights?.[k] ?? DEFAULT_WEIGHTS[k]);
   const cap = W("segment_cap");
   const meter = new Map(); // addr -> Map(segmentKey -> uncapped points)
@@ -137,9 +140,8 @@ function foldSwapsAndNudges(ledger, swaps, nudges, fromOf, segmentAt = () => "al
     if (swapTxs.has(tx)) continue;
     const from = fromOf[tx];
     if (!from) continue;
-    const blk = nudges.find((x) => x.tx === tx)?.block;
     bump(ledger, from, "pn", n);
-    price(from, blk, n * W("panel_nudge"));
+    for (const x of nudges) if (x.tx === tx && playedRound(from, x.round)) price(from, x.block, W("panel_nudge"));
   }
 
   // One budget per wallet per segment, shared by all three paths.
@@ -272,6 +274,13 @@ function selfTest() {
     eq("swap without nudge is plain", l[A], { ...blank(), ps: 1, mt: 10 }); }
   { const l = {}; foldSwapsAndNudges(l, [], [{ tx: "t1", block: 1 }, { tx: "t1", block: 1 }, { tx: "t1", block: 1 }], { t1: A });
     eq("nudges without swap are panel nudges, N per tx", l[A], { ...blank(), pn: 3, mt: 15 }); }
+  // Panel nudges score only for a wallet that played the round it nudged in.
+  { const l = {}; foldSwapsAndNudges(l, [], [{ tx: "t1", block: 1, round: 7 }, { tx: "t1", block: 1, round: 7 }], { t1: A }, undefined, {}, () => false);
+    eq("panel nudges without a ticket count but score 0", l[A], { ...blank(), pn: 2 }); }
+  { const l = {}; foldSwapsAndNudges(l, [], [{ tx: "t1", block: 1, round: 7 }, { tx: "t2", block: 2, round: 8 }], { t1: A, t2: A }, undefined, {}, (a, r) => a === A && r === 8);
+    eq("only the round the wallet played is priced", l[A], { ...blank(), pn: 2, mt: 5 }); }
+  { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }], [{ tx: "t1", block: 1, round: 7 }], { t1: A }, undefined, {}, () => false);
+    eq("a nudge-swap scores without a ticket", l[A], { ...blank(), ns: 1, mt: 25 }); }
   { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }, { tx: "t1", block: 1 }], [{ tx: "t1", block: 1 }], { t1: A });
     eq("two swap events in one tx count twice", l[A].ns, 2); }
   { const l = {}; foldSwapsAndNudges(l, [{ tx: "t1", block: 1 }], [], { t1: null });
@@ -478,9 +487,13 @@ async function main() {
       const txFrom = async (h) => { if (!fromCache.has(h)) { try { const t = await provider.getTransaction(h); fromCache.set(h, t?.from ? t.from.toLowerCase() : null); } catch { fromCache.set(h, null); } } return fromCache.get(h); };
 
       const swaps  = (await sc(I.pair, "Swap", addr.pair)).map(({ log }) => ({ tx: log.transactionHash, block: log.blockNumber }));
-      const nudges = (await sc(I.prize, "ScrollNudged", addr.prize)).map(({ log }) => ({ tx: log.transactionHash, block: log.blockNumber }));
+      const nudges = (await sc(I.prize, "ScrollNudged", addr.prize)).map(({ args, log }) => ({ tx: log.transactionHash, block: log.blockNumber, round: Number(args.round) }));
       const fromOf = {};
       for (const tx of new Set([...swaps, ...nudges].map((e) => e.tx))) fromOf[tx] = await txFrom(tx);
+      // Mirrors the scorer: a panel nudge is priced only when its wallet played
+      // the round it nudged in.
+      const played = new Set();
+      for (const n of nudges) { const f = fromOf[n.tx]; if (f && (await entrants(n.round)).has(f)) played.add(`${f}:${n.round}`); }
 
       // Segment boundaries for the per-segment cap. SegmentAdvanced fires on a
       // segment's first block; the one that opened this window's first segment
@@ -498,7 +511,7 @@ async function main() {
         return key;
       };
 
-      foldSwapsAndNudges(state.ledger, swaps, nudges, fromOf, segmentAt, s.weights);
+      foldSwapsAndNudges(state.ledger, swaps, nudges, fromOf, segmentAt, s.weights, (a, r) => played.has(`${a}:${r}`));
       swapsSeen = swaps.length;
 
       const acts = await sc(I.registry, "TicketActivated", addr.registry);
