@@ -195,23 +195,27 @@ async function main() {
     }
     return st === TICKET_CANCELLED;
   };
+  // The wallets that played round r. Drops wallets whose ticket for the round
+  // was cancelled before it started: the entrant list is written at mint and
+  // never cleaned, but a cancelled ticket never played and its principal went
+  // back. Cached; the round pass and the panel-nudge rule share it.
+  const playedRound = async (r) => {
+    let set = entrantsByRound.get(r);
+    if (!set) {
+      const listed = [...new Set((await REGISTRY.getRoundEntrants(r)).map(a => a.toLowerCase()))];
+      set = new Set();
+      for (const a of listed) if (!(await ticketCancelledFor(a, r))) set.add(a);
+      entrantsByRound.set(r, set);
+    }
+    return set;
+  };
   try {
     const endRound = Math.min(lastFoldableRound, lastRound + MAX_ROUNDS_RUN);
     for (let r = lastRound + 1; r <= endRound; r++) {
-      let entrants = [];
-      try { entrants = await REGISTRY.getRoundEntrants(r); } catch (e) {
+      let uniq;
+      try { uniq = [...await playedRound(r)]; } catch (e) {
         console.warn(`[points] getRoundEntrants(${r}) failed: ${e.shortMessage || e.message}`); break;
       }
-      const listed = [...new Set(entrants.map(a => a.toLowerCase()))];
-      // Drop wallets whose ticket for this round was cancelled before it
-      // started: the entrant list is written at mint and never cleaned, but a
-      // cancelled ticket never played and its principal went back.
-      const uniq = [];
-      for (const a of listed) {
-        if (await ticketCancelledFor(a, r)) continue;
-        uniq.push(a);
-      }
-      entrantsByRound.set(r, new Set(uniq));
       if (uniq.length) await sbRpc("points_apply_round", { p_season: s.id, p_round: r, p_addresses: uniq });
       lastRound = r; roundsAdded++;
     }
@@ -249,6 +253,11 @@ async function main() {
     // more than a round is worth. The cap needs each event's segment, which SQL
     // cannot see, so the pricing happens here and the capped total is banked in
     // points_wallets.meter_tp.
+    //
+    // A panel nudge is priced only when the wallet played the round it nudged
+    // in. Anyone can still advance the scroll, ticket or not, but a wallet
+    // without a ticket in that round earns nothing for it, so extra wallets
+    // cannot farm the gas-only path. Counted in panel_nudges either way.
     try {
       const swaps  = await scanEvents(PAIR,  PAIR.filters.Swap(),          fromBlock, toBlock);
       const nudges = await scanEvents(PRIZE, PRIZE.filters.ScrollNudged(), fromBlock, toBlock);
@@ -290,14 +299,19 @@ async function main() {
         bump(from, isNudge ? "ns" : "ps", 1, ev.blockNumber);
         price(from, ev.blockNumber, isNudge ? W_NUDGE_SWAP : W_PLAIN_SWAP);
       }
+      let unticketed = 0;
       for (const [hash, n] of nudgesByTx) {
         if (swapTxs.has(hash)) continue;
         const from = await txFrom(hash);
         if (!from) continue;
-        const blk = nudges.find(ev => ev.transactionHash === hash).blockNumber;
-        bump(from, "pn", n, blk);
-        price(from, blk, n * W_PANEL_NUDGE);
+        const evs = nudges.filter(ev => ev.transactionHash === hash);
+        bump(from, "pn", n, evs[0].blockNumber);
+        for (const ev of evs) {
+          if ((await playedRound(Number(ev.args.round))).has(from)) price(from, ev.blockNumber, W_PANEL_NUDGE);
+          else unticketed++;
+        }
       }
+      if (unticketed) console.log(`[points] ${unticketed} panel nudge(s) from wallets without a ticket in that round: not priced.`);
 
       let capped = 0;
       for (const [a, m] of meter) {
