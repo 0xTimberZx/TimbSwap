@@ -40,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: "22.23.4"
 
       # seed-pools.js requires ethers at load time even though --self-test
       # never touches the network.

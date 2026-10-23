@@ -67,7 +67,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: "22.23.4"
 
       - name: Self-test the assessment logic
         working-directory: scripts
