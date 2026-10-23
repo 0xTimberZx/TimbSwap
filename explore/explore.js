@@ -79,51 +79,28 @@ async function tokenMeta(addr) {
 }
 
 // ─── USD pricing (best-effort) ─────────────────────────────────────────────────
-// We can price the known quote assets: WETH (via USDC/WETH), stables ($1), and
-// TIMBS (via TIMBS/WETH). A constant-product pool holds equal value on both
-// sides, so if we can price EITHER side we can value the whole pool. Pairs of
-// two unknown tokens simply show no USD (reserves still render).
+// Every USD figure here goes through config.js usdPriceOf(), the single anchor
+// the rest of the site uses: ETH at ETH_USD_PRICE, every other token off its
+// pool to WETH, stables not pinned to $1. This page used to read ETH off the
+// USDC/WETH pool and pin stables, so on an unarbitraged pool its figures
+// disagreed with every other page (about 2x on testnet). We price the known
+// quote assets; a constant-product pool holds equal value on both sides, so
+// pricing EITHER side values the whole pool. Pairs of two unknown tokens show
+// no USD (reserves still render).
 
-let _usdPerEth   = null;
-let _usdPerTimbs = null;
+const _usdPx = {}; // lowercased address -> USD per whole token, or null
 
 async function refreshPrices() {
-  const factory = contractRO(ADDRESSES.TimbSwapFactory, FACTORY_ABI);
-
-  // USDC/WETH → USD per ETH
-  try {
-    const p = await factory.getPairAddress(ADDRESSES.USDC, ADDRESSES.WETH);
-    if (p && p !== ZERO) {
-      const pair = contractRO(p, PAIR_ABI);
-      const [r, t0] = await Promise.all([pair.getReserves(), pair.token0()]);
-      const usdcIs0 = t0.toLowerCase() === ADDRESSES.USDC.toLowerCase();
-      const usdc = parseFloat(ethers.utils.formatUnits(usdcIs0 ? r.reserve0 : r.reserve1, 6));
-      const weth = parseFloat(ethers.utils.formatUnits(usdcIs0 ? r.reserve1 : r.reserve0, 18));
-      if (usdc > 0 && weth > 0) _usdPerEth = usdc / weth;
-    }
-  } catch {}
-
-  // TIMBS/WETH → ETH per TIMBS → USD per TIMBS
-  try {
-    const p = await factory.getPairAddress(ADDRESSES.TIMBSToken, ADDRESSES.WETH);
-    if (p && p !== ZERO && _usdPerEth !== null) {
-      const pair = contractRO(p, PAIR_ABI);
-      const [r, t0] = await Promise.all([pair.getReserves(), pair.token0()]);
-      const timbsIs0 = t0.toLowerCase() === ADDRESSES.TIMBSToken.toLowerCase();
-      const timbs = parseFloat(ethers.utils.formatUnits(timbsIs0 ? r.reserve0 : r.reserve1, 18));
-      const weth  = parseFloat(ethers.utils.formatUnits(timbsIs0 ? r.reserve1 : r.reserve0, 18));
-      if (timbs > 0 && weth > 0) _usdPerTimbs = (weth / timbs) * _usdPerEth;
-    }
-  } catch {}
+  const known = [ADDRESSES.WETH, ADDRESSES.USDC, ADDRESSES.USDT, ADDRESSES.TIMBSToken].filter(Boolean);
+  await Promise.all(known.map(async (a) => {
+    _usdPx[a.toLowerCase()] = await usdPriceOf(a).catch(() => null);
+  }));
 }
 
 // USD value of `amtFloat` of a token, or null if we can't price it.
 function usdOf(addrLc, amtFloat) {
-  if (addrLc === ADDRESSES.WETH.toLowerCase())  return _usdPerEth  !== null ? amtFloat * _usdPerEth  : null;
-  if (addrLc === ADDRESSES.USDC.toLowerCase())  return amtFloat;                       // $1
-  if (ADDRESSES.USDT && addrLc === ADDRESSES.USDT.toLowerCase()) return amtFloat;      // $1
-  if (addrLc === ADDRESSES.TIMBSToken.toLowerCase()) return _usdPerTimbs !== null ? amtFloat * _usdPerTimbs : null;
-  return null;
+  const px = _usdPx[addrLc];
+  return px === null || px === undefined ? null : amtFloat * px;
 }
 
 function fmtUsd(v) {
