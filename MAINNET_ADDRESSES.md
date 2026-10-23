@@ -69,7 +69,7 @@ calls `distribute()` here to send real TIMB from a small pre-funded float. See
 
 | Contract | Address | Notes |
 |---|---|---|
-| **TimbAirdropDistributor** | `0x955e5800245164EC4DCd1da9062115bBdA132c83` | Deploy tx `0x3436fe14…3d5a9b2`, block 505442198. **UNAUDITED stub.** `amountPerClaim` 1 TIMB · `totalCap` = `perRoundCap` = 10,000 TIMB · round 1 for the beta (so `claimed[1][addr]` = one claim per address, ever). `owner` = Safe `0xFbcD…79F9` · `dispatcher` = `0x77F434D288Ca29a322ae4C947Ae3ae6a04e29921` (hot key, gas only) · `guardian` = deployer (fast pause). Float: 1,000 TIMB from the Safe. |
+| **TimbAirdropDistributor** | `0x955e5800245164EC4DCd1da9062115bBdA132c83` | Deploy tx `0x3436fe14…3d5a9b2`, block 505442198. **UNAUDITED stub, built before the TS-047 and TS-054 fixes; paused until it is redeployed from the fixed source for the TIMBS launch.** `amountPerClaim` 1 TIMB · `totalCap` = `perRoundCap` = 10,000 TIMB · this build takes the round from the dispatcher, so one claim per address holds only while the dispatcher passes round 1 (policy, not enforced on-chain; the fixed source makes the round owner-set, TS-047). `owner` = Safe `0xFbcD…79F9` · `dispatcher` = `0x77F434D288Ca29a322ae4C947Ae3ae6a04e29921` (hot key, gas only) · `guardian` = Treasury Wallet `0xc701…6C30` since 22 Oct (was the deployer; in this build the guardian can also lift a pause, TS-054). Float: 1,000 TIMB from the Safe, 2 TIMB distributed. |
 
 > **Value-at-risk:** the pre-funded float (1,000 TIMB, topped up in tranches ≤ 10 %
 > of cap) is the only asset here. `SECURITY.md` lists this contract in scope
