@@ -159,6 +159,14 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
     }
 
     modifier updateReward(address account) {
+        // TS-064: emission over a stretch with nobody staked accrues to no one.
+        // Release it from rewardReserve so it does not stay committed forever
+        // (recoverERC20 can then reach it; notify never re-streams it).
+        uint256 applicable = lastTimeRewardApplicable();
+        if (totalStaked == 0 && applicable > lastUpdateTime) {
+            uint256 idle  = (applicable - lastUpdateTime) * rewardRatePerSecond;
+            rewardReserve = idle < rewardReserve ? rewardReserve - idle : 0;
+        }
         uint256 rpt = rewardPerToken();
         if (rpt > rewardPerTokenStored && totalStaked > 0) {
             _accruedLiability += (rpt - rewardPerTokenStored) * totalStaked / 1e18; // TS-044
@@ -422,6 +430,11 @@ contract TimbFarm is Ownable2Step, ReentrancyGuard {
             if (required > rewardBalance) {
                 revert InsufficientRewardBalance(required, rewardBalance);
             }
+            // TS-064: recommit the reserve to exactly what is now owed: the
+            // accrued liability plus the new rate over the remaining period. A
+            // cut releases the difference; a hike that re-emits released TIMBS
+            // is reserved again, so recoverERC20 cannot take it.
+            rewardReserve = required;
         }
         rewardRatePerSecond = _ratePerSecond;
         emit RewardRateSet(_ratePerSecond);
