@@ -15,8 +15,11 @@
 // State: scripts/bounty-poster-state.json — { lastPostedAt, lastVariant, posts }.
 // The workflow commits it back, exactly like the reconcilers do.
 //
-// No currency: posts never name USDT or any dollar figure (no pot size, no cap,
-// no payout token). The bounty page carries the terms; the posts only point at it.
+// Currency: the rotation variants never name USDT or any dollar figure; the
+// bounty page carries the terms. The two closing posts DO quote the published
+// per-report cap (REWARD_LINE, the SECURITY.md terms), decided 24 October after
+// the post naming USDT drew about 5x the engagement of an informational post.
+// Keep REWARD_LINE in step with the Severity & rewards table.
 //
 // Cutoff: nothing is posted at or after BOUNTY_CLOSES_AT, so a closed bounty
 // is never advertised.
@@ -138,12 +141,15 @@ function closeLabel() {
   return { day: `${d.getUTCDate()} ${month}`, time: `${hh}:${mm} UTC` };
 }
 
+// The per-report cap from the published terms (SECURITY.md "Severity & rewards").
+const REWARD_LINE = "Up to 500 USDT per valid report, paid on Arbitrum One.";
+
 const CLOSING = {
   soon: () => {
     const { day, time } = closeLabel();
     return `⏳ Final days of the TimbSwap bug bounty! It closes on ${day} at ${time}.
 
-Every contract is open source and live on Arbitrum Sepolia, so dig in, poke at anything, and get rewarded for what you find. Every valid report is credited publicly.
+${REWARD_LINE} Every contract is open source and live on Arbitrum Sepolia, so dig in and poke at anything.
 
 timbswap.xyz/gov/#bounty`;
   },
@@ -151,7 +157,7 @@ timbswap.xyz/gov/#bounty`;
     const { time } = closeLabel();
     return `🚨 Last call! The TimbSwap bug bounty closes today at ${time}.
 
-The code is open and the testnet is live. There's still time to find something, so send your report in. Thanks to everyone who has hunted with TimbSwap!
+${REWARD_LINE} The code is open and the testnet is live: there's still time. Thanks to everyone who has hunted with TimbSwap!
 
 timbswap.xyz/gov/#bounty`;
   },
@@ -351,13 +357,13 @@ function selfTest() {
        pickPost({ ...base, lastPostedAt: iso(at(23)), closing: { final: iso(at(23)) } }, at(1)) === null);
     // After the close: nothing at all.
     ok("nothing after the close", pickPost({ ...base, lastPostedAt: iso(at(200)) }, CLOSES_AT + H) === null);
-    // Closing texts: fit, link, name the date, no currency, no first person.
+    // Closing texts: fit, link, name the date, quote the published cap, no first person.
     for (const k of ["soon", "final"]) {
       const t = CLOSING[k]();
       ok(`closing ${k} fits`, t.length <= 280);
       ok(`closing ${k} links the page`, t.includes("timbswap.xyz/gov/#bounty"));
       ok(`closing ${k} states the time`, t.includes(closeLabel().time));
-      ok(`closing ${k} names no currency`, !/USDT|USDC|\$\s*\d|\bUSD\b|\bdollars?\b/i.test(t));
+      ok(`closing ${k} quotes the published cap`, t.includes(REWARD_LINE) && /\b500 USDT\b/.test(t));
       ok(`closing ${k} no first person`, !FIRST_PERSON.test(t));
     }
     ok("soon names the day", CLOSING.soon().includes(closeLabel().day));
