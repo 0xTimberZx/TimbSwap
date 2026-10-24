@@ -846,33 +846,34 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
      */
     function _harvestYield(uint256 round) internal {
         if (yieldVault == address(0) || retired) return;
-        uint256 harvested;
         // Isolate the vault call — a failing/misbehaving vault must not revert.
-        try ITimbYieldVaultPrize(yieldVault).harvest() returns (uint256 amount) {
-            harvested = amount;
+        try ITimbYieldVaultPrize(yieldVault).harvest() returns (uint256) {
         } catch {
             // Surface the swallowed failure so a mis-wired vault↔prize link
             // (harvest is onlyTimbPrize) is observable instead of silent.
             emit YieldHarvestFailed(round);
             return;
         }
-        if (harvested == 0) return;
         // M2: the deposit was previously INSIDE the try body, so if the vault
         // reported more than it actually forwarded, deposit{value:} reverted and
-        // that revert propagated out — bricking settlement. Never forward more
-        // than we actually hold, keep the deposit in its own try/catch, and
-        // credit the pot accounting only on a successful deposit.
-        uint256 bal       = address(this).balance;
-        uint256 toDeposit = harvested < bal ? harvested : bal;
+        // that revert propagated out — bricking settlement. Forward only what we
+        // actually hold, keep the deposit in its own try/catch, and credit the
+        // pot accounting only on a successful deposit.
+        // TS-063: forward the whole balance, not just this harvest. receive()
+        // takes ETH only from the vault and fundPot/addToPot forward msg.value
+        // straight on, so any balance here is harvest that an earlier rejected
+        // deposit left behind; sweeping it on every settlement, even one whose
+        // own harvest is zero, is what makes the catch below self-heal.
+        uint256 toDeposit = address(this).balance;
         if (toDeposit == 0) return;
         try IPrizeEscrow(prizeEscrow).deposit{value: toDeposit}() {
             currentAccumulatedRewards += toDeposit;
             emit YieldHarvested(round, toDeposit);
         } catch {
-            // Harvested ETH is now on this contract but the escrow deposit was
-            // rejected — the pot is NOT credited (M2), so the ETH strands here
-            // and self-heals on the next successful deposit. Surface it rather
-            // than swallowing silently.
+            // The escrow rejected the deposit: the pot is NOT credited (M2),
+            // the ETH stays here, and the next successful settlement forwards
+            // it with that round's harvest. The amount is everything stranded
+            // so far, so a stall is visible rather than silent.
             emit YieldDepositFailed(round, toDeposit);
         }
     }
