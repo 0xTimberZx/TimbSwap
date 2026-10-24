@@ -74,7 +74,7 @@ solo/competitive review of the frozen scope → Hats vault for the tail.**
 - [ ] Coverage at target on the value contracts (§3) (`forge coverage --ir-minimum`, 2026-10-20: Line A 83.5% lines at the freeze `28a343c`; after the tests-only coverage suites, 88.0% lines, 82.8% statements, 51.9% branches, 87.0% functions. EligibleTokenRegistry, TimbSwapFactory, TIMBSToken and VRFEntropy are at 100%. The remaining gaps are revert branches in the larger game and router contracts)
 - [x] Invariants written as passing fuzz/invariant tests (Line A, 2026-10-20: `tests/invariants/` — game solvency, pair `k` and LP accounting, TIMBS cap, yield-vault backing; each suite mutation-checked. `totalStaked` waits for Line C, TimbStaking is not in the beta)
 - [x] Slither high/medium each **fixed or documented** (2026-10-21, run locally because Actions is off: Slither 0.11.6 at the freeze, 23 High and 35 Medium on Line A, none exploitable. One hardening note: `submitEntry` sends its overpayment refund before writing state, guarded by `nonReentrant`. Triage in the audit handover)
-- [x] Scope frozen: commit hash + `MAINNET_ADDRESSES.md` (`f2549d8`, 2026-10-23; moved from `936288a`, `28a343c` and `78edf17` for tests, the TS-056 fix and the TS-062 router fix)
+- [x] Scope frozen: commit hash + `MAINNET_ADDRESSES.md` (`59ad191`, 2026-10-24; moved from `936288a`, `28a343c`, `78edf17` and `f2549d8` for tests, the TS-056 fix, the TS-062 router fix and the TS-063 TimbPrize fix)
 - [x] Known-issues doc ready for the reviewer (`audit-handover/TIMBSWAP_KNOWN_ISSUES.md`)
 - [ ] Security contact filled in `SECURITY.md` + GitHub private advisories enabled
 - [ ] Litepaper / spec current, so the auditor understands intent fast
