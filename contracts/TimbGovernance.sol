@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     enum ProposalStatus {
@@ -101,6 +102,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     event ProposalExecuted(uint256 indexed id, address indexed executor);
     event VotingPowerDeposited(address indexed voter, uint256 amount);
     event VotingPowerWithdrawn(address indexed voter, uint256 amount);
+    event TokenRecovered(address indexed token, address indexed to, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -117,6 +119,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     error InvalidPeriod();
     error InvalidBps();
     error TooManyOpenProposals();
+    error ExceedsRecoverable(uint256 requested, uint256 recoverable);
 
     constructor(
         address _timbsToken,
@@ -398,6 +401,24 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
 
     function setVotingDelay(uint256 _delay) external onlyOwner {
         votingDelay = _delay;
+    }
+
+    /// @notice TS-065: return tokens sent here by plain transfer instead of
+    ///         depositVotingPower. Those are credited to no one and
+    ///         withdrawVotingPower pays only credited balances, so they had no
+    ///         exit. For TIMBS only the balance above totalVotingPower is
+    ///         recoverable, so deposited voting power can never be touched; the
+    ///         contract custodies no other token, so any other is recoverable
+    ///         in full. Same shape as TimbLockVault.recoverERC20 (TS-061).
+    function recoverERC20(address token, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0)      revert ZeroAmount();
+        uint256 bal         = IERC20(token).balanceOf(address(this));
+        uint256 committed   = token == address(timbsToken) ? totalVotingPower : 0;
+        uint256 recoverable = bal > committed ? bal - committed : 0;
+        if (amount > recoverable) revert ExceedsRecoverable(amount, recoverable);
+        SafeERC20.safeTransfer(IERC20(token), to, amount);
+        emit TokenRecovered(token, to, amount);
     }
 
     function getProposal(uint256 proposalId)
