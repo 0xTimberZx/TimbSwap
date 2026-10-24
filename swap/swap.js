@@ -23,11 +23,25 @@ const POOL_FEE_BPS = 30;
 let routerFeeBps = 5;
 function withRouterFee(bn) { return bn.add(bn.mul(routerFeeBps).div(10000)); }
 function pctOfBps(bps) { return bps === 0 ? "0%" : (bps / 100).toFixed(2) + "%"; }
+// TS-066: every pool on the route takes its 0.30% of what reaches it, so a
+// two-hop route (A → WETH → B) pays the pool fee twice. The router fee is
+// charged once, on top of amountIn. Hop count of the quote on screen:
+let routeHops = 1;
+// Input lost to pool fees over `hops` pools, compounded: amountIn·(1 − 0.997^hops).
+function poolFeeOf(amountInWei, hops) {
+  let kept = amountInWei;
+  for (let i = 0; i < hops; i++) kept = kept.mul(10000 - POOL_FEE_BPS).div(10000);
+  return amountInWei.sub(kept);
+}
+function totalFeeBps(hops) {
+  return 10000 * (1 - Math.pow(1 - POOL_FEE_BPS / 10000, hops)) + routerFeeBps;
+}
 function renderFeeLabels() {
   const r = document.getElementById("info-fee-label");
   if (r) r.textContent = `Router fee (${pctOfBps(routerFeeBps)})`;
   const t = document.getElementById("info-total-label");
-  if (t) t.textContent = `Total fee (${pctOfBps(POOL_FEE_BPS + routerFeeBps)})`;
+  if (t) t.textContent = `Total fee (${pctOfBps(totalFeeBps(routeHops))})` +
+    (routeHops > 1 ? ` · ${routeHops} pools` : "");
 }
 (async function loadRouterFee() {
   try {
@@ -731,7 +745,7 @@ async function quoteViaWeth(router, inputIn, inputOut, infoBox) {
         updateSwapButton("Amount too small for this route"); return true;
       }
     }
-    renderSwapInfo(amountInWei, amountOutWei, await pathSpot(router, path), " · via WETH");
+    renderSwapInfo(amountInWei, amountOutWei, await pathSpot(router, path), " · via WETH", path.length - 1);
     swapRoute = path;
     updateSwapButton(overBalanceLabel() || (userAddress ? "Swap via WETH" : "Connect wallet to swap"));
     return true;
@@ -742,7 +756,7 @@ async function quoteViaWeth(router, inputIn, inputOut, infoBox) {
   }
 }
 
-function renderSwapInfo(amountInWei, amountOutWei, spotPrice, viaLabel = "") {
+function renderSwapInfo(amountInWei, amountOutWei, spotPrice, viaLabel = "", hops = 1) {
   const infoBox = document.getElementById("swap-info");
   infoBox.classList.remove("hidden");
 
@@ -762,7 +776,8 @@ function renderSwapInfo(amountInWei, amountOutWei, spotPrice, viaLabel = "") {
     fmt(feeAmt, tokenIn.decimals, 6) + " " + tokenIn.symbol;
   const totalEl = document.getElementById("info-total-fee");
   if (totalEl) totalEl.textContent =
-    fmt(amountInWei.mul(POOL_FEE_BPS + routerFeeBps).div(10000), tokenIn.decimals, 6) + " " + tokenIn.symbol;
+    fmt(poolFeeOf(amountInWei, hops).add(feeAmt), tokenIn.decimals, 6) + " " + tokenIn.symbol;
+  routeHops = hops;
   renderFeeLabels();
 
   const minReceived = amountOutWei.mul(Math.floor((100 - slippagePct) * 100)).div(10000);
