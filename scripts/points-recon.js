@@ -15,9 +15,9 @@
 //   rounds_played      +1 per settled round r ≤ current − lag_rounds whose
 //                      GameRegistry.getRoundEntrants(r) lists the wallet and
 //                      whose ticket for r (ticketAt) was not cancelled
-//   nudge_swaps        a TimbsEthPair Swap in a tx that also emitted ScrollNudged,
-//                      attributed to tx.from, one per Swap event
-//   plain_swaps        a Swap in a tx with no ScrollNudged
+//   nudge_swaps        a router SwapExecuted in a tx that also emitted ScrollNudged,
+//                      attributed to tx.from, one per SwapExecuted event
+//   plain_swaps        a SwapExecuted in a tx with no ScrollNudged
 //   panel_nudges       ScrollNudged events in a tx with no Swap, N per tx; priced
 //                      into meter_tp only when the wallet played that round
 //   tickets_activated  a TicketActivated for a ticket that is not a replacement
@@ -388,7 +388,8 @@ const REGISTRY_ABI = [
   "function tickets(uint256) view returns (uint256 id, address owner, bytes6 string6, uint256 playRound, uint256 lastEligibleRound, uint256 escrowAmount, address escrowToken, uint8 status, uint256 supersedes, uint256 supersededBy, uint256 createdAt, uint256 forfeitRound, uint256 generation)",
   "event TicketActivated(uint256 indexed ticketId, uint256 indexed round)",
 ];
-const PAIR_ABI  = ["event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)"];
+// Mirrors the scorer: swaps come from the router (any pool, one event per call).
+const ROUTER_ABI = ["event SwapExecuted(address sender, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut, address to)"];
 const FARM_ABI  = ["event RewardsClaimed(address indexed user, uint256 timbsAmount)"];
 const STAKE_ABI = ["event RewardsClaimed(address indexed user, uint256 amount)"];
 
@@ -398,7 +399,10 @@ async function main() {
   const addr = { prize: addrFromConfig("TimbPrize"), registry: addrFromConfig("GameRegistry"), pair: addrFromConfig("TimbsEthPair") };
   const opt = (k) => { try { return addrFromConfig(k); } catch { return null; } };
   addr.farm = opt("TimbFarm"); addr.staking = opt("TimbStaking");
-  const I = { prize: new ethers.Interface(PRIZE_ABI), registry: new ethers.Interface(REGISTRY_ABI), pair: new ethers.Interface(PAIR_ABI), farm: new ethers.Interface(FARM_ABI), stake: new ethers.Interface(STAKE_ABI) };
+  // Not part of the state key (prize, registry, pair), so switching the swap
+  // source did not reset the shadow ledger.
+  addr.router = addrFromConfig("TimbSwapRouter");
+  const I = { prize: new ethers.Interface(PRIZE_ABI), registry: new ethers.Interface(REGISTRY_ABI), router: new ethers.Interface(ROUTER_ABI), farm: new ethers.Interface(FARM_ABI), stake: new ethers.Interface(STAKE_ABI) };
   const prize    = new ethers.Contract(addr.prize, PRIZE_ABI, provider);
   const registry = new ethers.Contract(addr.registry, REGISTRY_ABI, provider);
 
@@ -486,7 +490,7 @@ async function main() {
       const fromCache = new Map();
       const txFrom = async (h) => { if (!fromCache.has(h)) { try { const t = await provider.getTransaction(h); fromCache.set(h, t?.from ? t.from.toLowerCase() : null); } catch { fromCache.set(h, null); } } return fromCache.get(h); };
 
-      const swaps  = (await sc(I.pair, "Swap", addr.pair)).map(({ log }) => ({ tx: log.transactionHash, block: log.blockNumber }));
+      const swaps  = (await sc(I.router, "SwapExecuted", addr.router)).map(({ log }) => ({ tx: log.transactionHash, block: log.blockNumber }));
       const nudges = (await sc(I.prize, "ScrollNudged", addr.prize)).map(({ args, log }) => ({ tx: log.transactionHash, block: log.blockNumber, round: Number(args.round) }));
       const fromOf = {};
       for (const tx of new Set([...swaps, ...nudges].map((e) => e.tx))) fromOf[tx] = await txFrom(tx);

@@ -258,7 +258,7 @@ and never writes to Supabase.
 
 Each counter is recomputed exactly as the scorer defines it: rounds from
 `getRoundEntrants` for every settled round inside the lag; nudge-swaps, plain
-swaps and panel nudges from `Swap` and `ScrollNudged` grouped by transaction
+swaps and panel nudges from the router's `SwapExecuted` and the prize's `ScrollNudged` grouped by transaction
 and attributed to `tx.from`, a panel nudge priced only when its wallet played
 that round; ticket activations whose owner entered the round; farm and staking claims of at least 25 TIMBS; wins; faucet drips from
 the `faucet_claims` table up to the lag block's time. The window ends at the

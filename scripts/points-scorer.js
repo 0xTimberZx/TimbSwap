@@ -9,8 +9,8 @@
 // hourly cron stays cheap even over a 6-week season.
 //
 //   Repeat play  ← GameRegistry.getRoundEntrants(round) for each newly settled round
-//   Volume       ← Pair Swap events, attributed to the REAL trader (tx.from, not the
-//                  event's `sender` which is the router)
+//   Volume       ← router SwapExecuted events (one per swap call, any pool or
+//                  path), attributed to the REAL trader (tx.from)
 //   Wins         ← TimbPrize WinningsClaimed events
 //   Participation← stake / LP-farm / boost / lock events (the indexed user IS the
 //                  real actor — no tx.from needed): feed the diversity bonus
@@ -137,8 +137,13 @@ async function main() {
     "function tickets(uint256) view returns (uint256 id, address owner, bytes6 string6, uint256 playRound, uint256 lastEligibleRound, uint256 escrowAmount, address escrowToken, uint8 status, uint256 supersedes, uint256 supersededBy, uint256 createdAt, uint256 forfeitRound, uint256 generation)",
     "event TicketActivated(uint256 indexed ticketId, uint256 indexed round)",
   ], provider);
-  const PAIR     = new ethers.Contract(addrFromConfig("TimbsEthPair"), [
-    "event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)",
+  // Swaps are read from the router, not one pair: the meter can be nudged
+  // through any designated pool (on mainnet TIMBS/WETH is not one), and a
+  // nudge-swap through a pool the scorer did not read was filed as a panel
+  // nudge. Direct pair swaps skip the router fee and earn no nudge, so they
+  // are not scored.
+  const ROUTER   = new ethers.Contract(addrFromConfig("TimbSwapRouter"), [
+    "event SwapExecuted(address sender, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut, address to)",
   ], provider);
 
   // ── Settlement lag ──
@@ -243,9 +248,10 @@ async function main() {
       activity.set(a, cur);
     };
 
-    // Meter activity: a Swap tx that also emits ScrollNudged is a nudge-swap, a
-    // Swap with no nudge is a plain swap, and ScrollNudged with no Swap in the tx
-    // is the "Advance the Scroll" panel (a batch emits one event per nudge).
+    // Meter activity: a router swap (SwapExecuted) in a tx that also emits
+    // ScrollNudged is a nudge-swap, a swap with no nudge is a plain swap, and
+    // ScrollNudged with no swap in the tx is the "Advance the Scroll" panel (a
+    // batch emits one event per nudge).
     //
     // All three share ONE budget per wallet per segment, capped at
     // weights.segment_cap. Uncapped, the gas-only panel path was the cheapest
@@ -259,7 +265,7 @@ async function main() {
     // without a ticket in that round earns nothing for it, so extra wallets
     // cannot farm the gas-only path. Counted in panel_nudges either way.
     try {
-      const swaps  = await scanEvents(PAIR,  PAIR.filters.Swap(),          fromBlock, toBlock);
+      const swaps  = await scanEvents(ROUTER, ROUTER.filters.SwapExecuted(), fromBlock, toBlock);
       const nudges = await scanEvents(PRIZE, PRIZE.filters.ScrollNudged(), fromBlock, toBlock);
 
       // Segment boundaries. SegmentAdvanced fires on a segment's first block, and
