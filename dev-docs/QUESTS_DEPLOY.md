@@ -78,9 +78,9 @@ Flat and additive. Weights live in `seasons.weights` (jsonb) and are read by
 |----------------|----:|-------------------------------------------------------------------|
 | round_played   | 250 | each settled round a wallet's ticket was in (`getRoundEntrants`), except a fresh deposit's first round |
 | ticket_active  | 200 | `TicketActivated`, once per fresh deposit; this is the whole score for that deposit's first round |
-| nudge_swap     |  25 | Pair `Swap` + `ScrollNudged` in the same tx (15 nudge + 10 swap)  |
-| plain_swap     |  10 | Pair `Swap` with no nudge                                         |
-| panel_nudge    |   5 | `ScrollNudged` with no `Swap` in the tx (Advance the Scroll; N events = N); priced only if the wallet played that round |
+| nudge_swap     |  25 | Router `SwapExecuted` + `ScrollNudged` in the same tx (15 nudge + 10 swap), any pool |
+| plain_swap     |  10 | Router `SwapExecuted` with no nudge (direct pair swaps are not scored) |
+| panel_nudge    |   5 | `ScrollNudged` with no `SwapExecuted` in the tx (Advance the Scroll; N events = N); priced only if the wallet played that round |
 | segment_cap    |  30 | ceiling on the three rows above, per wallet per segment (see below) |
 | farm_claim     |  50 | TimbFarm `RewardsClaimed` ≥ 25 TIMBS                              |
 | stake_claim    |  25 | TimbStaking `RewardsClaimed` ≥ 25 TIMBS                           |
