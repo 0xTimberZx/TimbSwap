@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "forge-std/Script.sol";
+import {PotCarry} from "./PotCarry.sol";
 import "forge-std/console.sol";
 
 import {TimbPrize} from "../contracts/TimbPrize.sol";
@@ -103,7 +104,7 @@ interface IYieldVaultAdmin {
  *   forge script scripts/DeployGen3Migration.s.sol \
  *     --rpc-url $ARB_SEPOLIA_RPC --broadcast -vvvv
  */
-contract DeployGen3Migration is Script {
+contract DeployGen3Migration is PotCarry {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
@@ -176,6 +177,11 @@ contract DeployGen3Migration is Script {
         PrizeEscrow(payable(escrowAddr)).setTimbPrize(address(prize));
         TimbSwapRouter(payable(routerAddr)).setTimbPrize(address(prize));
         EligibleTokenRegistry(eligibleAddr).registerConsumer(address(prize));
+
+        // 6b. TS-067: carry the outgoing game's live pot into the new prize. The
+        //     repoint above leaves its ETH in the escrow while the new prize
+        //     starts at 0; settled winnings still owed stay for their claims.
+        _carryPot(vm.envAddress("EXPECT_OLD_PRIZE"), escrowAddr, prize, vm.addr(deployerKey));
 
         // 7. Repoint the reused vault at BOTH the NEW registry and the NEW prize.
         //    - setGameRegistry: register()/remove() are onlyGameRegistry — without

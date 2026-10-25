@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "forge-std/Script.sol";
+import {PotCarry} from "./PotCarry.sol";
 import "forge-std/console.sol";
 
 import {TimbPrize} from "../contracts/TimbPrize.sol";
@@ -50,7 +51,7 @@ import {EligibleTokenRegistry} from "../contracts/EligibleTokenRegistry.sol";
  *   forge script scripts/DeployPrizeVRFMigration.s.sol \
  *     --rpc-url $ARB_SEPOLIA_RPC --broadcast -vvvv
  */
-contract DeployPrizeVRFMigration is Script {
+contract DeployPrizeVRFMigration is PotCarry {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
@@ -89,10 +90,15 @@ contract DeployPrizeVRFMigration is Script {
         // 5. Re-point the existing contracts at the NEW prize (owner-only setters).
         //    PrizeEscrow and TimbSwapRouter have payable receive()s, so their
         //    contract type must be cast from a `payable` address.
+        address oldPrize = PrizeEscrow(payable(escrowAddr)).timbPrize();
         GameRegistry(registryAddr).setTimbPrize(address(prize));
         PrizeEscrow(payable(escrowAddr)).setTimbPrize(address(prize));
         TimbSwapRouter(payable(routerAddr)).setTimbPrize(address(prize));
         EligibleTokenRegistry(eligibleAddr).registerConsumer(address(prize));
+
+        // 6. TS-067: carry the outgoing prize's live pot into the new one; the
+        //    repoint above leaves its ETH in the escrow with the new prize at 0.
+        _carryPot(oldPrize, escrowAddr, prize, vm.addr(deployerKey));
 
         vm.stopBroadcast();
 
