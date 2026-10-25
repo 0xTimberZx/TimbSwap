@@ -499,6 +499,7 @@ async function handleBoostStake(pid) {
     console.error("Boost stake failed:", err.message);
     DebugHub.logError("handleBoostStake", err);
     DebugHub.logCheckpoint("Boost:Stake Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = "Stake"; btn.disabled = false; }, 2000);
   }
@@ -534,6 +535,7 @@ async function handleBoostUnstake(pid) {
     console.error("Boost unstake failed:", err.message);
     DebugHub.logError("handleBoostUnstake", err);
     DebugHub.logCheckpoint("Boost:Unstake Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = "Withdraw"; btn.disabled = false; }, 2000);
   }
@@ -559,6 +561,7 @@ async function handleBoostClaim(pid) {
     console.error("Boost claim failed:", err.message);
     DebugHub.logError("handleBoostClaim", err);
     DebugHub.logCheckpoint("Boost:Claim Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = "Claim Rewards"; btn.disabled = false; }, 2000);
   }
@@ -639,6 +642,7 @@ async function handleStake(pool) {
     console.error("Stake failed:", err.message);
     DebugHub.logError("handleStake", err);
     DebugHub.logCheckpoint("Stake Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = "Stake"; btn.disabled = false; }, 2000);
   }
@@ -684,6 +688,7 @@ async function handleUnstake(pool) {
     console.error("Unstake failed:", err.message);
     DebugHub.logError("handleUnstake", err);
     DebugHub.logCheckpoint("Unstake Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = "Unstake"; btn.disabled = false; }, 2000);
   }
@@ -717,6 +722,7 @@ async function handleClaim(pool) {
     console.error("Claim failed:", err.message);
     DebugHub.logError("handleClaim", err);
     DebugHub.logCheckpoint("Claim Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = "Claim Rewards"; btn.disabled = false; }, 2000);
   }

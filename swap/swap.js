@@ -1181,6 +1181,7 @@ async function handleSwap() {
       }
       onAmountInChange();
     }
+    if (!userRejected) showTxError(btn, err);
     btn.textContent = userRejected ? "Swap cancelled" : "Swap failed — try again";
     btn.style.background = "rgba(239,68,68,0.15)";
     btn.style.color = "#ef4444";
@@ -1565,6 +1566,7 @@ async function handleAddLiquidity() {
     console.error("Add liquidity failed:", err.message);
     DebugHub.logError("handleAddLiquidity", err);
     DebugHub.logCheckpoint("Liquidity Add Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = orig; updateLqButtons(); }, 3000);
   }
@@ -1629,6 +1631,7 @@ async function handleRemoveLiquidity() {
     console.error("Remove liquidity failed:", err.message);
     DebugHub.logError("handleRemoveLiquidity", err);
     DebugHub.logCheckpoint("Liquidity Remove Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = orig; updateLqButtons(); }, 3000);
   }

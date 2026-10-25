@@ -1038,6 +1038,7 @@ async function handleSubmitEntry() {
         "lower the extra-rounds count."
       );
     }
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = resetLabel; btn.disabled = false; }, 2500);
   }
@@ -1538,6 +1539,7 @@ async function handleSettleNow() {
     if (sel) DebugHub.logError("handleSettleNow.revertSelector", new Error("selector " + sel));
     DebugHub.logError("handleSettleNow", err);
     DebugHub.logCheckpoint("Prize:Settle Failed", "fail");
+    showTxError(btn, err);
     if (btn) { btn.textContent = "Failed — try again"; setTimeout(() => { btn.disabled = false; renderAdvancePreview(); }, 2000); }
   }
 }
@@ -1564,6 +1566,7 @@ async function handleAdvance() {
     DebugHub.logError("handleAdvance", err);
     DebugHub.logCheckpoint("Prize:Advance Failed", "fail");
     if (sel && ADVANCE_REVERTS[sel]) alert(ADVANCE_REVERTS[sel]);
+    showTxError(btn, err);
     if (btn) { btn.textContent = "Failed — try again"; setTimeout(() => { btn.disabled = false; renderAdvancePreview(); }, 2000); }
   }
 }
@@ -1602,6 +1605,7 @@ async function handleClaimWinnings(round) {
   } catch (err) {
     DebugHub.logError("handleClaimWinnings", err);
     DebugHub.logCheckpoint("Prize:Claim Failed", "fail");
+    showTxError(btn, err);
     if (btn) { btn.textContent = "Failed"; btn.disabled = false; }
   }
 }

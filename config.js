@@ -843,6 +843,7 @@ async function connectWallet() {
     await _withTimeout(_initProvider(), 15000, "initProvider");
     await _ensureChain();
     _saveSession(userAddress, method);
+    _inAppWalletNote();
     return true;
   } catch (err) {
     // Log the failure HERE, not only in the caller. A stage-labelled event is the
@@ -926,6 +927,7 @@ function _providerLabel() {
     if (!p) return "none";
     const multi = (window.ethereum && window.ethereum.providers &&
                    window.ethereum.providers.length) ? "multi:" : "";
+    if (p.isBitKeep || p.isBitget) return multi + "bitget"; // also sets isMetaMask
     if (p.isBraveWallet) return multi + "brave";
     if (p.isMetaMask)    return multi + "metamask";
     if (p.isCoinbaseWallet) return multi + "coinbase";
@@ -1035,6 +1037,7 @@ async function autoReconnect() {
       // connect path is what switches the chain.
       if (net.chainId !== CHAIN_ID) { clearWalletChrome(); return null; }
       _walletChainOk = true; // verified on the right chain
+      _inAppWalletNote();
       return userAddress;
     } catch {
       // Transient wallet read failure/timeout (flaky Brave on soft refresh). The
@@ -1540,6 +1543,89 @@ async function _copyWalletAddress() {
   clearTimeout(_copyFlash);
   el.textContent = ok ? "Copied ✓" : "Copy failed";
   _copyFlash = setTimeout(() => { if (userAddress) el.textContent = fmtAddr(userAddress); }, 1200);
+}
+
+// ─── Wallet error reasons ────────────────────────────────────────────────────
+// A failed action used to show only "Failed — try again", so neither the user
+// nor we could tell a wallet refusal from a revert (two reports of every action
+// failing in the Bitget in-app browser could only be guessed at). showTxError
+// puts the wallet's own reason under the button, with a "Copy details" link the
+// user can paste to us. Nothing is sent anywhere.
+function walletErrorInfo(err) {
+  const pick = (...xs) => xs.find((x) => x !== undefined && x !== null && x !== "");
+  const inner = (err && typeof err === "object" && (err.error || err.data)) || {};
+  const code = pick(inner.code, err && err.code);
+  let msg = pick(inner.data && inner.data.message, inner.message, err && err.reason,
+                 err && err.shortMessage, err && err.message, String(err));
+  msg = String(msg)
+    .replace(/\s*\[ ?See: https?:\/\/links\.ethers\.org[^\]]*\]/g, "")
+    .replace(/\s*\((action|transaction|error|reason|code|method)=[\s\S]*$/, "")
+    .trim();
+  if (code === 4001 || code === "ACTION_REJECTED" || /user (rejected|denied)/i.test(msg)) {
+    msg = "You cancelled the request in your wallet.";
+  }
+  if (msg.length > 180) msg = msg.slice(0, 177) + "…";
+  return { code: code === undefined ? null : code, message: msg || "No reason given by the wallet." };
+}
+
+function showTxError(btn, err) {
+  try {
+    if (!btn || !btn.parentNode) return;
+    const info = walletErrorInfo(err);
+    let el = btn.nextElementSibling;
+    if (!el || !el.classList || !el.classList.contains("tx-error-reason")) {
+      el = document.createElement("div");
+      el.className = "tx-error-reason";
+      el.style.cssText = "margin-top:8px;font:12px/1.45 var(--mono);color:var(--text-2);" +
+        "overflow-wrap:anywhere;text-align:left;";
+      btn.parentNode.insertBefore(el, btn.nextSibling);
+    }
+    el.textContent = "Wallet said: " + info.message + (info.code !== null ? " (code " + info.code + ")" : "") + " ";
+    const copy = document.createElement("a");
+    copy.href = "#"; copy.textContent = "Copy details";
+    copy.style.cssText = "color:var(--blue);white-space:nowrap;";
+    copy.onclick = (e) => {
+      e.preventDefault();
+      const details = JSON.stringify({
+        page: location.pathname, action: btn.dataset.action || btn.id || null,
+        code: info.code, message: info.message, wallet: _providerLabel(),
+        chain: CHAIN_ID, account: userAddress || null, at: new Date().toISOString(),
+        ua: navigator.userAgent,
+      });
+      const done = (ok) => { copy.textContent = ok ? "Copied ✓" : "Copy failed"; };
+      try { navigator.clipboard.writeText(details).then(() => done(true), () => done(false)); }
+      catch { done(false); }
+    };
+    el.appendChild(copy);
+    clearTimeout(el._hide);
+    el._hide = setTimeout(() => el.remove(), 60000);
+  } catch {}
+}
+
+// Some mobile in-app wallets accept the switch to the network but then
+// refuse to sign or send on it, so every action fails. Say so once per session
+// when one of them connects; it does not block anything.
+function _inAppWalletNote() {
+  try {
+    const p = injectedProvider();
+    if (!p || !(p.isBitKeep || p.isBitget || window.bitkeep)) return;
+    if (sessionStorage.getItem("timbswap_inapp_note")) return;
+    sessionStorage.setItem("timbswap_inapp_note", "1");
+    const n = document.createElement("div");
+    n.setAttribute("role", "status");
+    n.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;max-width:560px;" +
+      "margin:0 auto;padding:12px 40px 12px 14px;border:var(--bw) solid var(--border);" +
+      "border-radius:var(--radius);background:var(--bg2);color:var(--text);font:13px/1.5 var(--sans);";
+    n.textContent = "Some in-app wallets (including Bitget) can't send transactions on " + CHAIN_NAME +
+      ". If actions fail here, open timbswap.xyz in MetaMask or Rabby with the same wallet.";
+    const x = document.createElement("button");
+    x.type = "button"; x.textContent = "✕"; x.setAttribute("aria-label", "Dismiss");
+    x.style.cssText = "position:absolute;top:8px;right:10px;background:none;border:0;" +
+      "color:var(--text-2);font-size:16px;cursor:pointer;";
+    x.onclick = () => n.remove();
+    n.appendChild(x);
+    document.body.appendChild(n);
+  } catch {}
 }
 
 // ─── Theme (dark default, light optional) ─────────────────────────────────────
