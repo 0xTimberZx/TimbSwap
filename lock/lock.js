@@ -195,6 +195,7 @@ async function handleCreateLock() {
     console.error("Lock failed:", err.message);
     DebugHub.logError("handleCreateLock", err);
     DebugHub.logCheckpoint("Lock:Lock Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — try again";
     setTimeout(() => { btn.textContent = `Lock ${selectedToken.symbol}`; btn.disabled = false; }, 2000);
   }

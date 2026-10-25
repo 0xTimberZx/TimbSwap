@@ -153,6 +153,7 @@ async function handleDeposit() {
     console.error("Deposit failed:", msg);
     DebugHub.logError("handleDeposit", err);
     DebugHub.logCheckpoint("Gov:Deposit Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — retry";
     setTimeout(() => { btn.textContent = "Deposit"; btn.disabled = false; }, 2000);
   }
@@ -184,6 +185,7 @@ async function handleWithdraw() {
     console.error("Withdraw failed:", msg);
     DebugHub.logError("handleWithdraw", err);
     DebugHub.logCheckpoint("Gov:Withdraw Failed", "fail");
+    showTxError(btn, err);
     btn.textContent = "Failed — retry";
     btn.disabled = false;
   }
