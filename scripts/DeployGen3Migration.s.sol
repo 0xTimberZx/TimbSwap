@@ -215,7 +215,9 @@ contract DeployGen3Migration is PotCarry {
         console.log("   and OLD GameRegistry.retired() == true (TS-043: reclaimFromPastGame needs it)");
         console.log("7. Tell holders to reclaim principal from the OLD registry (user-reclaim only)");
         console.log("8. Old prize stays a retired escrow payer so its winners can still claim (TS-018).");
-        console.log("   After its last claim window (last settled round + 2): escrow.setRetiredPrize(OLD_PRIZE, false)");
+        console.log("   After its last claim window (last settled round + 2), run scripts/ReleaseRetiredPrize.s.sol");
+        console.log("   (TS-071), not a bare escrow.setRetiredPrize(OLD_PRIZE, false): it delivers the old cut,");
+        console.log("   revokes the payer and carries the old unclaimed winnings into the live pot.");
     }
 
     /// @dev Refuse to repoint shared infra away from a game the operator did not
