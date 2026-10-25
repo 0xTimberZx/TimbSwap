@@ -119,6 +119,7 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
     error InvalidPeriod();
     error InvalidBps();
     error TooManyOpenProposals();
+    error ProposalSameSecond();
     error ExceedsRecoverable(uint256 requested, uint256 recoverable);
 
     constructor(
@@ -166,13 +167,25 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         votingPowerDeposited[voter] -= amount;
         totalVotingPower -= amount;
         _checkpoint(voter);
-        _sweepOpenProposals(true); // TS-021: departed power stops propping quorum
+        _sweepOpenProposals(false); // prune closed proposals: their base is final
         // TS-050 amendment: remember, per proposal still open, that this power
         // left its base. The sweep above has just pruned closed proposals, so
         // the list holds at most MAX_OPEN_PROPOSALS live ones.
+        // TS-069: and take the departing creation-time power off that base
+        // directly. The live ratchet alone (min with totalVotingPower) was
+        // masked by deposits made after creation, which cannot vote on the
+        // proposal (TS-034) yet kept the live total, and so the base, up.
         for (uint256 i = 0; i < _openProposals.length; i++) {
-            withdrawnDuring[_openProposals[i]][voter] += amount;
+            uint256 pid  = _openProposals[i];
+            Proposal storage p = proposals[pid];
+            uint256 snap = votingPowerAt(voter, p.createdAt);
+            uint256 gone = withdrawnDuring[pid][voter];
+            uint256 left = snap > gone ? snap - gone : 0;
+            uint256 departed = amount < left ? amount : left;
+            p.totalVotingPower = departed < p.totalVotingPower ? p.totalVotingPower - departed : 0;
+            withdrawnDuring[pid][voter] = gone + amount;
         }
+        _sweepOpenProposals(true); // TS-021: departed power stops propping quorum
         timbsToken.transfer(voter, amount);
         emit VotingPowerWithdrawn(voter, amount);
     }
@@ -182,6 +195,11 @@ contract TimbGovernance is Ownable2Step, ReentrancyGuard {
         string calldata description
     ) external onlyOwner returns (uint256 proposalId) {
         if (timbsToken.balanceOf(msg.sender) < proposalThreshold) revert BelowThreshold();
+        // TS-070: one proposal per second. The TS-040 seal moves a change made
+        // after a proposal to the next second, but a second proposal created
+        // in that same second would read the withdrawn power as still held at
+        // creation while its base already excluded it.
+        if (block.timestamp == _lastProposalAt) revert ProposalSameSecond();
 
         proposalId = ++proposalCount;
         uint256 votingStartsAt = block.timestamp + votingDelay;

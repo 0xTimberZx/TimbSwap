@@ -163,10 +163,13 @@ contract TimbGovernanceTest is Test {
 
     function test_TS021_OpenProposalCapAndPrune() public {
         uint256 cap = gov.MAX_OPEN_PROPOSALS();
-        for (uint256 i = 0; i < cap; i++) gov.createProposal("p", "d");
+        uint256 t = block.timestamp;
+        // TS-070: one proposal per second, so space them (absolute warps).
+        for (uint256 i = 0; i < cap; i++) { vm.warp(t + i); gov.createProposal("p", "d"); }
+        vm.warp(t + cap);
         vm.expectRevert(TimbGovernance.TooManyOpenProposals.selector);
         gov.createProposal("one", "too many");
-        vm.warp(block.timestamp + VOTING_DELAY + VOTING_PERIOD + 1);
+        vm.warp(t + cap + VOTING_DELAY + VOTING_PERIOD + 1);
         gov.createProposal("after", "prune");    // ended ones are swept out
         assertEq(gov.openProposalCount(), 1);
     }

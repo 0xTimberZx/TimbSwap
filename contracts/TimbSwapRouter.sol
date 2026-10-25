@@ -395,6 +395,10 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     function _checkRecipient(address to) internal view {
         if (to == address(0))    revert ZeroAddress();
         if (to == address(this)) revert InvalidTo(to);
+        // TS-068: WETH credits ETH it receives to the sender, so an ETH-out
+        // call sent to the WETH contract re-wrapped the output to the router,
+        // which has no exit; a token sent there is stranded in WETH itself.
+        if (to == weth)          revert InvalidTo(to);
     }
 
     // ─── Internal: Swap Direction ─────────────────────────────────────────────
