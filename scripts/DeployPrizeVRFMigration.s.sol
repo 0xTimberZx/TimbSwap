@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import "forge-std/Script.sol";
 import {PotCarry} from "./PotCarry.sol";
+import {FreshEntropy} from "./FreshEntropy.sol";
 import "forge-std/console.sol";
 
 import {TimbPrize} from "../contracts/TimbPrize.sol";
@@ -51,7 +52,7 @@ import {EligibleTokenRegistry} from "../contracts/EligibleTokenRegistry.sol";
  *   forge script scripts/DeployPrizeVRFMigration.s.sol \
  *     --rpc-url $ARB_SEPOLIA_RPC --broadcast -vvvv
  */
-contract DeployPrizeVRFMigration is PotCarry {
+contract DeployPrizeVRFMigration is PotCarry, FreshEntropy {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
@@ -82,6 +83,7 @@ contract DeployPrizeVRFMigration is PotCarry {
         // 3. Wire entropy both ways (setBoard is one-time on the fresh entropy).
         prizeEntropy.setBoard(address(prize));
         prize.setEntropy(address(prizeEntropy));
+        _assertFreshEntropy(prize, prizeEntropy); // never a module that served another prize
 
         // 4. Point the new prize at the existing dependencies. Escrow + registry
         //    are already set via the constructor; set the eligible registry too.

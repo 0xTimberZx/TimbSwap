@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import "forge-std/Script.sol";
 import {PotCarry} from "./PotCarry.sol";
+import {FreshEntropy} from "./FreshEntropy.sol";
 import "forge-std/console.sol";
 
 import {TimbPrize} from "../contracts/TimbPrize.sol";
@@ -104,7 +105,7 @@ interface IYieldVaultAdmin {
  *   forge script scripts/DeployGen3Migration.s.sol \
  *     --rpc-url $ARB_SEPOLIA_RPC --broadcast -vvvv
  */
-contract DeployGen3Migration is PotCarry {
+contract DeployGen3Migration is PotCarry, FreshEntropy {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
@@ -158,6 +159,7 @@ contract DeployGen3Migration is PotCarry {
         // 5. Wire entropy both ways, then the prize's dependencies.
         prizeEntropy.setBoard(address(prize));
         prize.setEntropy(address(prizeEntropy));
+        _assertFreshEntropy(prize, prizeEntropy); // never a module that served another prize
         prize.setEligibleRegistry(eligibleAddr);
         prize.setYieldVault(vaultAddr);
         if (settlerAddr != address(0)) prize.setSettler(settlerAddr);
