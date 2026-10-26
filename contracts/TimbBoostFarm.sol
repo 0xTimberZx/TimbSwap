@@ -305,8 +305,11 @@ contract TimbBoostFarm is Ownable, ReentrancyGuard {
             !pool.paused && pool.totalStaked > 0 && totalWeight > 0) {
             uint256 elapsed    = applicable - pool.lastRewardTime;
             uint256 poolReward = elapsed * rewardRatePerSecond * pool.weight / totalWeight;
-            pool.accRewardPerShare += poolReward * 1e18 / pool.totalStaked;
-            totalOwed += poolReward;
+            uint256 inc        = poolReward * 1e18 / pool.totalStaked;
+            pool.accRewardPerShare += inc;
+            // TS-075: owe only what the accumulator distributed; the rounding
+            // remainder stays in the free reserve and is streamed again.
+            totalOwed += inc * pool.totalStaked / 1e18;
         }
         // TS-030: park the clock at NOW, not at periodFinish. Nothing accrues
         // between periodFinish and now (rate is dead there), and a later

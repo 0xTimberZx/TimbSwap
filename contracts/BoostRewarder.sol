@@ -80,6 +80,11 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     ///         next top-up — accrued rewards always stay payable.
     uint256 public totalOwed;
 
+    /// @notice TS-075: accrual not yet in the accumulator (its rounding
+    ///         remainder), carried into the next update so stakers receive
+    ///         it; committed like totalOwed when the rate is aimed.
+    uint256 public accrualCarry;
+
     /// @notice Accrual halts when totalOwed ≥ 99% of rewardReserve.
     uint256 public constant SOLVENCY_STOP_BPS = 9_900;
 
@@ -147,9 +152,17 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
         if (applicable > lastUpdateTime) {
             if (totalShares > 0) {
                 uint256 elapsed = applicable - lastUpdateTime;
-                uint256 accrued = elapsed * rewardRatePerSecond;
-                accRewardPerShare += accrued * 1e18 / totalShares;
-                totalOwed += accrued;
+                // TS-075: book as owed only what the accumulator distributed.
+                // Booking the full accrual while the accumulator floored it
+                // let frequent updates (a low-decimal token over a large LP
+                // supply) owe the whole reserve to nobody. The remainder is
+                // carried into the next update instead of lost.
+                uint256 accrued     = elapsed * rewardRatePerSecond + accrualCarry;
+                uint256 inc         = accrued * 1e18 / totalShares;
+                uint256 distributed = inc * totalShares / 1e18;
+                accRewardPerShare += inc;
+                totalOwed         += distributed;
+                accrualCarry       = accrued - distributed;
             }
             lastUpdateTime = applicable;
         }
@@ -166,8 +179,9 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     // same solvency rule as TimbBoostFarm, accrued rewards stay payable.
     function _retarget() internal {
         if (retired) return; // TS-058: rate stays 0, period stays ended
-        uint256 owedCap = rewardReserve * SOLVENCY_STOP_BPS / 10_000;
-        uint256 free    = totalOwed < owedCap ? rewardReserve - totalOwed : 0;
+        uint256 owedCap   = rewardReserve * SOLVENCY_STOP_BPS / 10_000;
+        uint256 committed = totalOwed + accrualCarry; // TS-075: carry is streamed already
+        uint256 free      = committed < owedCap ? rewardReserve - committed : 0;
         rewardRatePerSecond = free / emissionWindow;
         periodFinish        = block.timestamp + emissionWindow;
         lastUpdateTime      = block.timestamp;
@@ -181,7 +195,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
         uint256 acc = accRewardPerShare;
         if (totalShares > 0 && lastTimeRewardApplicable() > lastUpdateTime) {
             uint256 elapsed = lastTimeRewardApplicable() - lastUpdateTime;
-            acc += elapsed * rewardRatePerSecond * 1e18 / totalShares;
+            acc += (elapsed * rewardRatePerSecond + accrualCarry) * 1e18 / totalShares;
         }
         return pending[pid][user] + (shares[pid][user] * acc / 1e18) - rewardDebt[pid][user];
     }
@@ -312,6 +326,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
         if (retired) revert RewarderRetired();
         _updateAcc();
         retired             = true;
+        accrualCarry        = 0; // TS-075: never distributed now; recoverable
         rewardRatePerSecond = 0;
         periodFinish        = block.timestamp;
         lastUpdateTime      = block.timestamp;
