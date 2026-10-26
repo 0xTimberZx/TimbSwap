@@ -46,6 +46,9 @@ git ls-files -z -- contracts foundry.toml SECURITY.md SPECS.md ROADMAP.md README
 if [ "$net" = mainnet ]; then
   cat config.mainnet.js "$stage/config.js" > "$stage/config.js.tmp" && mv "$stage/config.js.tmp" "$stage/config.js"
   rm -f "$stage/config.mainnet.js"
+  # Refuse a mainnet build whose copy states a testnet game rule outside the
+  # data-net twins (lapse split, extra-round price, TIMBS entry).
+  python3 -I scripts/rules-lint.py "$stage" || { echo "mainnet copy states a testnet rule (see above)" >&2; exit 4; }
   # Static text crawlers read without JS: <meta>/<title> descriptions, explorer
   # and Sourcify URLs. Visible copy is handled at runtime (config.js netCopy).
   find "$stage" -name '*.html' -print0 | xargs -0 sed -i \
