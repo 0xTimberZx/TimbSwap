@@ -6,6 +6,13 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+/// @dev The two TimbBoostFarm views sync() reads (TS-074).
+interface IBoostFarmView {
+    function userInfo(uint256 pid, address user)
+        external view returns (uint256 amount, uint256 rewardDebt, uint256 pending);
+    function poolHooks(uint256 pid) external view returns (address[] memory);
+}
+
 /**
  * @title BoostRewarder
  * @notice Secondary emission stream for a TimbBoostFarm pool — pays ANY
@@ -15,11 +22,18 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *   - Deploy one rewarder per (pool, token): BoostRewarder(farm, weth, window)
  *   - farm.addPoolHook(pid, rewarder) — the farm now mirrors every
  *     deposit/withdraw/claim/emergency into this contract.
+ *   - sync(pid, stakers) for everyone already staked in the pool (from the
+ *     farm's Deposit events), BEFORE funding. TS-074: an unsynced staker
+ *     holds 0 shares, so once emission starts a dust depositor who synced
+ *     first collects the whole stream until each real staker acts. The rate
+ *     is 0 until the first notifyRewardAmount, so syncing first costs
+ *     nothing and leaves a late dust depositor only a pro-rata share.
  *   - Fund with notifyRewardAmount(amount); emission self-targets over
  *     emissionWindow, exactly like the farm's TIMBS stream.
  *   - REPLACE the emitted token by calling retire() here, then removing this
  *     hook and adding another rewarder; ADD another token by attaching a
- *     second rewarder (the farm allows up to MAX_HOOKS_PER_POOL).
+ *     second rewarder (the farm allows up to MAX_HOOKS_PER_POOL). Either
+ *     way the new rewarder is attached, synced, then funded, as above.
  *   - TS-058: once the hook is removed nothing syncs shares again, so an
  *     unretired rewarder keeps streaming its reserve to the shares frozen at
  *     removal, stakers or not. retire() ends emission for good: accrued
@@ -29,10 +43,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *   The farm passes `stakedAfter` — the user's authoritative pool balance
  *   after each action — so shares are SYNCED, not delta-tracked. A staker
  *   who was already in the pool before this rewarder attached starts
- *   earning after their next farm interaction (their first sync).
+ *   earning at their first sync: their next farm interaction, or sync()
+ *   (TS-074), which anyone can call while this rewarder is attached.
  *
  * Trust model:
- *   Only the farm can sync shares (onlyFarm). The farm's hook calls are
+ *   Only the farm can push shares (onlyFarm). sync() can only pull a
+ *   staker's own farm balance, and only while attached and not retired. The farm's hook calls are
  *   try/catch-guarded on its side, so this contract can never block farm
  *   withdrawals even if misconfigured.
  */
@@ -100,6 +116,7 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
     error NoPendingRewards();
     error InsufficientRewardBalance(uint256 required, uint256 available);
     error RewarderRetired();
+    error NotAttached(uint256 pid);
 
     modifier onlyFarm() {
         if (msg.sender != farm) revert OnlyFarm();
@@ -183,6 +200,32 @@ contract BoostRewarder is Ownable, ReentrancyGuard {
         uint256 /* amount */,
         uint256 stakedAfter
     ) external onlyFarm {
+        _sync(pid, user, stakedAfter);
+    }
+
+    /**
+     * @notice TS-074: sync stakers who were in the pool before this rewarder
+     *         was attached. Each user's shares are set to their own farm
+     *         balance, exactly as their next farm action would set them.
+     *         Anyone may call it, but only while this rewarder is attached
+     *         to `pid` and not retired: after removal nothing may re-arm
+     *         frozen shares (TS-058).
+     */
+    function sync(uint256 pid, address[] calldata users) external {
+        if (retired) revert RewarderRetired();
+        address[] memory hooks = IBoostFarmView(farm).poolHooks(pid);
+        bool attached;
+        for (uint256 i = 0; i < hooks.length; i++) {
+            if (hooks[i] == address(this)) { attached = true; break; }
+        }
+        if (!attached) revert NotAttached(pid);
+        for (uint256 i = 0; i < users.length; i++) {
+            (uint256 staked, , ) = IBoostFarmView(farm).userInfo(pid, users[i]);
+            _sync(pid, users[i], staked);
+        }
+    }
+
+    function _sync(uint256 pid, address user, uint256 stakedAfter) internal {
         _updateAcc();
         _snapshot(pid, user);
 
