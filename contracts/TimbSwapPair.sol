@@ -391,7 +391,10 @@ contract TimbSwapPair is ERC20, ReentrancyGuard {
     ) external nonReentrant {
         if (amount0Out == 0 && amount1Out == 0) revert InsufficientOutputAmount();
         if (to == address(0)) revert ZeroAddress();
-        if (to == token0 || to == token1) revert InvalidTo(to);
+        // TS-072: the pair itself too, as in mint() and burn(). Output sent
+        // back to the pair is counted as input, so the swap passes K and the
+        // caller's real input is absorbed into the reserves.
+        if (to == token0 || to == token1 || to == address(this)) revert InvalidTo(to);
 
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
 
