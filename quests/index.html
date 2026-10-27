@@ -92,6 +92,7 @@
     .qs-table td.qs-tp { font-family: var(--mono); font-weight: 700; color: var(--green); }
     .qs-table tr:last-child td { border-bottom: none; }
     .qs-badge { color: #ffd75e; }
+    .qs-legend { font-size: 12.5px; color: var(--text-3); margin-top: 10px; }
     .qs-empty { text-align: center; color: var(--text-3); padding: 26px 10px; }
 
     .qs-note { font-size: 12.5px; color: var(--text-3); line-height: 1.6; margin-top: 22px; border-top: var(--bw) solid var(--border); padding-top: 16px; }
@@ -232,6 +233,7 @@
     </div>
     </div>
     <p class="qs-scroll-hint" aria-hidden="true">Swipe for Swaps · Streak &rarr;</p>
+    <p class="qs-legend">⚡ Explorer: used 3+ TimbSwap features · 🛡️ Bug bounty hunter: accepted report in the testnet bounty</p>
 
     <p class="qs-note">
       Timber Points are <strong>off-chain and non-transferable</strong> — a score, not a token, computed from your on-chain
@@ -330,6 +332,6 @@
   </script>
   <!-- Gated with TIMBS (config.js TIMBS_LIVE): while false the leaderboard
        script is not loaded at all, so no season, rank or points reads run. -->
-  <script>if (typeof TIMBS_LIVE === "undefined" || TIMBS_LIVE) document.write('<script src="../quests.js?v=3"><\/script>');</script>
+  <script>if (typeof TIMBS_LIVE === "undefined" || TIMBS_LIVE) document.write('<script src="../quests.js?v=4"><\/script>');</script>
 </body>
 </html>
