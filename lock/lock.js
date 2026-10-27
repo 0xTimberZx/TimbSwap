@@ -51,11 +51,21 @@ async function loadWhitelistedTokens() {
 
     // WETH is whitelisted on-chain but intentionally hidden from the lock
     // picker — locking wrapped ETH here is a footgun vs. just holding it.
-    const wanted = addresses.filter(a => a.toLowerCase() !== ADDRESSES.WETH.toLowerCase());
-    // Read each token's symbol+decimals concurrently instead of blocking the
-    // dropdown on one round-trip per token; keep on-chain order.
+    // The on-chain list is append-only: a de-listed token stays in it and a
+    // re-listed one appears twice, so keep each address once and drop any
+    // whose whitelist flag is off (lock() would revert TokenNotWhitelisted).
+    const seen = new Set();
+    const wanted = addresses.filter(a => {
+      const k = a.toLowerCase();
+      if (k === ADDRESSES.WETH.toLowerCase() || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    // Read each token's flag, symbol and decimals concurrently instead of
+    // blocking the dropdown on one round-trip per token; keep on-chain order.
     const tokens = await Promise.all(wanted.map(async addr => {
       try {
+        if (!(await vault.tokenWhitelist(addr))) return null;
         const erc = new ethers.Contract(addr, ERC20_ABI, readProv());
         const [symbol, decimals] = await Promise.all([
           erc.symbol().catch(() => "???"),
