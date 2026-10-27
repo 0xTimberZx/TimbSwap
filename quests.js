@@ -41,7 +41,7 @@
       return '<tr>'
         + '<td class="qs-rank">' + r.rank + '</td>'
         + '<td class="qs-addr" title="' + r.address + '">' + short(r.address)
-            + (r.diversity ? ' <span class="qs-badge" title="Diversity bonus">✦</span>' : '') + '</td>'
+            + (r.diversity ? ' <span class="qs-badge" title="Explorer: used 3+ TimbSwap features" aria-label="Explorer">⚡</span>' : '') + '</td>'
         + '<td class="qs-tp">' + tp(r.display_tp) + '</td>'
         + '<td>' + r.rounds_played + '</td>'
         + '<td>' + r.swap_count + '</td>'
