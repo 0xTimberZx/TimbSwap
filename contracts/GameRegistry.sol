@@ -288,6 +288,16 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     /// @notice ticket id → ticket.
     mapping(uint256 => Ticket) public tickets;
 
+    /// @notice TS-077: TIMBS escrow held for tickets (entries in; refunds,
+    ///         reclaims and lapse sweeps out). recoverERC20 can reach only the
+    ///         TIMBS balance above it.
+    uint256 public timbsEscrowHeld;
+
+    /// @notice TS-076: a forfeited ticket whose lapse could not leave at the
+    ///         sweep (paused token, transfer cap, refusing sink). retryLapse
+    ///         finishes it; it is never refundable to the forfeiter.
+    mapping(uint256 => bool) public lapsePending;
+
     /// @notice wallet → its current live ticket id (0 = none).
     mapping(address => uint256) public activeTicketOf;
 
@@ -333,6 +343,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     event TicketIneligible(uint256 indexed ticketId, uint256 absorbedAmount, address escrowToken);
     event AdminEscrowRefunded(uint256 indexed ticketId, address indexed owner, uint256 amount, address escrowToken);
     event LapseSwept(uint256 indexed ticketId, uint256 toPot, uint256 toSink, address escrowToken);
+    event StrayRecovered(address indexed token, address indexed to, uint256 amount);
     event LapsePotBpsSet(uint256 bps);
     event TicketForfeitExtended(uint256 indexed ticketId, uint256 indexed wonRound, uint256 newForfeitRound);
     event ExtraRoundsSunk(address indexed player, uint256 indexed ticketId, uint256 timbsAmount);
@@ -379,6 +390,10 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     error TicketNotPending(TicketStatus status);
     error TicketNotReplaceable(TicketStatus status);
     error TicketNotRefundable(TicketStatus status);
+    error NoPendingLapse(uint256 ticketId);
+    error LapseStillPending(uint256 ticketId);
+    error LapseRetryFailed(uint256 ticketId);
+    error ExceedsRecoverable(uint256 amount, uint256 recoverable);
     error TicketNotReclaimable();
     error TicketStillEligible(uint256 lastEligibleRound, uint256 currentRound);
     error ClaimWindowClosed(uint256 lastEligibleRound, uint256 currentRound);
@@ -562,6 +577,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
             (bool ok,) = payable(to).call{value: amount}("");
             if (!ok) revert EthTransferFailed();
         } else {
+            if (token == address(timbsToken)) timbsEscrowHeld -= amount; // TS-077
             IERC20(token).safeTransfer(to, amount);
         }
     }
@@ -719,6 +735,7 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
             escrowAmount = timbsCost;
             escrowToken  = address(timbsToken);
             timbsToken.safeTransferFrom(msg.sender, address(this), timbsCost);
+            timbsEscrowHeld += timbsCost; // TS-077
             activeTimbEntries += 1;
         }
 
@@ -1074,22 +1091,50 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
                     if (!ok) { leftover = toSink; toSink = 0; }
                 }
                 t.escrowAmount = leftover;
+                if (leftover > 0) lapsePending[id] = true; // TS-076
                 emit LapseSwept(id, toPot, toSink, token);
             } else {
                 // Lapsed TIMBS → sink (treasury buys back + burns for holders).
                 // TS-031: best-effort like the ETH legs. A failing transfer
                 // (paused token, transfer cap) leaves the amount on the ticket
-                // for adminRefundStuck / a later sweep instead of reverting the
-                // whole settlement call and parking the cursor.
+                // instead of reverting the whole settlement call and parking
+                // the cursor. TS-076: it is marked for retryLapse, the only way
+                // it leaves, so it still reaches the sink.
                 if (_tryTransferTimbs(token, protocolSink, amount)) {
                     t.escrowAmount = 0;
+                    timbsEscrowHeld -= amount; // TS-077
                     emit LapseSwept(id, 0, amount, token);
                 } else {
+                    lapsePending[id] = true;
                     emit LapseSwept(id, 0, 0, token);
                 }
             }
         }
         emit TicketIneligible(id, amount, token);
+    }
+
+    /**
+     * @notice TS-076: finish a lapse whose transfer failed at the sweep (the
+     *         token was paused, a transfer cap applied, or the sink refused
+     *         ETH). Anyone may call it once the cause is gone. The forfeited
+     *         escrow goes where the sweep sent its sink leg: to the protocol
+     *         sink. Reverts, changing nothing, while the transfer still fails.
+     */
+    function retryLapse(uint256 ticketId) external nonReentrant {
+        if (!lapsePending[ticketId]) revert NoPendingLapse(ticketId);
+        Ticket storage t = tickets[ticketId];
+        uint256 amount = t.escrowAmount;
+        address token  = t.escrowToken;
+        lapsePending[ticketId] = false;
+        t.escrowAmount = 0;
+        if (token == address(0)) {
+            (bool ok,) = payable(protocolSink).call{value: amount}("");
+            if (!ok) revert LapseRetryFailed(ticketId);
+        } else {
+            timbsEscrowHeld -= amount; // TS-077
+            if (!_tryTransferTimbs(token, protocolSink, amount)) revert LapseRetryFailed(ticketId);
+        }
+        emit LapseSwept(ticketId, 0, amount, token);
     }
 
     /// @notice TimbPrize reports the winners of a settled round so the registry
@@ -1495,6 +1540,8 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         Ticket storage t = tickets[ticketId];
         if (t.id == 0) revert TicketNotFound(ticketId);
         if (t.status != TicketStatus.Ineligible) revert TicketNotRefundable(t.status);
+        // TS-076: a forfeited escrow is not the owner's; retryLapse sends it on.
+        if (lapsePending[ticketId]) revert LapseStillPending(ticketId);
         uint256 amount = t.escrowAmount;
         if (amount == 0) revert ZeroAmount();
         address token = t.escrowToken;
@@ -1502,6 +1549,27 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         t.escrowAmount = 0;
         _payEscrow(to, token, amount);
         emit AdminEscrowRefunded(ticketId, to, amount, token);
+    }
+
+    /**
+     * @notice TS-077: return an ERC-20 sent here by plain transfer, credited to
+     *         no ticket. TIMBS only above the escrow held for tickets; any other
+     *         token in full. Never ETH: ETH held here is ticket escrow.
+     */
+    function recoverERC20(address token, address to, uint256 amount)
+        external
+        onlyOwner
+        nonReentrant
+    {
+        if (token == address(0) || to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        if (token == address(timbsToken)) {
+            uint256 bal = timbsToken.balanceOf(address(this));
+            uint256 recoverable = bal > timbsEscrowHeld ? bal - timbsEscrowHeld : 0;
+            if (amount > recoverable) revert ExceedsRecoverable(amount, recoverable);
+        }
+        IERC20(token).safeTransfer(to, amount);
+        emit StrayRecovered(token, to, amount);
     }
 
     function pause()   external onlyOwner { paused = true;  emit Paused(msg.sender); }
