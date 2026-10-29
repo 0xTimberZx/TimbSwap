@@ -1,9 +1,13 @@
 # Security Policy & Bug Bounty
 
-TimbSwap runs on **Arbitrum One** with a **capped beta** posture: real value is
-live but bounded, behind a timelock + multisig, while an independent audit is
-pending. We welcome good-faith security research and will reward responsibly
-disclosed vulnerabilities.
+This policy is for the **capped beta** on **Arbitrum One**: real value live but
+bounded, behind a timelock + multisig, while an independent audit is pending.
+
+> **Status: not open yet.** The testnet bounty closed on 26 October 2026 at
+> 23:59 UTC. The mainnet bounty opens when the capped beta launches; until then
+> it accepts no paid reports. Its final terms (amounts, payment timing) are
+> published here and on the [Protocol page](https://timbswap.xyz/gov/#bounty)
+> when it opens. Security reports are still welcome on the channel below.
 
 > **Report privately — do not open a public issue or exploit on mainnet.**
 > Primary channel: **devhub@timbswap.xyz** (security-only inbox; put the
@@ -106,14 +110,15 @@ Severity is **impact-based** (roughly funds-at-risk × likelihood). Rewards are
 paid in **USDT on Arbitrum One**, from a single bounty wallet whose live balance
 is published on the [Protocol page](https://timbswap.xyz/gov/#bounty) — you can
 read it on-chain before deciding whether the program is worth your time. Amounts
-below are the **capped-beta starting bands**. During the capped beta **no single
-payout exceeds $500** (the program cap); the bands and the cap rise after the
-independent audit as the value-at-risk ceiling is lifted.
+below are the **capped-beta starting bands**, subject to the final terms when the
+program opens. During the capped beta **no single payout exceeds $500** (the
+program cap); the bands and the cap rise after the independent audit as the
+value-at-risk ceiling is lifted.
 
-The **testnet phase runs first** and settles **pari-mutuel**: each tier holds a
-share of the pool, and that share is split among all accepted reports in the
-tier, so a band below is what a report pays when it is the only accepted report
-in its tier. The Protocol page carries the testnet terms in full.
+The **testnet phase ran first** (closed 26 October 2026) and settled
+**pari-mutuel**: each tier held a share of the pool, split among all accepted
+reports in the tier, so a band below is what a report paid when it was the only
+accepted report in its tier. The Protocol page carries the testnet terms in full.
 
 | Tier | Class | What lands here | Reward (capped beta) |
 |---|---|---|---|
