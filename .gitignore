@@ -55,3 +55,8 @@ node_modules/
 !dev-docs/MAINNET_LP_SEED.md
 !dev-docs/REGISTRY_MIGRATION_NOTES.md
 dist/
+
+# Medusa (tests/invariants/medusa): build output, crytic export, corpora
+out-medusa/
+crytic-export/
+tests/invariants/medusa/corpus-*/

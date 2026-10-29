@@ -88,3 +88,15 @@ fail_on_revert = false
 [profile.ci.invariant]
 runs = 256
 depth = 128
+
+# Long pre-launch pass: FOUNDRY_PROFILE=deep forge test
+# --match-path 'tests/invariants/*'. A new seed so it explores past the default.
+[profile.deep]
+
+[profile.deep.fuzz]
+seed = "0xbeefa11"
+
+[profile.deep.invariant]
+runs = 1000
+depth = 500
+fail_on_revert = false

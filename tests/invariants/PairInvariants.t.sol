@@ -67,9 +67,23 @@ contract PairHandler is Test {
         return uint256(r0) * uint256(r1);
     }
 
+    /// @dev Share value counts the protocol's accrued cut as already minted.
+    ///      The pair mints it lazily on the next successful mint or burn, so a
+    ///      value read after swaps and a reverted mint would otherwise include
+    ///      LP growth the protocol is owed, and look like a drop once it mints.
     function _shareValue() internal view returns (uint256) {
-        uint256 s = pair.totalSupply();
+        uint256 s = pair.totalSupply() + _pendingProtocolFee();
         return s == 0 ? 0 : Math.sqrt(_k()) * 1e18 / s;
+    }
+
+    /// @dev Mirror of TimbSwapPair._mintProtocolFee (1/6 of sqrt(k) growth since kLast).
+    function _pendingProtocolFee() internal view returns (uint256) {
+        uint256 kl = pair.kLast();
+        if (kl == 0) return 0;
+        uint256 rootK = Math.sqrt(_k());
+        uint256 rootKLast = Math.sqrt(kl);
+        if (rootK <= rootKLast) return 0;
+        return pair.totalSupply() * (rootK - rootKLast) / (rootK * 5 + rootKLast);
     }
 
     /// @dev Share value may only grow across mint/burn, up to 1e-18 relative
@@ -218,7 +232,7 @@ contract PairHandler is Test {
  * Run: forge test --match-contract PairInvariants -vvv
  */
 contract PairInvariants is Test {
-    PairHandler h;
+    PairHandler public h;
 
     function setUp() public {
         h = new PairHandler();
