@@ -7,7 +7,7 @@
     "shrinkLimit": 5000,
     "callSequenceLength": 200,
     "pruneFrequency": 5,
-    "corpusDirectory": "tests/invariants/medusa/corpus-pair",
+    "corpusDirectory": "corpus-pair",
     "coverageEnabled": true,
     "coverageFormats": [
       "lcov"
