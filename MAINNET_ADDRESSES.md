@@ -92,7 +92,7 @@ calls `distribute()` here to send real TIMB from a small pre-funded float. See
 | TimelockController | `0x13e227499b2ce81da39179d113304fa4367efe7a` | ✅ deployed |
 | Game treasury / sink / initial TIMBS mint (`DeployGame`) | `0xFbcD2D0581a54cEE87Ab2693B9E9b7dCC19c79F9` (the Safe) | ✅ set |
 | DEX fee recipients: Factory `feeTo`, Router `treasury` | Set at the 2026-09-11 core deploy (`DeployCore`), separately from the row above. Read live with `feeTo()` / `treasury()` | ⏳ repointed by the beta deploy (below) |
-| Ownership handoff → timelock | every owned contract (Ownable2Step, except VRFEntropy: one-step `Ownable`, so its `transferOwnership` is final at once) | ⏳ pending (runbook §6) |
+| Ownership handoff → timelock | every owned contract (Ownable2Step, except VRFEntropy: one-step `Ownable`, so its `transferOwnership` is final at once) | ⏸ deferred to the TIMBS launch (decided 2026-10-30): through the capped beta the team keeps the keys, so an emergency pause is not held up by the timelock delay. The solvency watchdog (`scripts/solvency-watch.js`) alerts the owner to pause |
 
 **Read it back from the chain** before editing this table, after each
 `acceptOwnership` batch, and once the handoff is done:
