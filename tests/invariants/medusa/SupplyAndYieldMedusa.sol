@@ -11,6 +11,11 @@ import {SupplyAndYieldInvariants, TimbsHandler, VaultHandler} from "../SupplyAnd
  * Run: medusa fuzz --config tests/invariants/medusa/medusa.supply.json
  */
 contract SupplyAndYieldMedusa {
+    /// Marks the harness as a test contract, so `forge build --sizes` skips it
+    /// as it skips the forge suites: it embeds the whole suite's bytecode, over
+    /// the EIP-3860 initcode limit (Medusa runs with the size check off).
+    bool public constant IS_TEST = true;
+
     SupplyAndYieldInvariants inv;
     TimbsHandler th;
     VaultHandler vh;

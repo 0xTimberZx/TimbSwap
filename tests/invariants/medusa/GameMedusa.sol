@@ -11,6 +11,11 @@ import {GameInvariants, GameHandler} from "../GameInvariants.t.sol";
  * Run: medusa fuzz --config tests/invariants/medusa/medusa.game.json
  */
 contract GameMedusa {
+    /// Marks the harness as a test contract, so `forge build --sizes` skips it
+    /// as it skips the forge suites: it embeds the whole suite's bytecode, over
+    /// the EIP-3860 initcode limit (Medusa runs with the size check off).
+    bool public constant IS_TEST = true;
+
     GameInvariants inv;
     GameHandler h;
 
