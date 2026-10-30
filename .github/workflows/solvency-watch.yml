@@ -60,9 +60,10 @@ jobs:
       - name: Check the live contracts
         working-directory: scripts
         env:
-          # WATCH_RPC (a repo variable) overrides the public read RPC in
-          # config.js; set it to an Arbitrum One endpoint for a mainnet build.
-          WATCH_RPC:            ${{ vars.WATCH_RPC }}
+          # WATCH_RPC overrides the public read RPC in config.js; set it to an
+          # Arbitrum One endpoint for a mainnet build. A keyed URL goes in a
+          # SECRET (masked in logs); the variable is read only as a fallback.
+          WATCH_RPC:            ${{ secrets.WATCH_RPC || vars.WATCH_RPC }}
           WATCH_REALERT_MIN:    ${{ vars.WATCH_REALERT_MIN }}
           TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}

@@ -28,7 +28,9 @@
 // ephemeral host it is lost on redeploy, which at worst repeats one alert.
 //
 // Env:
-//   WATCH_RPC           optional; default = config.js public RPC (lib/config.js)
+//   WATCH_RPC           optional; default = config.js public RPC (lib/config.js).
+//                       A keyed URL belongs in a secret: the script scrubs it
+//                       from every line it prints or sends.
 //   WATCH_REGISTRY      optional override; default = TimbPrize.gameRegistry()
 //   WATCH_PRIZE         optional override; default = config.js ADDRESSES.TimbPrize
 //   WATCH_BATCH         tickets per Multicall3 call (default 200)
@@ -149,7 +151,15 @@ function plan(state, findings, nowSec, realertSec = REALERT_MIN * 60) {
   return { alerts, recoveries };
 }
 
-module.exports = { sweepTotals, assess, plan, main };
+/** Strip RPC credentials from text that is printed or sent: the configured URL
+ *  itself and any path segment that looks like a provider key (/v2/<key>). */
+function redact(text, url = process.env.WATCH_RPC) {
+  let s = String(text);
+  if (url) s = s.split(url).join("<WATCH_RPC>");
+  return s.replace(/(\/v[0-9]\/)[A-Za-z0-9_-]{8,}/g, "$1<key>");
+}
+
+module.exports = { sweepTotals, assess, plan, redact, main };
 
 // ─── Self-test ──────────────────────────────────────────────────────────────
 
@@ -189,6 +199,12 @@ function selfTest() {
     t("cleared finding sends one recovery", r.recoveries.length === 1 && r.recoveries[0] === "W3_ESCROW");
     t("no second recovery", plan(st, [], 4900, 3600).recoveries.length === 0); }
 
+  // Redaction: the configured URL and any provider-key path segment.
+  { const url = "https://arb-mainnet.example.com/v2/alch_SECRETKEY123";
+    const r = redact(`connect failed for ${url} (method eth_call)`, url);
+    t("redact removes the configured URL", !r.includes("SECRETKEY") && r.includes("<WATCH_RPC>"));
+    t("redact masks a key path without the URL set", !redact("GET https://x.io/v2/abcdEFGH1234 failed", "").includes("abcdEFGH1234")); }
+
   console.log(`self-test: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -200,7 +216,7 @@ if (SELF_TEST) selfTest();
 const telegram = tgLib.opsTelegram
   ? tgLib.opsTelegram({ tag: "solvency-watch" })
   : tgLib.makeTelegram({ token: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID, tag: "solvency-watch" });
-const tg = (text) => (DRY_RUN ? (console.log(`(dry run) telegram:\n${text}`), false) : telegram.send(text));
+const tg = (text) => (DRY_RUN ? (console.log(`(dry run) telegram:\n${redact(text)}`), false) : telegram.send(redact(text)));
 
 /** Every ticket, batched through Multicall3; one call per ticket if it is absent. */
 async function readTickets(provider, registry, count) {
@@ -266,7 +282,7 @@ async function main() {
     unreadable = r.unreadable;
     sweep = sweepTotals(r.tickets, Number(generation));
   } catch (e) {
-    sweepError = e.shortMessage || e.message;
+    sweepError = redact(e.shortMessage || e.message);
     console.warn(`ticket sweep failed, cheap checks only: ${sweepError}`);
   }
 
@@ -303,7 +319,7 @@ async function main() {
 
 // Only run the live path when executed directly, so a test can drive main().
 if (!SELF_TEST && require.main === module) main().catch(async (e) => {
-  const msg = e.shortMessage || e.message || String(e);
+  const msg = redact(e.shortMessage || e.message || String(e));
   console.error(msg);
   // A watchdog that cannot read the chain is blind: say so, on the same throttle.
   try {
