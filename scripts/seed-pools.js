@@ -255,9 +255,12 @@ async function main() {
   const net = await provider.getNetwork();
   if (Number(net.chainId) !== DEFAULTS.chainId) throw new Error(`wrong chain: ${net.chainId} (expected Arbitrum One ${DEFAULTS.chainId})`);
 
-  const wallet = process.env.SEED_PRIVATE_KEY ? new ethers.Wallet(process.env.SEED_PRIVATE_KEY, provider) : null;
+  // NonceManager: Arbitrum confirms faster than the provider's nonce cache
+  // expires, so back-to-back sends (approve, approve, add) would otherwise
+  // reuse a nonce ("nonce has already been used"); reproduced on a local chain.
+  const wallet = process.env.SEED_PRIVATE_KEY ? new ethers.NonceManager(new ethers.Wallet(process.env.SEED_PRIVATE_KEY, provider)) : null;
   if (EXECUTE && !wallet) throw new Error("--execute needs SEED_PRIVATE_KEY");
-  const from  = wallet ? wallet.address : (process.env.SEED_FROM ? ethers.getAddress(process.env.SEED_FROM) : null);
+  const from  = wallet ? await wallet.getAddress() : (process.env.SEED_FROM ? ethers.getAddress(process.env.SEED_FROM) : null);
   const lpTo  = process.env.SEED_LP_TO ? ethers.getAddress(process.env.SEED_LP_TO) : from;
 
   const routerAddr  = envAddr("SEED_ROUTER", DEFAULTS.router);
