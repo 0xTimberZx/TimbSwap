@@ -47,8 +47,8 @@ Every finding is one of: **fix it**, or **justify it**. For each high/medium:
 - **Freeze the scope:** a single commit hash + the address list in
   `MAINNET_ADDRESSES.md` = the audit target. Moving code mid-audit costs money.
 - **Hand over a known-issues doc** (you already reference
-  `dev-docs/PRE_MAINNET_AUDIT.md`): FoT/rebasing unsupported, timelock-gated admin
-  powers, read-only reentrancy on `getReserves()`, etc. Don't pay someone to
+  `dev-docs/PRE_MAINNET_AUDIT.md`): FoT/rebasing unsupported, owner-gated admin
+  powers (team-held in the beta; timelock from the TIMBS launch), read-only reentrancy on `getReserves()`, etc. Don't pay someone to
   rediscover what you already know.
 
 ## 4. Low-budget audit avenues (cheapest → pricier)

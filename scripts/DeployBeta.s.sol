@@ -345,6 +345,6 @@ contract DeployBeta is Script {
         console.log("3. Record the six addresses (incl. the new router) in MAINNET_ADDRESSES.md and config.mainnet.js");
         console.log("4. TimbPrize.startGame()  (opens round 1)");
         console.log("5. Keepers: settler, faucet, top-trader on the mainnet dispatcher/settler keys");
-        console.log("6. Ownership handoff to the timelock for the new contracts too");
+        console.log("6. Ownership: no timelock handoff until the TIMBS launch (keys stay with the team so a pause is immediate)");
     }
 }

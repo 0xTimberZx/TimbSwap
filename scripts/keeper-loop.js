@@ -42,6 +42,10 @@ const KEEPERS = {
   // alert-throttle state lives in the container and survives between runs
   // until a redeploy, which at worst repeats one alert.
   "settler-liveness": { script: "settler-liveness.js", pause: 15, okExit: [0, 1] },
+  // Solvency watchdog: is the ETH the registry and the prize escrow hold at
+  // least what they owe? Read-only, no key. Exit 1 is a breach it has already
+  // alerted, so it counts as a clean run like the liveness witness.
+  "solvency-watch":   { script: "solvency-watch.js",   pause: 15, okExit: [0, 1] },
   // State-file keepers. They persist to scripts/*-state.json, which the
   // workflow committed back to git. On an ephemeral host that file is lost on
   // redeploy, so mount a volume before enabling these (see scripts/RAILWAY.md).

@@ -1,0 +1,100 @@
+name: TimbSwap Solvency Watch
+
+# Read-only watchdog (scripts/solvency-watch.js): does the ETH the game holds
+# cover what it owes? GameRegistry ETH vs every ETH ticket's principal and the
+# totalEthEscrow meter; PrizeEscrow ETH vs pot + unclaimed winnings + protocol
+# cut; terminal tickets hold nothing. A breach alerts the ops and critical chats
+# for the owner to pause (pausing is owner-only; this job never pauses) and
+# fails the run. No private key. The state file holds only the last-alert
+# stamps, committed back so alerts stay throttled between runs.
+
+on:
+  schedule:
+    - cron: "11,26,41,56 * * * *"   # every 15 min, offset from the top of the hour
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Post a Telegram summary even when healthy"
+        required: false
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+concurrency:
+  group: timbswap-solvency-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commits scripts/solvency-watch-state.json back
+
+jobs:
+  check:
+    name: Check solvency
+    runs-on: ubuntu-latest
+    # Host gate, as the rest of the fleet: runs only when the repo variable
+    # KEEPERS_HOST is 'actions', so it never runs alongside a Railway copy.
+    if: vars.KEEPERS_HOST == 'actions'
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22.23.4"
+
+      - name: Install dependencies
+        run: npm ci --omit=dev
+        working-directory: scripts
+
+      - name: Self-test the checks
+        working-directory: scripts
+        run: node solvency-watch.js --self-test
+
+      - name: Check the live contracts
+        working-directory: scripts
+        env:
+          # WATCH_RPC (a repo variable) overrides the public read RPC in
+          # config.js; set it to an Arbitrum One endpoint for a mainnet build.
+          WATCH_RPC:            ${{ vars.WATCH_RPC }}
+          WATCH_REALERT_MIN:    ${{ vars.WATCH_REALERT_MIN }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OPS_BOT_TOKEN: ${{ secrets.TELEGRAM_OPS_BOT_TOKEN }}
+          TELEGRAM_OPS_CHAT_ID: ${{ secrets.TELEGRAM_OPS_CHAT_ID }}
+          TELEGRAM_CRITICAL_BOT_TOKEN: ${{ secrets.TELEGRAM_CRITICAL_BOT_TOKEN }}
+          TELEGRAM_CRITICAL_CHAT_ID: ${{ secrets.TELEGRAM_CRITICAL_CHAT_ID }}
+        run: |
+          if [ "${{ github.event.inputs.report }}" = "yes" ]; then
+            node solvency-watch.js --report
+          else
+            node solvency-watch.js
+          fi
+
+      # Commit the alert stamps back even when the check failed, so a standing
+      # breach re-alerts hourly instead of every run.
+      - name: Commit state
+        if: always()
+        run: |
+          if [ ! -f scripts/solvency-watch-state.json ]; then
+            echo "No state file — nothing to commit."
+            exit 0
+          fi
+          if git diff --quiet scripts/solvency-watch-state.json 2>/dev/null && \
+             ! git status --porcelain scripts/solvency-watch-state.json | grep -q .; then
+            echo "No state change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "solvency-watch[bot]"
+          git config user.email "actions@github.com"
+          git add scripts/solvency-watch-state.json
+          git commit -m "[skip ci] solvency-watch: update alert state"
+          # npm install dirties scripts/; --autostash keeps the rebase clean.
+          git pull --rebase --autostash origin main
+          git push origin main

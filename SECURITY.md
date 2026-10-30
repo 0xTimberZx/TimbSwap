@@ -1,7 +1,9 @@
 # Security Policy & Bug Bounty
 
 This policy is for the **capped beta** on **Arbitrum One**: real value live but
-bounded, behind a timelock + multisig, while an independent audit is pending.
+bounded, with privileged keys held by the team (no timelock delay, so an emergency
+pause is immediate; the timelock handoff comes with the TIMBS launch), while an
+independent audit is pending.
 
 > **Status: not open yet.** The testnet bounty closed on 26 October 2026 at
 > 23:59 UTC. The mainnet bounty opens when the capped beta launches; until then
@@ -79,7 +81,8 @@ settlement/liveness griefing.
 - **Already-documented behavior**, including items in
   [`dev-docs/PRE_MAINNET_AUDIT.md`](./dev-docs/PRE_MAINNET_AUDIT.md): FoT/
   rebasing tokens are **unsupported** (standard ERC-20 only); intentional,
-  timelock-gated admin powers (pause, `emergencyWithdraw`, `adminMarkIneligible`);
+  owner-gated admin powers (pause, `emergencyWithdraw`, `adminMarkIneligible`;
+  team-held in the beta, timelock-gated from the TIMBS launch);
   read-only reentrancy on `Pair.getReserves()` (standard V2 integrator hazard).
 - Gas-optimization suggestions, best-practice notes without a concrete exploit,
   and automated-scanner output without a working PoC.
