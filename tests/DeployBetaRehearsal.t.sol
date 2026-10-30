@@ -135,6 +135,18 @@ contract DeployBetaRehearsalTest is Test {
         noPair.run();
         factory.createPair(address(arb), address(weth));
 
+        // 1c. A key leaked in the 22 Oct Railway incident in any role stops the run.
+        vm.setEnv("FAUCET_DISPATCHER", vm.toString(address(0x490Ae1eC3452c32dA2643715bd310F1eBC87c652)));
+        DeployBeta leakedDispatcher = new DeployBeta();
+        vm.expectRevert(bytes("PRE-FLIGHT: a role is the leaked faucet dispatcher key"));
+        leakedDispatcher.run();
+        vm.setEnv("FAUCET_DISPATCHER", vm.toString(DISPATCHER));
+        vm.setEnv("SETTLER_ADDR", vm.toString(address(0x42536623b503D4926DfAF6173B0357b7DfD19800)));
+        DeployBeta leakedDeployer = new DeployBeta();
+        vm.expectRevert(bytes("PRE-FLIGHT: a role is the leaked deployer key"));
+        leakedDeployer.run();
+        vm.setEnv("SETTLER_ADDR", vm.toString(address(0)));
+
         // 2. Named correctly, it deploys and wires everything.
         new DeployBeta().run();
 

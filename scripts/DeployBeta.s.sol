@@ -119,7 +119,7 @@ contract DeployBeta is Script {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         Cfg memory c = _cfg();
 
-        _preflight(c);
+        _preflight(c, vm.addr(deployerKey));
 
         vm.startBroadcast(deployerKey);
         Deployed memory d;
@@ -275,7 +275,16 @@ contract DeployBeta is Script {
 
     /// @dev Refuse to repoint shared infra away from a game the operator did not
     ///      name (INCIDENT_2026-09-15_SHARED_INFRA_REPOINT). Runs in simulation too.
-    function _preflight(Cfg memory c) internal view {
+    function _preflight(Cfg memory c, address deployer) internal view {
+        // Keys leaked in the 22 October Railway incident (the Sepolia deployer
+        // and faucet dispatcher) must never hold a role on mainnet.
+        address leakedDeployer   = 0x42536623b503D4926DfAF6173B0357b7DfD19800;
+        address leakedDispatcher = 0x490Ae1eC3452c32dA2643715bd310F1eBC87c652;
+        address[5] memory roles = [deployer, c.settler, c.dispatcher, c.guardian, c.sink];
+        for (uint256 i; i < roles.length; i++) {
+            require(roles[i] != leakedDeployer, "PRE-FLIGHT: a role is the leaked deployer key");
+            require(roles[i] != leakedDispatcher, "PRE-FLIGHT: a role is the leaked faucet dispatcher key");
+        }
         address expectPrize    = vm.envAddress("EXPECT_OLD_PRIZE");
         address expectRegistry = vm.envAddress("EXPECT_OLD_REGISTRY");
         console.log("PRE-FLIGHT: shared infra currently bound to");
