@@ -35,6 +35,7 @@ One service per keeper. **Never run two settlers.**
 | `match-notifier` | match-notifier.yml | `ARB_SEPOLIA_RPC`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME=TimbSwapTGBot`, optional `TELEGRAM_CHAT_ID` |
 | `reclaim-reminder` | reclaim-reminder.yml | same as match-notifier |
 | `settler-liveness` | settler-liveness.yml | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `LIVENESS_RPC` (defaults to the public read RPC in `config.js`), `SETTLER_OVERDUE_MIN`, `SETTLER_REALERT_MIN`, `TELEGRAM_OPS_MODE` |
+| `solvency-watch` | (new, no workflow) | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (or the `TELEGRAM_OPS_*` / `TELEGRAM_CRITICAL_*` pairs), optional `WATCH_RPC` (defaults to the public read RPC in `config.js`; set it explicitly for an Arbitrum One build), `WATCH_REALERT_MIN` (60), `WATCH_BATCH` (200). Read-only, no key. Every 15 min: registry ETH ≥ every ETH ticket's principal, PrizeEscrow ETH ≥ pot + unclaimed + cut; a breach alerts 🚨 for the owner to pause (the contracts have no keeper pause). |
 
 Values are the same strings that were in GitHub → Settings → Secrets and
 Variables. `DISPATCH_TOKEN` and the `*_LINGER_MINUTES` self-chain knobs are
