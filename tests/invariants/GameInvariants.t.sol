@@ -64,7 +64,7 @@ contract GameHandler is Test {
         prize.setEntropy(address(entropy));
         registry.setTimbPrize(address(prize));
         escrow.setTimbPrize(address(prize));
-        prize.setProtocolCutBps(200);   // the beta's 2% round sweep
+        prize.setProtocolCutBps(50);    // the beta's 0.5% round sweep
         prize.startGame();
 
         for (uint256 i = 0; i < actors.length; i++) {

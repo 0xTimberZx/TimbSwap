@@ -107,6 +107,7 @@ contract DeployBeta is Script {
         address vrfCoord; bytes32 vrfKeyHash; uint256 vrfSubId; bytes vrfExtra;
         uint16 vrfConfs; uint32 vrfCbGas;
         uint256 refundWindow;                      // fix list 70
+        uint256 cutBps;                            // protocol cut per settlement
     }
 
     struct Deployed {
@@ -159,6 +160,10 @@ contract DeployBeta is Script {
         c.vrfConfs  = uint16(vm.envOr("VRF_CONFIRMATIONS", uint256(3)));
         c.vrfCbGas  = uint32(vm.envOr("VRF_CALLBACK_GAS", uint256(200_000)));
         c.refundWindow = vm.envOr("REFUND_WINDOW_ROUNDS", uint256(4));
+        // Beta: 0.5% of the pot per settlement (decided 2026-10-30; the contract
+        // default is 2%, at most 10%).
+        c.cutBps    = vm.envOr("PROTOCOL_CUT_BPS", uint256(50));
+        require(c.cutBps <= 1_000, "PROTOCOL_CUT_BPS above the 10% cap");
     }
 
     /// @dev Registry + entropy + prize, wired to each other, to the new router
@@ -187,6 +192,7 @@ contract DeployBeta is Script {
         d.prize.setEntropy(address(d.entropy));
         d.prize.setEligibleRegistry(c.eligible);
         d.prize.setYieldVault(c.vault);
+        if (c.cutBps != d.prize.protocolCutBps()) d.prize.setProtocolCutBps(c.cutBps);
         if (c.settler != address(0)) d.prize.setSettler(c.settler);
 
         PrizeEscrow(payable(c.escrow)).setTimbPrize(address(d.prize));
@@ -296,6 +302,7 @@ contract DeployBeta is Script {
         require(!d.registry.allowRepeatedChars(),       "beta: no repeated chars");
         require(d.registry.lapsePotBps() == 10_000,     "beta: lapse 100% to pot");
         require(d.registry.refundWindowRounds() == c.refundWindow, "beta: refund window as configured");
+        require(d.prize.protocolCutBps() == c.cutBps,            "beta: protocol cut as configured");
         require(d.registry.pendingRefundWindowRounds() == 0, "beta: no staged refund window");
         require(d.treasury.authorisedFeeSenders(c.escrow), "treasury must count the escrow's cut");
         TimbSwapRouter old = TimbSwapRouter(payable(c.router));

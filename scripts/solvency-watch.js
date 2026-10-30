@@ -84,6 +84,17 @@ const TERMINAL = new Set([2, 4, 5]);
 
 // ─── Pure logic (exported for --self-test) ──────────────────────────────────
 
+/** wei → ETH rounded to 6 decimals (integer math), trailing zeros trimmed. A
+ *  non-zero amount below 0.000001 reads "<0.000001", never "0". */
+function eth6(v) {
+  const wei = BigInt(v), unit = 10n ** 12n;
+  if (wei === 0n) return "0";
+  if (wei < unit) return "<0.000001";
+  const micro = (wei + unit / 2n) / unit;
+  const frac = (micro % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
+  return (micro / 1_000_000n).toString() + (frac ? "." + frac : "");
+}
+
 /**
  * Fold the ticket sweep into totals.
  * tickets: [{ id, escrowAmount (bigint), escrowToken, status, generation }]
@@ -109,7 +120,7 @@ function sweepTotals(tickets, generation) {
 function assess(snap) {
   const f = (kind, severity, detail) => ({ kind, severity, detail });
   const out = [];
-  const eth = (v) => ethers.formatEther(v);
+  const eth = eth6;
   if (snap.sweep && snap.registryEth < snap.sweep.ethOwed) {
     out.push(f("W1_PRINCIPAL", "breach", `registry holds ${eth(snap.registryEth)} ETH, tickets are owed ${eth(snap.sweep.ethOwed)} (short ${eth(snap.sweep.ethOwed - snap.registryEth)})`));
   }
@@ -159,7 +170,7 @@ function redact(text, url = process.env.WATCH_RPC) {
   return s.replace(/(\/v[0-9]\/)[A-Za-z0-9_-]{8,}/g, "$1<key>");
 }
 
-module.exports = { sweepTotals, assess, plan, redact, main };
+module.exports = { eth6, sweepTotals, assess, plan, redact, main };
 
 // ─── Self-test ──────────────────────────────────────────────────────────────
 
@@ -198,6 +209,12 @@ function selfTest() {
     const r = plan(st, [], 4800, 3600);
     t("cleared finding sends one recovery", r.recoveries.length === 1 && r.recoveries[0] === "W3_ESCROW");
     t("no second recovery", plan(st, [], 4900, 3600).recoveries.length === 0); }
+
+  // Display: 6 decimals, rounded; dust never shows as zero.
+  t("eth6 rounds to 6 decimals", eth6(504238390149088205n) === "0.504238");
+  t("eth6 rounds half up", eth6(1_499_999_500_000_000n) === "0.0015");
+  t("eth6 trims trailing zeros", eth6(E(0.0015)) === "0.0015" && eth6(E(2)) === "2");
+  t("eth6 shows dust, not zero", eth6(1n) === "<0.000001" && eth6(0n) === "0");
 
   // Redaction: the configured URL and any provider-key path segment.
   { const url = "https://arb-mainnet.example.com/v2/alch_SECRETKEY123";
@@ -291,7 +308,7 @@ async function main() {
   if (sweepError) findings.push({ kind: "SWEEP_FAILED", severity: "warn", detail: `ticket sweep failed (${sweepError}); W1 and W4 not checked this run` });
   if (unreadable) findings.push({ kind: "SWEEP_UNREADABLE", severity: "warn", detail: `${unreadable} ticket(s) could not be read; W1 and W4 may be incomplete` });
 
-  const eth = (v) => ethers.formatEther(v);
+  const eth = eth6;
   const books = pot + unclaimed + cut;
   const summary =
     `registry ${registryAddr.slice(0, 10)}… holds ${eth(registryEth)} ETH` +
