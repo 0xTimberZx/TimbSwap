@@ -225,12 +225,17 @@ const RPC_URLS = _hasDedicated ? [DEDICATED_RPC] : PUBLIC_RPCS;
 // Wallet add-chain uses only PUBLIC endpoints — never route a visitor's wallet
 // traffic through our keyed quota.
 const RPC_URL = PUBLIC_RPCS[0];
+// Wallets mostly keep only rpcUrls[0] when they add the network, and the
+// official endpoint (first above) is the busiest public node: a wallet that
+// saved it fails eth_gasPrice with -32005 rate limits before it can sign.
+// Hand wallets the other public nodes first and the official one last.
+const WALLET_RPCS = PUBLIC_RPCS.slice(1).concat(PUBLIC_RPCS.slice(0, 1));
 
 const CHAIN_CONFIG = {
   chainId:   "0x" + CHAIN_ID.toString(16),
   chainName: CHAIN_NAME,
   nativeCurrency: { name: "Ethereum", symbol: "ETH", decimals: 18 },
-  rpcUrls:        PUBLIC_RPCS,
+  rpcUrls:        WALLET_RPCS,
   blockExplorerUrls: [_NET.explorer || "https://sepolia.arbiscan.io"]
 };
 
@@ -1564,8 +1569,17 @@ function walletErrorInfo(err) {
   if (code === 4001 || code === "ACTION_REJECTED" || /user (rejected|denied)/i.test(msg)) {
     msg = "You cancelled the request in your wallet.";
   }
+  // The wallet's own RPC node refused it (seen on Arbitrum Sepolia's official
+  // endpoint): say what to do rather than echo the node's text, which stays in
+  // Copy details.
+  let raw = null;
+  if (String(code) === "-32005" || /rate[- ]?limit/i.test(msg)) {
+    raw = msg;
+    msg = "Your wallet's " + CHAIN_NAME + " RPC node is rate-limiting it. Wait a minute and retry, " +
+          "or set the wallet's RPC to " + new URL(WALLET_RPCS[0]).host + ".";
+  }
   if (msg.length > 180) msg = msg.slice(0, 177) + "…";
-  return { code: code === undefined ? null : code, message: msg || "No reason given by the wallet." };
+  return { code: code === undefined ? null : code, message: msg || "No reason given by the wallet.", raw };
 }
 
 function showTxError(btn, err) {
@@ -1588,7 +1602,7 @@ function showTxError(btn, err) {
       e.preventDefault();
       const details = JSON.stringify({
         page: location.pathname, action: btn.dataset.action || btn.id || null,
-        code: info.code, message: info.message, wallet: _providerLabel(),
+        code: info.code, message: info.message, raw: info.raw, wallet: _providerLabel(),
         chain: CHAIN_ID, account: userAddress || null, at: new Date().toISOString(),
         ua: navigator.userAgent,
       });

@@ -252,7 +252,7 @@ contract GameHandler is Test {
  * Run: forge test --match-contract GameInvariants -vvv
  */
 contract GameInvariants is Test {
-    GameHandler h;
+    GameHandler public h;
 
     function setUp() public {
         h = new GameHandler();

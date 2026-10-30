@@ -213,8 +213,8 @@ contract VaultHandler is Test {
  * Run: forge test --match-contract SupplyAndYieldInvariants -vvv
  */
 contract SupplyAndYieldInvariants is Test {
-    TimbsHandler th;
-    VaultHandler vh;
+    TimbsHandler public th;
+    VaultHandler public vh;
 
     function setUp() public {
         th = new TimbsHandler();
