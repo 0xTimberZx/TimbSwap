@@ -28,7 +28,9 @@
 // ephemeral host it is lost on redeploy, which at worst repeats one alert.
 //
 // Env:
-//   WATCH_RPC           optional; default = config.js public RPC (lib/config.js)
+//   WATCH_RPC           optional; default = config.js public RPC (lib/config.js).
+//                       A keyed URL belongs in a secret: the script scrubs it
+//                       from every line it prints or sends.
 //   WATCH_REGISTRY      optional override; default = TimbPrize.gameRegistry()
 //   WATCH_PRIZE         optional override; default = config.js ADDRESSES.TimbPrize
 //   WATCH_BATCH         tickets per Multicall3 call (default 200)
@@ -82,6 +84,17 @@ const TERMINAL = new Set([2, 4, 5]);
 
 // ─── Pure logic (exported for --self-test) ──────────────────────────────────
 
+/** wei → ETH rounded to 6 decimals (integer math), trailing zeros trimmed. A
+ *  non-zero amount below 0.000001 reads "<0.000001", never "0". */
+function eth6(v) {
+  const wei = BigInt(v), unit = 10n ** 12n;
+  if (wei === 0n) return "0";
+  if (wei < unit) return "<0.000001";
+  const micro = (wei + unit / 2n) / unit;
+  const frac = (micro % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
+  return (micro / 1_000_000n).toString() + (frac ? "." + frac : "");
+}
+
 /**
  * Fold the ticket sweep into totals.
  * tickets: [{ id, escrowAmount (bigint), escrowToken, status, generation }]
@@ -107,7 +120,7 @@ function sweepTotals(tickets, generation) {
 function assess(snap) {
   const f = (kind, severity, detail) => ({ kind, severity, detail });
   const out = [];
-  const eth = (v) => ethers.formatEther(v);
+  const eth = eth6;
   if (snap.sweep && snap.registryEth < snap.sweep.ethOwed) {
     out.push(f("W1_PRINCIPAL", "breach", `registry holds ${eth(snap.registryEth)} ETH, tickets are owed ${eth(snap.sweep.ethOwed)} (short ${eth(snap.sweep.ethOwed - snap.registryEth)})`));
   }
@@ -149,7 +162,15 @@ function plan(state, findings, nowSec, realertSec = REALERT_MIN * 60) {
   return { alerts, recoveries };
 }
 
-module.exports = { sweepTotals, assess, plan, main };
+/** Strip RPC credentials from text that is printed or sent: the configured URL
+ *  itself and any path segment that looks like a provider key (/v2/<key>). */
+function redact(text, url = process.env.WATCH_RPC) {
+  let s = String(text);
+  if (url) s = s.split(url).join("<WATCH_RPC>");
+  return s.replace(/(\/v[0-9]\/)[A-Za-z0-9_-]{8,}/g, "$1<key>");
+}
+
+module.exports = { eth6, sweepTotals, assess, plan, redact, main };
 
 // ─── Self-test ──────────────────────────────────────────────────────────────
 
@@ -189,6 +210,18 @@ function selfTest() {
     t("cleared finding sends one recovery", r.recoveries.length === 1 && r.recoveries[0] === "W3_ESCROW");
     t("no second recovery", plan(st, [], 4900, 3600).recoveries.length === 0); }
 
+  // Display: 6 decimals, rounded; dust never shows as zero.
+  t("eth6 rounds to 6 decimals", eth6(504238390149088205n) === "0.504238");
+  t("eth6 rounds half up", eth6(1_499_999_500_000_000n) === "0.0015");
+  t("eth6 trims trailing zeros", eth6(E(0.0015)) === "0.0015" && eth6(E(2)) === "2");
+  t("eth6 shows dust, not zero", eth6(1n) === "<0.000001" && eth6(0n) === "0");
+
+  // Redaction: the configured URL and any provider-key path segment.
+  { const url = "https://arb-mainnet.example.com/v2/alch_SECRETKEY123";
+    const r = redact(`connect failed for ${url} (method eth_call)`, url);
+    t("redact removes the configured URL", !r.includes("SECRETKEY") && r.includes("<WATCH_RPC>"));
+    t("redact masks a key path without the URL set", !redact("GET https://x.io/v2/abcdEFGH1234 failed", "").includes("abcdEFGH1234")); }
+
   console.log(`self-test: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -200,7 +233,7 @@ if (SELF_TEST) selfTest();
 const telegram = tgLib.opsTelegram
   ? tgLib.opsTelegram({ tag: "solvency-watch" })
   : tgLib.makeTelegram({ token: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID, tag: "solvency-watch" });
-const tg = (text) => (DRY_RUN ? (console.log(`(dry run) telegram:\n${text}`), false) : telegram.send(text));
+const tg = (text) => (DRY_RUN ? (console.log(`(dry run) telegram:\n${redact(text)}`), false) : telegram.send(redact(text)));
 
 /** Every ticket, batched through Multicall3; one call per ticket if it is absent. */
 async function readTickets(provider, registry, count) {
@@ -266,7 +299,7 @@ async function main() {
     unreadable = r.unreadable;
     sweep = sweepTotals(r.tickets, Number(generation));
   } catch (e) {
-    sweepError = e.shortMessage || e.message;
+    sweepError = redact(e.shortMessage || e.message);
     console.warn(`ticket sweep failed, cheap checks only: ${sweepError}`);
   }
 
@@ -275,7 +308,7 @@ async function main() {
   if (sweepError) findings.push({ kind: "SWEEP_FAILED", severity: "warn", detail: `ticket sweep failed (${sweepError}); W1 and W4 not checked this run` });
   if (unreadable) findings.push({ kind: "SWEEP_UNREADABLE", severity: "warn", detail: `${unreadable} ticket(s) could not be read; W1 and W4 may be incomplete` });
 
-  const eth = (v) => ethers.formatEther(v);
+  const eth = eth6;
   const books = pot + unclaimed + cut;
   const summary =
     `registry ${registryAddr.slice(0, 10)}… holds ${eth(registryEth)} ETH` +
@@ -303,7 +336,7 @@ async function main() {
 
 // Only run the live path when executed directly, so a test can drive main().
 if (!SELF_TEST && require.main === module) main().catch(async (e) => {
-  const msg = e.shortMessage || e.message || String(e);
+  const msg = redact(e.shortMessage || e.message || String(e));
   console.error(msg);
   // A watchdog that cannot read the chain is blind: say so, on the same throttle.
   try {
