@@ -170,7 +170,7 @@ contract DeployBetaRehearsalTest is Test {
         assertEq(reg.lapsePotBps(), 10_000);
         assertEq(reg.refundWindowRounds(), 4, "refund window: beta default (fix list 70)");
         assertEq(reg.pendingRefundWindowRounds(), 0);
-        assertEq(prize.protocolCutBps(), 200, "2% round sweep");
+        assertEq(prize.protocolCutBps(), 50, "0.5% round sweep (PROTOCOL_CUT_BPS default)");
         assertTrue(newRouter.treasury() != SAFE, "router fee -> new treasury");
         assertEq(TimbTreasury(payable(newRouter.treasury())).router(), address(newRouter), "treasury -> new router");
         assertEq(newRouter.protocolFeeBps(), 0, "router fee 0: all-in 0.30%");
