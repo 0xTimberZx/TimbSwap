@@ -60,6 +60,3 @@ dist/
 out-medusa/
 crytic-export/
 tests/invariants/medusa/corpus-*/
-
-# Solvency watchdog alert stamps (container-local on Railway; nothing commits it)
-scripts/solvency-watch-state.json
