@@ -1,0 +1,84 @@
+name: TimbSwap LP Fee Split
+
+# Sends the pools' protocol fee half to the prize pot (scripts/lp-fee-split.js).
+# Every pool charges 0.30% and mints 0.05% of it as LP to the treasury (the
+# factory's feeTo). TimbTreasury.splitLpFees(pair) redeems that fee LP and
+# sends the WETH side, half the value, to the pot; the treasury keeps the other
+# token. The call is permissionless and the split is fixed 50/50 in the
+# contract; this job only makes sure it happens.
+#
+# Fee LP is realised lazily (on a pool's next mint or burn), so most runs find
+# nothing to split and send nothing. A pair is split once its fee would return
+# at least MIN_SPLIT_ETH. The key pays gas only; it holds no role.
+#
+# Cadence: hourly cron. GitHub delivers this repo's cron at roughly one tick in
+# four to six, which matches the Railway copy's six-hour pause (keeper-loop.js,
+# KEEPER=lp-fee-split). Late runs only delay the pot's share; nothing is lost,
+# the next run redeems everything accrued.
+
+on:
+  schedule:
+    - cron: "37 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: false
+        default: "run"
+        type: choice
+        options:
+          - run
+          - dry-run
+
+concurrency:
+  group: timbswap-lp-fee-split
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  split:
+    name: Split pool fees to the pot
+    runs-on: ubuntu-latest
+    # Host gate, as the rest of the fleet: runs only when the repo variable
+    # KEEPERS_HOST is 'actions', so it never runs alongside a Railway copy.
+    if: vars.KEEPERS_HOST == 'actions'
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22.23.4"
+
+      - name: Install dependencies
+        run: npm ci --omit=dev
+        working-directory: scripts
+
+      - name: Self-test
+        run: node --test lp-fee-split.test.js
+        working-directory: scripts
+
+      - name: Split
+        working-directory: scripts
+        env:
+          # LP_SPLIT_RPC overrides the public read RPC in config.js; set it to
+          # an Arbitrum One endpoint for the beta. A keyed URL goes in a SECRET
+          # (masked in logs, and the script scrubs it from errors); the variable
+          # is read only as a fallback.
+          LP_SPLIT_RPC:         ${{ secrets.LP_SPLIT_RPC || vars.LP_SPLIT_RPC }}
+          LP_SPLIT_PRIVATE_KEY: ${{ secrets.LP_SPLIT_PRIVATE_KEY }}
+          LP_SPLIT_PAIRS:       ${{ vars.LP_SPLIT_PAIRS }}
+          MIN_SPLIT_ETH:        ${{ vars.MIN_SPLIT_ETH }}
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "dry-run" ]; then
+            node lp-fee-split.js --dry-run
+          else
+            node lp-fee-split.js
+          fi

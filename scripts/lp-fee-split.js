@@ -6,26 +6,41 @@
 // side, half the value, to the pot through TimbPrize.addToPot. The call is
 // permissionless; this keeper just makes sure it happens on a schedule.
 //
+// Pairs: every WETH pair on the factory the treasury's router uses, which is
+// the same factory splitLpFees checks against (TS-041). The pool fee accrues
+// on every pair (factory feeTo), so the beta's WETH/USDC, WBTC/WETH and
+// ARB/WETH all carry it, not only TIMBS/WETH.
+//
 // A pair is split when its fee LP would return at least MIN_SPLIT_ETH of WETH.
 // The fee LP is realised lazily (on the pool's next mint or burn), so most
 // runs find nothing to do; that is normal.
 //
 // Env:
-//   ARB_SEPOLIA_RPC           RPC for reads and the transaction
+//   LP_SPLIT_RPC              RPC for reads and the transaction; set it to an
+//                             Arbitrum One endpoint for the beta. Falls back to
+//                             ARB_SEPOLIA_RPC, then the public RPC in config.js.
+//                             A keyed URL belongs in a secret: errors scrub it.
 //   LP_SPLIT_PRIVATE_KEY      any funded key (gas only); falls back to
 //                             FAUCET_DISPATCHER_PRIVATE_KEY
 //   LP_SPLIT_PAIRS            optional comma-separated extra WETH pairs
 //   MIN_SPLIT_ETH             default 0.0005
 // Args: --dry-run  report, send nothing.
 const { ethers } = require("ethers");
-const { addrFromConfig } = require("./lib/config");
+const { addrFromConfig, rpcFromConfig } = require("./lib/config");
 
 const MIN_SPLIT = ethers.parseEther(process.env.MIN_SPLIT_ETH || "0.0005");
 const DRY_RUN   = process.argv.includes("--dry-run");
 
 const TREASURY_ABI = [
   "function polLp(address) view returns (uint256)",
+  "function router() view returns (address)",
+  "function weth() view returns (address)",
   "function splitLpFees(address pair)",
+];
+const ROUTER_ABI  = ["function factory() view returns (address)"];
+const FACTORY_ABI = [
+  "function allPairsLength() view returns (uint256)",
+  "function allPairs(uint256) view returns (address)",
 ];
 const PAIR_ABI = [
   "function token0() view returns (address)",
@@ -45,17 +60,35 @@ function wethFromFeeLp({ lpBalance, polLp, totalSupply, wethReserve }) {
   return { feeLp, weth: (feeLp * wethReserve) / totalSupply };
 }
 
+/** Pure: the configured RPC URL, scrubbed from any text (errors can echo it). */
+function redact(text, url) {
+  let s = String(text);
+  if (url) s = s.split(url).join("<LP_SPLIT_RPC>");
+  return s;
+}
+
+function rpcUrl() {
+  return process.env.LP_SPLIT_RPC || process.env.ARB_SEPOLIA_RPC || rpcFromConfig();
+}
+
 async function main() {
-  const rpc = process.env.ARB_SEPOLIA_RPC;
-  if (!rpc) throw new Error("Missing ARB_SEPOLIA_RPC");
-  const provider = new ethers.JsonRpcProvider(rpc);
+  const provider = new ethers.JsonRpcProvider(rpcUrl());
+  const chainId = Number((await provider.getNetwork()).chainId);
   const treasuryAddr = addrFromConfig("TimbTreasury");
-  const weth = addrFromConfig("WETH").toLowerCase();
-
-  const pairs = new Set([addrFromConfig("TimbsEthPair")]);
-  for (const p of (process.env.LP_SPLIT_PAIRS || "").split(",").map(s => s.trim()).filter(Boolean)) pairs.add(ethers.getAddress(p));
-
   const treasuryRO = new ethers.Contract(treasuryAddr, TREASURY_ABI, provider);
+
+  // WETH and the factory as the treasury itself sees them: a pair the
+  // treasury would refuse (NotWethPair / NotFactoryPair) is never sent.
+  const [wethAddr, routerAddr] = await Promise.all([treasuryRO.weth(), treasuryRO.router()]);
+  if (routerAddr === ethers.ZeroAddress) throw new Error("treasury has no router set");
+  const weth = wethAddr.toLowerCase();
+  const factory = new ethers.Contract(await new ethers.Contract(routerAddr, ROUTER_ABI, provider).factory(), FACTORY_ABI, provider);
+  const n = Number(await factory.allPairsLength());
+  const all = await Promise.all(Array.from({ length: n }, (_, i) => factory.allPairs(i)));
+  console.log(`[lp-split] chain ${chainId} treasury ${treasuryAddr} · ${n} pairs on the factory`);
+
+  const pairs = new Set(all.map(a => ethers.getAddress(a)));
+  for (const p of (process.env.LP_SPLIT_PAIRS || "").split(",").map(s => s.trim()).filter(Boolean)) pairs.add(ethers.getAddress(p));
   const due = [];
   for (const pairAddr of pairs) {
     const pair = new ethers.Contract(pairAddr, PAIR_ABI, provider);
@@ -64,7 +97,7 @@ async function main() {
       pair.totalSupply(), pair.getReserves(),
     ]);
     const wethIs0 = t0.toLowerCase() === weth;
-    if (!wethIs0 && t1.toLowerCase() !== weth) { console.log(`[lp-split] ${pairAddr}: not a WETH pair, skipped`); continue; }
+    if (!wethIs0 && t1.toLowerCase() !== weth) continue; // only WETH pairs are split
     const { feeLp, weth: out } = wethFromFeeLp({
       lpBalance: bal, polLp: pol, totalSupply: supply, wethReserve: wethIs0 ? reserves[0] : reserves[1],
     });
@@ -86,7 +119,7 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch(e => { console.error("[lp-split] failed:", e.shortMessage || e.message); process.exit(1); });
+  main().catch(e => { console.error("[lp-split] failed:", redact(e.shortMessage || e.message, rpcUrl())); process.exit(1); });
 }
 
-module.exports = { wethFromFeeLp };
+module.exports = { wethFromFeeLp, redact };
