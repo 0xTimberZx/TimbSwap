@@ -90,6 +90,10 @@ const BUYBACK_MIN_ETH  = ethers.parseEther(process.env.BUYBACK_MIN_ETH || "0.001
 const BUYBACK_SPEND_BPS_ENV = process.env.BUYBACK_SPEND_BPS    ? BigInt(process.env.BUYBACK_SPEND_BPS)    : null;
 const BUYBACK_SLIP_BPS_ENV  = process.env.BUYBACK_SLIPPAGE_BPS ? BigInt(process.env.BUYBACK_SLIPPAGE_BPS) : null;
 const BUYBACK_MAX_ETH_ENV   = process.env.BUYBACK_MAX_ETH      ? ethers.parseEther(process.env.BUYBACK_MAX_ETH) : null;
+// The treasury also funds the faucet's ETH leg (GasFaucet pulls drip + pot via
+// withdrawOperational, capped at operatorEthCap per operatorPeriod). A buyback
+// that spends the whole balance leaves claims paying TIMBS only, so keep a
+// reserve: BUYBACK_KEEP_ETH if set, else one operator window (operatorEthCap).
 const ARB_ONE_CHAIN_ID = 42161n;
 
 // Addresses and the public RPC come from lib/config.js — the same single
@@ -126,6 +130,7 @@ const TREASURY_ABI = [
   "function executeBuyback(uint256 ethAmount, uint256 minTimbsOut) external",
   "function unwrapWeth(uint256 amount) external",
   "function ethBalance() view returns (uint256)",
+  "function operatorEthCap() view returns (uint256)",
   "function timbsEthPair() view returns (address)",
   "function weth() view returns (address)",
 ];
@@ -238,13 +243,18 @@ async function main() {
     }
 
     const ethBal      = await treasury.ethBalance();
-    const spendableRaw = (ethBal * spendBps) / 10_000n;
+    let keepEth = 0n;
+    if (process.env.BUYBACK_KEEP_ETH) keepEth = ethers.parseEther(process.env.BUYBACK_KEEP_ETH);
+    else { try { keepEth = await treasury.operatorEthCap(); } catch { keepEth = 0n; } }
+    const aboveKeep   = ethBal > keepEth ? ethBal - keepEth : 0n;
+    if (keepEth > 0n) console.log(`BUYBACK  keeping ${fmt(keepEth)} ETH for the faucet's operator window`);
+    const spendableRaw = (aboveKeep * spendBps) / 10_000n;
     // Per-run cap (chunking): bounds a single swap so a sandwich bot can extract
     // at most ~slipBps of a capped notional, not of the whole treasury float.
     const spendable   = (maxEth > 0n && spendableRaw > maxEth) ? maxEth : spendableRaw;
 
-    if (ethBal < BUYBACK_MIN_ETH || spendable === 0n) {
-      console.log(`BUYBACK  skip — treasury ETH ${fmt(ethBal)} < min ${fmt(BUYBACK_MIN_ETH)}`);
+    if (spendable < BUYBACK_MIN_ETH) {
+      console.log(`BUYBACK  skip — treasury ETH ${fmt(ethBal)} (spendable above the faucet reserve ${fmt(spendable)}) < min ${fmt(BUYBACK_MIN_ETH)}`);
     } else if (!pairAddr || pairAddr === ethers.ZeroAddress) {
       console.log("BUYBACK  skip — no TIMBS/ETH pair configured");
     } else {
