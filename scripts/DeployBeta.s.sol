@@ -77,7 +77,7 @@ interface IAirdropPause {
  *   Optional overrides (beta defaults shown):
  *   TIMBS_ENTRY_FLOOR=500e18  TIMBS_STEP=100e18   (TIMBS leg is off; ctor needs non-zero)
  *   FAUCET_DRIP_ETH=1e13    FAUCET_POT_ETH=1e13    FAUCET_COOLDOWN=86400
- *   FAUCET_ETH_CAP=1.5e18   OPERATOR_ETH_CAP=1e17 per OPERATOR_PERIOD=86400
+ *   FAUCET_ETH_CAP=1.5e18   (the faucet is self-funded: send its ETH budget to the faucet)
  *   REFUND_WINDOW_ROUNDS=12 (4..24; 12 for the ETH beta and the TIMBS launch alike, fix list 70)
  *
  * Run (read-only pre-flight, then simulate without --broadcast and read the
@@ -253,7 +253,7 @@ contract DeployBeta is Script {
     function _deployFaucet(Cfg memory c, Deployed memory d) internal returns (GasFaucet f) {
         uint256 ethCap = vm.envOr("FAUCET_ETH_CAP", uint256(1.5e18));
         f = new GasFaucet(
-            address(d.treasury), c.timbs, address(d.registry), address(d.prize),
+            c.timbs, address(d.registry), address(d.prize),
             vm.envOr("FAUCET_DRIP_ETH", uint256(1e13)),     // 0.00001 ETH: a gas rebate
             vm.envOr("FAUCET_POT_ETH",  uint256(1e13)),     // 0.00001 ETH to the pot
             0,                                            // no TIMBS leg in the beta
@@ -265,12 +265,9 @@ contract DeployBeta is Script {
         f.setTimbsCap(0);
         f.setTimbsPaused(true);
 
-        // The faucet pulls ETH from the treasury as its rate-limited operator.
-        d.treasury.setOperator(address(f));
-        d.treasury.setOperatorEthCap(
-            vm.envOr("OPERATOR_ETH_CAP", uint256(1e17)),
-            vm.envOr("OPERATOR_PERIOD",  uint256(86_400))
-        );
+        // The faucet pays claims from its own ETH reserve (fund it with a plain
+        // transfer); it has no role on the treasury, so treasury fee flows and
+        // buybacks can never starve claims.
     }
 
     /// @dev Refuse to repoint shared infra away from a game the operator did not
@@ -343,7 +340,7 @@ contract DeployBeta is Script {
         require(elig.registeredConsumers(address(d.prize)) && elig.registeredConsumers(address(d.router)),
                 "eligible registry must know the new prize and router");
         require(d.faucet.dispatcher() == c.dispatcher,                          "faucet dispatcher must be the mainnet hot key");
-        require(d.treasury.operator() == address(d.faucet),                     "faucet must be the treasury's operator");
+        require(d.treasury.operator() != address(d.faucet),                     "faucet must not be the treasury's operator (self-funded)");
         require(d.faucet.timbsPaused() && d.faucet.timbsCap() == 0,             "faucet TIMBS leg must be off");
         require(!d.prize.gameStarted(),                                         "deploy must not start the game");
 
@@ -357,7 +354,7 @@ contract DeployBeta is Script {
         console.log("==========================================");
         console.log("NEXT (dev-docs/BETA_ETH_ONLY.md, deploy checklist):");
         console.log("1. Add PrizeVRFEntropy as a consumer on VRF sub", c.vrfSubId, "; remove the old entropy");
-        console.log("2. Fund the treasury with the faucet's ETH budget (operator pulls from it)");
+        console.log("2. Send the faucet's ETH budget to the faucet itself (it pays claims from its own reserve)");
         console.log("3. Record the six addresses (incl. the new router) in MAINNET_ADDRESSES.md and config.mainnet.js");
         console.log("4. TimbPrize.startGame()  (opens round 1)");
         console.log("5. Keepers: settler, faucet, top-trader on the mainnet dispatcher/settler keys");

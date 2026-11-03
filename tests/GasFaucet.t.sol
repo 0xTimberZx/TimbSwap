@@ -3,25 +3,13 @@ pragma solidity 0.8.24;
 
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "../contracts/GasFaucet.sol"; // brings in GasFaucet + ITreasury/IGameRegistry/IPrize
+import "../contracts/GasFaucet.sol"; // brings in GasFaucet + IGameRegistry/IPrize
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 contract MockTIMBS is ERC20 {
     constructor() ERC20("TIMBS", "TIMBS") {}
     function mint(address to, uint256 a) external { _mint(to, a); }
-}
-
-// Holds ETH; the faucet is its (unmodelled) operator. Sends ETH on request.
-contract MockTreasury is ITreasury {
-    bool public windowExhausted; // TS-035: operator window spent
-    function setWindowExhausted(bool x) external { windowExhausted = x; }
-    function withdrawOperational(address to, uint256 amount) external {
-        require(!windowExhausted, "operator window exhausted");
-        (bool ok, ) = payable(to).call{value: amount}("");
-        require(ok, "treasury send failed");
-    }
-    receive() external payable {}
 }
 
 // Grantable eligibility oracle mirroring GameRegistry's surface.
@@ -62,7 +50,7 @@ contract RejectingWallet {
 
 contract GasFaucetTest is Test {
     MockTIMBS    timbs;
-    MockTreasury treasury;
+    address      treasury = address(0x7EA5);   // only a TIMBS-recovery destination now
     MockRegistry registry;
     MockPrize    prize;
     GasFaucet    faucet;
@@ -80,17 +68,16 @@ contract GasFaucetTest is Test {
 
     function setUp() public {
         timbs    = new MockTIMBS();
-        treasury = new MockTreasury();
         registry = new MockRegistry();
         prize    = new MockPrize();
 
         faucet = new GasFaucet(
-            address(treasury), address(timbs), address(registry), address(prize),
+            address(timbs), address(registry), address(prize),
             DRIP, POT, TIMB, COOLDOWN
         );
 
-        // Fund the treasury's ETH and the faucet's TIMBS budget.
-        vm.deal(address(treasury), 100 ether);
+        // Fund the faucet's own ETH reserve and its TIMBS budget.
+        vm.deal(address(faucet), 100 ether);
         timbs.mint(address(faucet), 100e18);
 
         // Approve generous ceilings by default; individual tests tighten them.
@@ -123,9 +110,9 @@ contract GasFaucetTest is Test {
     }
 
     // TS-035: counterparty reverts on the ETH leg must not take the TIMBS leg down.
-    function test_TS035_TreasuryWindowExhaustedStillPaysTimbs() public {
+    function test_TS035_EmptyReserveStillPaysTimbs() public {
         _eligible(alice);
-        treasury.setWindowExhausted(true);
+        vm.deal(address(faucet), 0);
         vm.prank(dispatcher);
         faucet.dispense(alice);
         assertEq(alice.balance, 0, "no drip");
@@ -137,12 +124,12 @@ contract GasFaucetTest is Test {
     function test_TS035_RetiredPrizeStillPaysDripAndTimbs() public {
         _eligible(alice);
         prize.setRetired(true);
-        uint256 treasuryBefore = address(treasury).balance;
+        uint256 reserveBefore = faucet.ethReserve();
         vm.prank(dispatcher);
         faucet.dispense(alice);
         assertEq(alice.balance, DRIP, "drip still flows");
         assertEq(prize.potBalance(), 0, "pot refused");
-        assertEq(address(treasury).balance, treasuryBefore - DRIP, "pot share returned to treasury");
+        assertEq(faucet.ethReserve(), reserveBefore - DRIP, "pot share stays in the reserve");
         assertEq(faucet.ethDistributed(), DRIP, "only the drip is counted");
         assertEq(timbs.balanceOf(alice), TIMB, "timbs still flows");
     }
@@ -166,7 +153,7 @@ contract GasFaucetTest is Test {
 
     function test_TS035_NoLegLeftReverts() public {
         _eligible(alice);
-        treasury.setWindowExhausted(true);
+        vm.deal(address(faucet), 0);
         vm.prank(guardian);
         faucet.setTimbsPaused(true);
         vm.prank(dispatcher);
@@ -479,9 +466,9 @@ contract GasFaucetTest is Test {
 
     function test_RecoverTimbsReturnsBudget() public {
         uint256 held = timbs.balanceOf(address(faucet));
-        faucet.recoverTimbs(address(treasury), held);
+        faucet.recoverTimbs(treasury, held);
         assertEq(timbs.balanceOf(address(faucet)), 0);
-        assertEq(timbs.balanceOf(address(treasury)), held);
+        assertEq(timbs.balanceOf(treasury), held);
     }
 
     // ── View helper ──
@@ -641,14 +628,13 @@ contract GasFaucetTest is Test {
     function test_TS038_ClaimantRejectsDripStillPaysTimbs() public {
         RejectingWallet w = new RejectingWallet();
         _eligible(address(w));
-        uint256 treBefore = address(treasury).balance;
+        uint256 reserveBefore = faucet.ethReserve();
         vm.prank(dispatcher);
         faucet.dispense(address(w));
         assertEq(address(w).balance, 0, "drip not delivered");
         assertEq(prize.potBalance(), POT, "pot share still funded");
         assertEq(faucet.ethDistributed(), POT, "only the pot share counted");
-        assertEq(address(treasury).balance, treBefore - POT, "drip refunded to treasury");
-        assertEq(address(faucet).balance, 0, "nothing stranded");
+        assertEq(faucet.ethReserve(), reserveBefore - POT, "undelivered drip stays in the reserve");
         assertEq(timbs.balanceOf(address(w)), TIMB, "timbs still flows");
     }
 
@@ -656,11 +642,11 @@ contract GasFaucetTest is Test {
         RejectingWallet w = new RejectingWallet();
         _eligible(address(w));
         prize.setRetired(true);
-        uint256 treBefore = address(treasury).balance;
+        uint256 reserveBefore = faucet.ethReserve();
         vm.prank(dispatcher);
         faucet.dispense(address(w));
         assertEq(faucet.ethDistributed(), 0, "eth counter untouched");
-        assertEq(address(treasury).balance, treBefore, "both shares refunded");
+        assertEq(faucet.ethReserve(), reserveBefore, "both shares stay in the reserve");
         assertEq(timbs.balanceOf(address(w)), TIMB, "timbs still flows");
     }
 
@@ -677,5 +663,46 @@ contract GasFaucetTest is Test {
         faucet.recoverERC20(address(stray), stranger, 1);
         vm.expectRevert(GasFaucet.ZeroAmount.selector);
         faucet.recoverERC20(address(stray), address(0x5EEF), 0);
+    }
+
+    // ─── Self-funded reserve (the faucet never touches the treasury) ─────────
+    function test_Reserve_FundedByPlainTransferEmitsEvent() public {
+        vm.deal(address(faucet), 0);
+        vm.deal(stranger, 1 ether);
+        vm.expectEmit(true, false, false, true, address(faucet));
+        emit GasFaucet.EthFunded(stranger, 0.5 ether);
+        vm.prank(stranger);
+        (bool ok, ) = payable(address(faucet)).call{value: 0.5 ether}("");
+        assertTrue(ok);
+        assertEq(faucet.ethReserve(), 0.5 ether);
+    }
+
+    function test_Reserve_ClaimPaysFromOwnBalance() public {
+        _eligible(alice);
+        uint256 reserveBefore = faucet.ethReserve();
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(faucet.ethReserve(), reserveBefore - DRIP - POT, "drip + pot left the reserve");
+        assertEq(alice.balance, DRIP);
+        assertEq(prize.potBalance(), POT);
+    }
+
+    function test_Reserve_ShortOfOneClaimSkipsWholeEthLeg() public {
+        _eligible(alice);
+        vm.deal(address(faucet), DRIP + POT - 1);   // can't cover the full claim
+        vm.prank(dispatcher);
+        faucet.dispense(alice);
+        assertEq(alice.balance, 0, "no partial drip");
+        assertEq(prize.potBalance(), 0, "no partial pot");
+        assertEq(faucet.ethReserve(), DRIP + POT - 1, "reserve untouched");
+        assertEq(timbs.balanceOf(alice), TIMB, "timbs still flows");
+    }
+
+    function test_Reserve_OwnerSweepIsTheOnlyExit() public {
+        vm.prank(stranger);
+        vm.expectRevert();
+        faucet.sweepEth(stranger, 1 ether);
+        faucet.sweepEth(address(0x5EEF), 1 ether);
+        assertEq(address(0x5EEF).balance, 1 ether);
     }
 }

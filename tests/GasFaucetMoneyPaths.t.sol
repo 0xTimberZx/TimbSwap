@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import "forge-std/Test.sol";
 import "../contracts/GasFaucet.sol";
-import {MockTIMBS, MockTreasury, MockRegistry, MockPrize, RejectingWallet} from "./GasFaucet.t.sol";
+import {MockTIMBS, MockRegistry, MockPrize, RejectingWallet} from "./GasFaucet.t.sol";
 
 /**
  * Branch coverage for the GasFaucet guards the main suite leaves open: who may
@@ -14,7 +14,6 @@ import {MockTIMBS, MockTreasury, MockRegistry, MockPrize, RejectingWallet} from 
  */
 contract GasFaucetMoneyPathsTest is Test {
     MockTIMBS    timbs;
-    MockTreasury treasury;
     MockRegistry registry;
     MockPrize    prize;
     GasFaucet    faucet;
@@ -26,14 +25,13 @@ contract GasFaucetMoneyPathsTest is Test {
 
     function setUp() public {
         timbs    = new MockTIMBS();
-        treasury = new MockTreasury();
         registry = new MockRegistry();
         prize    = new MockPrize();
         faucet = new GasFaucet(
-            address(treasury), address(timbs), address(registry), address(prize),
+            address(timbs), address(registry), address(prize),
             0.001 ether, 0.001 ether, 1e18, 1 days
         );
-        vm.deal(address(treasury), 10 ether);
+        vm.deal(address(faucet), 10 ether);
         timbs.mint(address(faucet), 100e18);
         faucet.setEthCap(10 ether);
         faucet.setTimbsCap(100e18);
@@ -79,13 +77,11 @@ contract GasFaucetMoneyPathsTest is Test {
         faucet.grantReset(1, address(0));
 
         vm.expectRevert(GasFaucet.ZeroAddress.selector);
-        new GasFaucet(address(0), address(timbs), address(registry), address(prize), 1, 1, 1, 1);
+        new GasFaucet(address(0), address(registry), address(prize), 1, 1, 1, 1);
         vm.expectRevert(GasFaucet.ZeroAddress.selector);
-        new GasFaucet(address(treasury), address(0), address(registry), address(prize), 1, 1, 1, 1);
+        new GasFaucet(address(timbs), address(0), address(prize), 1, 1, 1, 1);
         vm.expectRevert(GasFaucet.ZeroAddress.selector);
-        new GasFaucet(address(treasury), address(timbs), address(0), address(prize), 1, 1, 1, 1);
-        vm.expectRevert(GasFaucet.ZeroAddress.selector);
-        new GasFaucet(address(treasury), address(timbs), address(registry), address(0), 1, 1, 1, 1);
+        new GasFaucet(address(timbs), address(registry), address(0), 1, 1, 1, 1);
     }
 
     function test_Recovery_GuardsAndFailedSweep() public {

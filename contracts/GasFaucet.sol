@@ -7,14 +7,6 @@ import {Ownable}       from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step}  from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @notice Treasury ETH source. The faucet is the treasury's rate-limited
-///         `operator` (setOperator + setOperatorEthCap), so it may pull ETH via
-///         `withdrawOperational` up to the treasury's own per-window cap — a
-///         second ceiling on top of this faucet's `ethCap`.
-interface ITreasury {
-    function withdrawOperational(address to, uint256 amount) external;
-}
-
 /// @notice Eligibility oracle. A wallet qualifies iff its single live ticket
 ///         reads `Active`. Minting that ticket cost gas + escrow, which is the
 ///         Sybil gate (see dev-docs/FAUCET_SPEC.md §4).
@@ -36,11 +28,10 @@ interface IPrize {
  * @title  GasFaucet
  * @notice Atomic, reserve-backed keep-alive faucet for live players. In ONE
  *         transaction, per eligible claim it:
- *           1. pulls `dripEth + potEth` ETH from the treasury (as its capped
- *              operator),
- *           2. sends `dripEth` to the claimant (their gas) and `potEth` to the
- *              live round via `TimbPrize.addToPot()`,
- *           3. transfers `timbsPerClaim` TIMBS (default 1) to the claimant — the
+ *           1. pays `dripEth` to the claimant (their gas) and `potEth` to the
+ *              live round via `TimbPrize.addToPot()`, both from this
+ *              contract's OWN ETH reserve (it never calls TimbTreasury),
+ *           2. transfers `timbsPerClaim` TIMBS (default 1) to the claimant — the
  *              participation-gated "fair release".
  *
  *         Eligibility (a live `Active` ticket) and a per-wallet cooldown are
@@ -57,16 +48,18 @@ interface IPrize {
  *             a cap "approves" more; lowering it below what's already gone
  *             out simply stops further outflow of that asset.
  *
- *         FUNDING MODEL (asymmetric by treasury design):
- *           - ETH stays in the treasury and is pulled live per claim — the
- *             treasury's operator role permits capped ETH withdrawals.
- *           - TIMBS is PRE-FUNDED into this contract (the owner moves the
- *             approved budget here via `TimbTreasury.withdrawToken`, which is
- *             owner-only by design — the operator role deliberately cannot move
- *             ERC20). The faucet dispenses TIMBS from its own balance and the
- *             owner tops it up. `recoverTimbs` returns any unused budget.
+ *         FUNDING MODEL (both legs self-funded, separate from the treasury):
+ *           - ETH is PRE-FUNDED into this contract: anyone may send ETH here
+ *             (plain transfer, `EthFunded`). Each claim pays drip + pot from
+ *             this reserve; when it is short the ETH leg is skipped and the
+ *             TIMBS leg still pays (like a pause). The treasury's fee inflow,
+ *             buybacks and epoch outflows therefore can never starve claims,
+ *             and the faucet can never draw on treasury ETH. `sweepEth`
+ *             (owner) is the reserve's exit.
+ *           - TIMBS is PRE-FUNDED likewise (the owner moves the approved
+ *             budget here); `recoverTimbs` returns any unused budget.
  *
- *         DESIGN STUB — UNAUDITED. Dispenses treasury ETH and custodies a TIMBS
+ *         DESIGN STUB — UNAUDITED. Custodies an ETH reserve and a TIMBS
  *         budget. Audit before mainnet.
  */
 contract GasFaucet is Ownable2Step, ReentrancyGuard {
@@ -74,7 +67,6 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
 
     // ─── Immutable wiring ──────────────────────────────────────────────────────
 
-    ITreasury     public immutable treasury;
     IERC20        public immutable timbs;
     IGameRegistry public immutable registry;
     IPrize        public immutable prize;
@@ -157,6 +149,7 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     event GuardianSet(address indexed guardian);
     event TimbsRecovered(address indexed to, uint256 amount);
     event EthSwept(address indexed to, uint256 amount);
+    event EthFunded(address indexed from, uint256 amount);
     event ERC20Recovered(address indexed token, address indexed to, uint256 amount);
     event ResetGranted(uint256 indexed round, address indexed wallet);
 
@@ -194,7 +187,6 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
     // ─── Constructor ──────────────────────────────────────────────────────────────
 
     /**
-     * @param _treasury      TimbTreasury (this faucet must be set as its operator).
      * @param _timbs         TIMBS token.
      * @param _registry      GameRegistry (eligibility oracle).
      * @param _prize         TimbPrize (pot sink).
@@ -204,7 +196,6 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
      * @param _cooldown      Seconds between claims per wallet (e.g. 24h).
      */
     constructor(
-        address _treasury,
         address _timbs,
         address _registry,
         address _prize,
@@ -213,10 +204,8 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         uint256 _timbsPerClaim,
         uint256 _cooldown
     ) Ownable(msg.sender) {
-        if (_treasury == address(0) || _timbs == address(0) ||
-            _registry == address(0) || _prize == address(0)) revert ZeroAddress();
+        if (_timbs == address(0) || _registry == address(0) || _prize == address(0)) revert ZeroAddress();
 
-        treasury = ITreasury(_treasury);
         timbs    = IERC20(_timbs);
         registry = IGameRegistry(_registry);
         prize    = IPrize(_prize);
@@ -291,9 +280,9 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
 
         // ── Interactions. ──
         // TS-035: the ETH leg is best-effort against its counterparties. A
-        // treasury pull that fails (operator window exhausted) or a pot deposit
-        // the prize refuses (stale pointer) must not take the independent,
-        // pre-funded TIMBS leg down with it. ETH counters apply only to what
+        // reserve too low to pay the claim, or a pot deposit the prize refuses
+        // (stale pointer), must not take the independent, pre-funded TIMBS leg
+        // down with it. ETH counters apply only to what
         // actually left; the call reverts only when no leg could pay.
         uint256 ethToWallet;
         uint256 ethToPot;
@@ -309,34 +298,28 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         emit Dispensed(claimant, ethToWallet, ethToPot, timbsOut);
     }
 
-    /// @dev Pull drip + pot from the treasury and deliver them. Returns what
-    ///      was actually paid out: (0, 0) if the treasury pull failed. Either
+    /// @dev Pay drip + pot from this contract's own ETH reserve. Returns what
+    ///      was actually paid out: (0, 0) if the reserve cannot cover the whole
+    ///      claim (the leg is skipped rather than paying a partial drip). A
     ///      share that cannot be delivered (claimant without a receive path,
-    ///      prize refusing the deposit) is handed back to the treasury instead
-    ///      of reverting (TS-038): nothing on this leg may take the independent,
-    ///      pre-funded TIMBS leg down. A refund the treasury itself refuses
-    ///      stays here for `sweepEth`.
+    ///      prize refusing the deposit) simply stays in the reserve (TS-038):
+    ///      nothing on this leg may take the independent TIMBS leg down.
     function _runEthLeg(address claimant) internal returns (uint256 toWallet, uint256 toPot) {
-        uint256 want = dripEth + potEth;
-        try treasury.withdrawOperational(address(this), want) {} catch { return (0, 0); }
-        uint256 refund;
+        if (address(this).balance < dripEth + potEth) return (0, 0);
         if (dripEth > 0) {
             (bool ok, ) = payable(claimant).call{value: dripEth}("");
-            if (ok) toWallet = dripEth; else refund += dripEth;
+            if (ok) toWallet = dripEth;
         }
         if (potEth > 0) {
             try prize.addToPot{value: potEth}() {
                 toPot = potEth;
-            } catch {
-                refund += potEth;
-            }
+            } catch { /* stays in the reserve */ }
         }
-        if (refund > 0) {
-            // Hand the undeliverable share straight back; a plain deposit, not
-            // a fee. Best-effort: a refused refund is swept by the owner later.
-            (bool back, ) = payable(address(treasury)).call{value: refund}("");
-            back;
-        }
+    }
+
+    /// @notice ETH held to pay future claims (drip + pot).
+    function ethReserve() external view returns (uint256) {
+        return address(this).balance;
     }
 
     /// @dev Why the TIMBS leg cannot pay `out` to `claimant`, if it cannot:
@@ -487,8 +470,8 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         emit TimbsRecovered(to, amount);
     }
 
-    /// @notice Sweep any ETH stranded here (e.g. pot-rounding dust or a failed
-    ///         forward). The faucet holds ETH only transiently mid-claim.
+    /// @notice Withdraw ETH from the claim reserve (retiring the faucet, or
+    ///         moving surplus). This is the reserve's only exit besides claims.
     function sweepEth(address to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
         (bool ok, ) = payable(to).call{value: amount}("");
@@ -496,7 +479,6 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         emit EthSwept(to, amount);
     }
 
-    /// @dev Accept ETH pulled from the treasury during `dispense`.
 
     /// @notice Sweep a stray ERC-20 (for example WETH sent instead of ETH).
     ///         The faucet custodies only its TIMBS budget (recoverTimbs covers
@@ -508,5 +490,8 @@ contract GasFaucet is Ownable2Step, ReentrancyGuard {
         emit ERC20Recovered(token, to, amount);
     }
 
-    receive() external payable {}
+    /// @notice Fund the claim reserve: a plain ETH transfer from anyone.
+    receive() external payable {
+        emit EthFunded(msg.sender, msg.value);
+    }
 }
