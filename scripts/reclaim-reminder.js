@@ -2,7 +2,7 @@
 // TimbSwap refund reminders — the nudge that makes forfeiture rare.
 //
 // A ticket's ETH/TIMBS principal is refundable through a generous §14 window
-// (LER+4 rounds, LER+6 for a late winner). Past forfeitRound the settler sweeps
+// (LER + the registry's refund window, + 2 more for a late winner). Past forfeitRound the settler sweeps
 // the stake (community-tilted split — see dev-docs/ABANDONED_TICKET_REVENUE.md).
 // This worker DMs opt-in holders BEFORE that deadline, so an eventual forfeiture
 // only ever happens after the person was clearly reminded.
@@ -27,7 +27,11 @@
 //   TELEGRAM_CHAT_ID            ops alerts (optional)
 //   TELEGRAM_BOT_USERNAME       for the reclaim deep link (optional; else generic)
 //   REMIND_LEAD_ROUNDS          default 2  (remind when forfeit is ≤ this many rounds out)
-//   SCAN_BACK_ROUNDS            default 8  (how many recent play-round buckets to scan)
+//   SCAN_BACK_ROUNDS            optional override for how many recent play-round
+//                               buckets to scan. Default: worked out from the
+//                               registry, refund window + prize-claim window (2)
+//                               + max extra rounds + REMIND_LEAD_ROUNDS + 1, so a
+//                               longer window (12 rounds) never hides a ticket.
 //   COMPETE_URL                 default https://timbswap.xyz/compete
 //   REMIND_LINGER_MINUTES       default 55; 0 = a single pass and exit
 //   REMIND_POLL_SECONDS         default 60  (how often the round number is checked)
@@ -53,7 +57,7 @@ const TG_TOKEN  = process.env.TELEGRAM_BOT_TOKEN;
 const TG_OPS    = process.env.TELEGRAM_CHAT_ID;
 const BOT_USER  = process.env.TELEGRAM_BOT_USERNAME || "";
 const LEAD      = Number(process.env.REMIND_LEAD_ROUNDS || 2);
-const SCAN_BACK = Number(process.env.SCAN_BACK_ROUNDS || 8);
+const SCAN_BACK_ENV = Number(process.env.SCAN_BACK_ROUNDS || 0);
 const COMPETE   = process.env.COMPETE_URL || "https://timbswap.xyz/compete";
 
 // Ticket status enum: Pending=0, Active=1, Conceded=2, Ineligible=3, …
@@ -71,6 +75,9 @@ const REGISTRY_ADDR = addrFromConfig("GameRegistry");
 
 const REGISTRY_ABI = [
   "function generation() view returns (uint256)",
+  "function refundWindowRounds() view returns (uint256)",
+  "function REFUND_WINDOW_ROUNDS() view returns (uint256)",
+  "function maxExtraRounds() view returns (uint256)",
   "function currentRound() view returns (uint256)",
   "function getRoundEntrants(uint256 round) view returns (address[])",
   "function activeTicketOf(address) view returns (uint256)",
@@ -135,11 +142,25 @@ const RESCAN_MS = Number(process.env.REMIND_RESCAN_SECONDS || 900) * 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** One full pass: walk the recent round buckets and DM the at-risk subscribers. */
+// How far back to scan play-round buckets. A ticket entered in round r can stay
+// eligible through r + maxExtraRounds, and its forfeitRound is that plus the
+// refund window (plus the 2-round prize-claim window if it won late). The
+// window is read from the registry: refundWindowRounds() where it is settable,
+// the REFUND_WINDOW_ROUNDS constant where it is fixed, 4 if neither answers.
+async function scanBackRounds(registry) {
+  if (SCAN_BACK_ENV > 0) return SCAN_BACK_ENV;
+  let win = 4, extra = 6;
+  try { win = Number(await registry.refundWindowRounds()); }
+  catch { try { win = Number(await registry.REFUND_WINDOW_ROUNDS()); } catch { /* keep 4 */ } }
+  try { extra = Number(await registry.maxExtraRounds()); } catch { /* keep 6 */ }
+  return win + 2 + extra + LEAD + 1;
+}
+
 async function pass(registry, gen, cr) {
 
-  // Gather candidate wallets from the recent play-round buckets. A ticket that
-  // plays round r has forfeitRound r+4 (or r+6 if it won late), so the buckets
-  // whose stakes are about to lapse sit a few rounds back from currentRound.
+  // Gather candidate wallets from the recent play-round buckets whose stakes
+  // could be about to lapse (see scanBackRounds).
+  const SCAN_BACK = await scanBackRounds(registry);
   const from = cr > BigInt(SCAN_BACK) ? cr - BigInt(SCAN_BACK) : 1n;
   const wallets = new Set();
   for (let r = from; r <= cr; r++) {
