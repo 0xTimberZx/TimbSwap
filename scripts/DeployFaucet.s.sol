@@ -14,23 +14,21 @@ import {GasFaucet} from "../contracts/GasFaucet.sol";
  *         the faucet owner and this script sets its dispatcher, guardian, and caps.
  *
  * WHAT THIS SCRIPT DOES (deployer = faucet owner):
- *   1. deploy GasFaucet(treasury, timbs, registry, prize, drip, pot, perClaim, cooldown)
+ *   1. deploy GasFaucet(timbs, registry, prize, drip, pot, perClaim, cooldown)
  *   2. setDispatcher(FAUCET_DISPATCHER)   — the keeper hot wallet
  *   3. setGuardian(FAUCET_GUARDIAN)       — fast pause key (0 to skip)
  *   4. setEthCap / setTimbsCap            — cumulative approved ceilings
  *
- * WHAT YOU MUST DO AFTER (owner = the TREASURY's owner, i.e. the Safe — NOT this
- * script's deployer, so they can't be scripted here):
- *   a. treasury.setOperator(faucet)                    — allow ETH pulls
- *   b. treasury.setOperatorEthCap(<amount>, <window>)  — 2nd ETH ceiling
- *   c. treasury.withdrawToken(timbs, faucet, <budget>) — PRE-FUND the TIMBS leg
- *   d. (optional) faucet.transferOwnership(Safe) + Safe accepts (Ownable2Step)
- * Without (a)/(b) the ETH legs revert; without (c) the TIMBS leg reverts on
- * InsufficientTimbsBalance. See dev-docs/FAUCET_SPEC.md.
+ * WHAT YOU MUST DO AFTER:
+ *   a. send ETH to the faucet (plain transfer)          — FUND the ETH reserve
+ *   b. treasury.withdrawToken(timbs, faucet, <budget>) — PRE-FUND the TIMBS leg
+ *      (treasury owner, i.e. the Safe)
+ *   c. (optional) faucet.transferOwnership(Safe) + Safe accepts (Ownable2Step)
+ * The faucet has no treasury role: without (a) the ETH legs are skipped (claims
+ * still pay TIMBS); without (b) the TIMBS leg skips. See dev-docs/FAUCET_SPEC.md.
  *
  * Env (.env — never commit):
  *   DEPLOYER_PRIVATE_KEY     deployer wallet key (becomes faucet owner)
- *   TREASURY_ADDRESS         TimbTreasury
  *   TIMBS_ADDRESS            TIMBSToken
  *   GAME_REGISTRY_ADDRESS    GameRegistry (eligibility oracle)
  *   TIMBPRIZE_ADDRESS        TimbPrize (pot sink)
@@ -46,7 +44,6 @@ import {GasFaucet} from "../contracts/GasFaucet.sol";
 contract DeployFaucet is Script {
     function run() external {
         uint256 pk        = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address treasury  = vm.envAddress("TREASURY_ADDRESS");
         address timbs     = vm.envAddress("TIMBS_ADDRESS");
         address registry  = vm.envAddress("GAME_REGISTRY_ADDRESS");
         address prize     = vm.envAddress("TIMBPRIZE_ADDRESS");
@@ -64,7 +61,7 @@ contract DeployFaucet is Script {
         vm.startBroadcast(pk);
 
         GasFaucet faucet = new GasFaucet(
-            treasury, timbs, registry, prize,
+            timbs, registry, prize,
             dripEth, potEth, timbsPerClaim, cooldown
         );
         faucet.setDispatcher(dispatcher);
@@ -80,10 +77,9 @@ contract DeployFaucet is Script {
         console.log("  ethCap:    ", ethCap);
         console.log("  timbsCap:  ", timbsCap);
         console.log("");
-        console.log("NEXT (owner of the TREASURY / Safe, not the deployer):");
-        console.log("  1. treasury.setOperator(faucet)");
-        console.log("  2. treasury.setOperatorEthCap(amount, window)");
-        console.log("  3. treasury.withdrawToken(timbs, faucet, budget)  # pre-fund TIMBS");
-        console.log("  4. set GasFaucet in config.js ADDRESSES to the address above");
+        console.log("NEXT:");
+        console.log("  1. send ETH to the faucet  # fund the claim reserve");
+        console.log("  2. treasury.withdrawToken(timbs, faucet, budget)  # pre-fund TIMBS (treasury owner)");
+        console.log("  3. set GasFaucet in config.js ADDRESSES to the address above");
     }
 }
