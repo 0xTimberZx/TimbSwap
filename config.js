@@ -202,7 +202,10 @@ const PUBLIC_RPCS = _NET.publicRpcs || [
 // or the pinned StaticJsonRpcProvider (CHAIN_ID 421614) rejects the mainnet head.
 // NB: the faucet page does not use this proxy — it only POSTs /api/faucet-claim.
 // (The Supabase-hosted `rpc` function remains deployed as a manual fallback.)
-const DEDICATED_RPC = "https://timbswap.xyz/api/rpc";
+// Mainnet reads go to the apex Worker; the Sepolia twin of this source (the
+// GitHub Pages mirror) reads through the testnet site's Worker instead.
+const DEDICATED_RPC = NET_IS_MAINNET ? "https://timbswap.xyz/api/rpc"
+                                     : "https://testnet.timbswap.xyz/api/rpc";
 const _hasDedicated = typeof DEDICATED_RPC === "string" &&
                       DEDICATED_RPC.startsWith("http");
 
