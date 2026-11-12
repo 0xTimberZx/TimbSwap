@@ -153,8 +153,9 @@ function confirmText(unsub: string): string {
   return `You're on the list ✓
 
 Thanks for signing up for the TimbSwap mainnet launch. You'll be among the first
-to know when we go live — and mainnet opens only after our independent audit
-clears. We won't launch real funds before that.
+to know when we go live — and mainnet opens as a small, capped beta first, before our independent
+audit; the full launch follows the audit. Real funds are involved from the beta,
+so only use what you can afford to lose.
 
 While you wait, the game is already live and free on Arbitrum Sepolia testnet:
 
@@ -201,7 +202,7 @@ function confirmHtml(unsub: string): string {
 <tr><td style="padding:8px 32px 4px;"><div style="font-size:12px;letter-spacing:.12em;color:#14f195;font-weight:700;">YOU'RE ON THE LIST &#10003;</div>
 <h1 style="margin:10px 0 0;font-size:26px;line-height:1.25;color:#ffffff;font-weight:700;">Match the meter,<br/><span style="color:#14f195;">win the pot.</span></h1></td></tr>
 <tr><td style="padding:16px 32px 4px;font-size:15px;line-height:1.6;color:#c3d1c9;">
-<p style="margin:0 0 14px;">Thanks for joining the TimbSwap mainnet waitlist. You'll be among the first to know when we go live &mdash; and mainnet opens only <strong style="color:#e8f0ec;">after our independent audit clears</strong>. We won't launch real funds before that.</p>
+<p style="margin:0 0 14px;">Thanks for joining the TimbSwap mainnet waitlist. You'll be among the first to know when we go live &mdash; and mainnet opens as a small, capped beta first, <strong style="color:#e8f0ec;">before our independent audit</strong>; the full launch follows the audit. Real funds are involved from the beta, so only use what you can afford to lose.</p>
 <p style="margin:0 0 8px;">While you wait, the game is already live and free on Arbitrum Sepolia testnet:</p></td></tr>
 <tr><td style="padding:6px 32px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 <tr><td style="padding:10px 0;border-bottom:1px solid #1a241f;font-size:15px;color:#e8f0ec;"><span style="color:#14f195;font-weight:700;">1.</span>&nbsp; Grab free test tokens &nbsp;<a href="https://timbswap.xyz/faucet" style="color:#14f195;text-decoration:none;">timbswap.xyz/faucet &#8599;</a></td></tr>
