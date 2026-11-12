@@ -31,7 +31,7 @@ Gated on evidence and safety, not a calendar.
 1. **Engagement signal** — sustained active wallets across many settled rounds, repeat-play, and
    eligible swap volume that tracks round activity. Testnet's job is to manufacture this proof.
 2. **Security** — independent audit of the contract set; a published security policy and
-   disclosure process. **The audit is a hard gate before any real-value deployment.**
+   disclosure process. **The audit is a hard gate for the TIMBS launch and for lifting the beta caps.** The capped beta runs before it, unaudited, with small stakes and a cap on every payout.
 3. **Legal** — formal counsel on the prize mechanic and likely jurisdiction geofencing — also a
    gate, not an afterthought.
 4. **Depth** — seeded liquidity and an initial prize pot so early mainnet rounds are worth
