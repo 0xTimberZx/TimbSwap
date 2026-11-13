@@ -71,15 +71,53 @@ function startMask() {
   // re-scrambles gently rather than flickering all six positions at once.
   maskTimer = setInterval(() => {
     const el = document.getElementById("c" + maskIndex);
-    if (el) {
-      el.textContent = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    if (el && !el.classList.contains("egg-stop")) {   // a stopped cell stays put
+      el.textContent = eggFreeChar();
       el.classList.add("masked");
     }
     maskIndex = (maskIndex + 1) % 6;
   }, 220);
+  armEgg();
+}
+
+// Easter egg (disconnected only): tap a drifting cell to stop it on its
+// letter (green); stop all six and the string turns gold. Purely cosmetic:
+// a random decoy, not the live meter, and it means nothing for any round.
+// A page refresh starts over.
+let eggArmed = false;
+// Like a real ticket, the egg string never repeats a character: drifting cells
+// skip letters already stopped.
+function eggStoppedChars() {
+  return new Set([...document.querySelectorAll("#scroll-chars .scroll-char.egg-stop")].map(e => e.textContent));
+}
+function eggFreeChar() {
+  const used = eggStoppedChars();
+  const pool = [...ALPHABET].filter(c => !used.has(c));
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function armEgg() {
+  if (eggArmed) return;
+  eggArmed = true;
+  for (let i = 0; i < 6; i++) {
+    const el = document.getElementById("c" + i);
+    if (!el) continue;
+    el.addEventListener("click", () => {
+      if (!maskTimer || el.classList.contains("egg-stop")) return;  // connected, or already stopped
+      if (eggStoppedChars().has(el.textContent)) el.textContent = eggFreeChar();
+      el.classList.add("egg-stop");
+      const all = document.querySelectorAll("#scroll-chars .scroll-char.egg-stop").length === 6;
+      if (all) document.getElementById("scroll-chars").classList.add("egg-gold");
+    });
+  }
+}
+function clearEgg() {
+  const win = document.getElementById("scroll-chars");
+  if (win) win.classList.remove("egg-gold");
+  document.querySelectorAll("#scroll-chars .scroll-char").forEach(el => el.classList.remove("egg-stop"));
 }
 function stopMask() {
   if (maskTimer) { clearInterval(maskTimer); maskTimer = null; }
+  clearEgg();
   for (let i = 0; i < 6; i++) {
     const el = document.getElementById("c" + i);
     if (el) { el.classList.remove("masked"); el.style.opacity = ""; }
