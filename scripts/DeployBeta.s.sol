@@ -78,7 +78,7 @@ interface IAirdropPause {
  *   TIMBS_ENTRY_FLOOR=500e18  TIMBS_STEP=100e18   (TIMBS leg is off; ctor needs non-zero)
  *   FAUCET_DRIP_ETH=1e13    FAUCET_POT_ETH=1e13    FAUCET_COOLDOWN=86400
  *   FAUCET_ETH_CAP=1.5e18   (the faucet is self-funded: send its ETH budget to the faucet)
- *   REFUND_WINDOW_ROUNDS=12 (4..24; 12 for the ETH beta and the TIMBS launch alike, fix list 70)
+ *   REFUND_WINDOW_ROUNDS=6  (4..24; 6 for the ETH beta, staged to 12 for the TIMBS launch, fix list 70)
  *
  * Run (read-only pre-flight, then simulate without --broadcast and read the
  * PRE-FLIGHT block, then broadcast and fill config.mainnet.js from the receipt):
@@ -159,7 +159,7 @@ contract DeployBeta is Script {
         c.vrfExtra  = vm.envBytes("VRF_EXTRA_ARGS");
         c.vrfConfs  = uint16(vm.envOr("VRF_CONFIRMATIONS", uint256(3)));
         c.vrfCbGas  = uint32(vm.envOr("VRF_CALLBACK_GAS", uint256(200_000)));
-        c.refundWindow = vm.envOr("REFUND_WINDOW_ROUNDS", uint256(12));
+        c.refundWindow = vm.envOr("REFUND_WINDOW_ROUNDS", uint256(6));
         // Beta: 0.5% of the pot per settlement (decided 2026-10-30; the contract
         // default is 2%, at most 10%).
         c.cutBps    = vm.envOr("PROTOCOL_CUT_BPS", uint256(50));

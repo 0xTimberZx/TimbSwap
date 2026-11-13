@@ -1126,7 +1126,7 @@ function renderTicketRow(t, displayStatus, opts) {
   const expired   = roundNow !== null && roundNow > lastRound;
   // Refundable through the contract's per-ticket forfeitRound — the later of
   // the refund-window end and (for a late winner) the post-claim window (§14).
-  const forfeitRound = t.forfeitRound ? t.forfeitRound.toNumber() : lastRound + 12;
+  const forfeitRound = t.forfeitRound ? t.forfeitRound.toNumber() : lastRound + 6; // beta window; tickets normally carry forfeitRound
   const inWindow  = roundNow !== null && roundNow <= forfeitRound;
   const canRefund = (raw === 0 || raw === 1) && expired && inWindow && !t.escrowAmount.isZero() && !isPastGen;
   // Prior-game leftover with principal still held — reclaim it immediately.
