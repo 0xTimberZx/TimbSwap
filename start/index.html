@@ -118,6 +118,14 @@
       .step-link, .step-btn, .btn-big, .foot-link { transition: none; }
       .step-link:active, .step-btn:active, .btn-big:active { transform: none; }
     }
+    /* Checklist: tick steps off; progress is a per-browser convenience (localStorage). */
+    .start-progress { margin: 0 0 14px; font-family: var(--mono); font-size: 13px; color: var(--text-2); }
+    .start-progress-bar { height: 6px; border-radius: 999px; background: var(--bg3); overflow: hidden; margin-top: 8px; }
+    .start-progress-fill { height: 100%; width: 0; background: var(--green); transition: width .25s ease; }
+    .step-done-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-top: 10px; padding: 0 14px; border-radius: var(--radius); border: var(--bw) solid var(--border); background: transparent; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; }
+    .step.is-done { border-color: rgba(20, 241, 149, 0.45); }
+    .step.is-done .step-num { background: var(--green); color: #062015; }
+    .step.is-done .step-done-btn { color: var(--green); border-color: rgba(20, 241, 149, 0.45); }
   </style>
 </head>
 <body>
@@ -139,6 +147,11 @@
       </p>
     </section>
 
+    <div class="start-progress" id="start-progress" aria-live="polite">
+      <span id="start-progress-text">Let's get you started · 0 of 4 done</span>
+      <div class="start-progress-bar"><div class="start-progress-fill" id="start-progress-fill"></div></div>
+      <div class="step-hint">Tick each step as you finish it. You can skip and come back any time.</div>
+    </div>
     <ol class="start-steps">
 
       <li class="step" data-net="sepolia">
@@ -280,5 +293,45 @@
 
   </div>
 
+  <script>
+    // /start checklist: a "Mark done" toggle on each visible step and a progress
+    // line. Stored in this browser only; nothing is sent anywhere.
+    (function () {
+      var KEY = "timbswap_start_done";
+      function load() { try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { return {}; } }
+      function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+      function init() {
+        var done = load();
+        var steps = Array.prototype.slice.call(document.querySelectorAll(".start-steps .step"));
+        function visible() { return steps.filter(function (li) { return li.offsetParent !== null; }); }
+        function keyOf(li) { return (li.getAttribute("data-net") || "all") + ":" + (li.querySelector(".step-num") || {}).textContent; }
+        function render() {
+          var vis = visible(), n = 0;
+          vis.forEach(function (li) {
+            var on = !!done[keyOf(li)];
+            li.classList.toggle("is-done", on);
+            var b = li.querySelector(".step-done-btn");
+            if (b) { b.textContent = on ? "\u2713 Done" : "Mark done"; b.setAttribute("aria-pressed", on ? "true" : "false"); }
+            if (on) n++;
+          });
+          var total = vis.length || 4;
+          var t = document.getElementById("start-progress-text");
+          if (t) t.textContent = n >= total ? "All set \u00b7 " + n + " of " + total + " done" : "Let's get you started \u00b7 " + n + " of " + total + " done";
+          var f = document.getElementById("start-progress-fill");
+          if (f) f.style.width = Math.round(100 * n / total) + "%";
+        }
+        steps.forEach(function (li) {
+          var body = li.querySelector(".step-body");
+          if (!body || body.querySelector(".step-done-btn")) return;
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "step-done-btn";
+          b.addEventListener("click", function () { var k = keyOf(li); done[k] = !done[k]; save(done); render(); });
+          body.appendChild(b);
+        });
+        render();
+      }
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+    })();
+  </script>
 </body>
 </html>

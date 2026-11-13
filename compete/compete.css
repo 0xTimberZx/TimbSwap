@@ -1095,3 +1095,19 @@
   .howto-icons img { height: 18px; width: 18px; }
   .howto-txt { font-size: 13px; }
 }
+
+/* ─── Post-entry next step ──────────────────────────────────────────────── */
+.entry-next { margin-top: 14px; padding: 14px 16px; border-radius: var(--radius); border: var(--bw) solid rgba(20, 241, 149, 0.45); background: rgba(20, 241, 149, 0.06); }
+.entry-next.hidden { display: none; }
+.entry-next-title { font-weight: 700; color: var(--green); margin-bottom: 6px; }
+.entry-next-sub { font-size: 13px; line-height: 1.5; color: var(--text-2); margin-bottom: 10px; }
+.entry-next-btn { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: var(--radius); background: var(--green); color: #062015; font-weight: 700; font-size: 14px; text-decoration: none; }
+
+/* ─── How It Works: collapsible ─────────────────────────────────────────── */
+.how-details > .how-summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 0; }
+.how-details > .how-summary::-webkit-details-marker { display: none; }
+.how-details > .how-summary::after { content: "▾"; color: var(--text-3); font-size: 14px; transition: transform .2s ease; }
+.how-details[open] > .how-summary { margin-bottom: 12px; }
+.how-details[open] > .how-summary::after { transform: rotate(180deg); }
+.how-toggle-hint { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--text-3); margin-left: auto; }
+.how-details[open] .how-toggle-hint { display: none; }
