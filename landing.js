@@ -80,8 +80,8 @@ function startMask() {
   armEgg();
 }
 
-// Easter egg (disconnected only): tap a drifting cell to stop it on its
-// letter (green); stop all six and the string turns gold. Purely cosmetic:
+// Easter egg (disconnected only): tap the next drifting cell, left to right,
+// to stop it on its letter (green); stop all six and the string turns gold. Purely cosmetic:
 // a random decoy, not the live meter, and it means nothing for any round.
 // A page refresh starts over.
 let eggArmed = false;
@@ -103,6 +103,8 @@ function armEgg() {
     if (!el) continue;
     el.addEventListener("click", () => {
       if (!maskTimer || el.classList.contains("egg-stop")) return;  // connected, or already stopped
+      // In order, like the real meter: segment 1 locks first, then 2, and so on.
+      if (i !== document.querySelectorAll("#scroll-chars .scroll-char.egg-stop").length) return;
       if (eggStoppedChars().has(el.textContent)) el.textContent = eggFreeChar();
       el.classList.add("egg-stop");
       const all = document.querySelectorAll("#scroll-chars .scroll-char.egg-stop").length === 6;
