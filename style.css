@@ -106,7 +106,7 @@ body { padding-top: 60px; }
 
 .nav-links { display: flex; align-items: center; gap: 4px; }
 
-/* Temporarily offline destinations (Governance, Lock Vault, Airdrop):
+/* Temporarily offline destinations (Governance, Lock Vault, Quests):
    fully hidden wherever they appear — nav dropdowns, mobile overlay, the
    landing Lock feature card. The markup stays in place; re-enable by
    restoring the href and dropping this class. */
