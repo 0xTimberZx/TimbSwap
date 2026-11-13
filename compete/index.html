@@ -212,10 +212,8 @@
     <div id="newcomer-banner" class="newcomer-banner hidden">
       <div class="nc-live"><span class="nc-dot"></span>LIVE</div>
       <div class="nc-body">
-        <div class="nc-headline">A prize round is running right now — you're one wallet away from playing.</div>
-        <div class="nc-sub">Six letters lock in, one per hour, pushed upward by real trades. Match all six with
-          your ticket and the pot pays out. Your deposit stays yours while the ticket plays: claim it back within twelve rounds of your last one, or it lapses.
-          <span data-net="sepolia">It's all free testnet money, so trying it costs nothing.</span><span data-net="mainnet">Claimed in time, a ticket with no extra rounds costs only gas.</span></div>
+        <div class="nc-headline">A prize round is live.</div>
+        <div class="nc-sub"><span data-net="sepolia">Free on testnet.</span><span data-net="mainnet">Capped beta · unaudited · real ETH.</span> Deposits are refundable for twelve rounds after your last round, then they lapse.</div>
         <div class="nc-stats" id="nc-stats"></div>
       </div>
       <div class="nc-actions">
@@ -236,7 +234,6 @@
       <div class="compete-card">
         <h2 class="card-title">Set Your Entry</h2>
         <p class="card-sub">6 characters · A–Z and 0–9 · No repeats · Plays <span id="entry-plays-round">next round</span></p>
-        <p class="card-sub card-sub-yield">Choose an asset to back your ticket. The deposit stays yours while the ticket plays (claim it back within twelve rounds of its last), and while active it earns yield for the pot.</p>
 
         <input
           id="entry-string"
@@ -281,6 +278,7 @@
         <button id="entry-btn" class="btn-entry" onclick="handleSubmitEntry()" disabled>
           Connect wallet to enter
         </button>
+        <p class="entry-refund-line">Refundable for 12 rounds after your last round, then it lapses.</p>
         <!-- Shown after a ticket is entered: the next thing to do. -->
         <div id="entry-next" class="entry-next hidden" role="status">
           <div class="entry-next-title">Your ticket is in. Next: steer the meter.</div>

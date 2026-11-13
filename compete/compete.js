@@ -822,7 +822,7 @@ function updateEntryButton() {
   const short = insufficientEntryLabel();
   if (short) { btn.textContent = short; btn.disabled = true; return; }
   // Only one entry per round — if we already have one queued, this replaces it.
-  btn.textContent = hasPlayEntry ? "Update entry" : "Submit Entry";
+  btn.textContent = hasPlayEntry ? "Update entry" : "Enter";
   btn.disabled    = false;
 }
 
@@ -899,7 +899,7 @@ async function handleSubmitEntry() {
   const string6  = stringToBytes6(entryStr);
 
   const replacing = hasPlayEntry;
-  const resetLabel = replacing ? "Update entry" : "Submit Entry";
+  const resetLabel = replacing ? "Update entry" : "Enter";
 
   if (replacing) {
     const proceed = await showReplaceWarning();
