@@ -827,7 +827,7 @@ async function renderRouteDivergence(rate, impactPct) {
     const better = excess > 0;
     el.textContent = better
       ? `This route pays ${Math.abs(excess).toFixed(0)}% MORE than the same trade ` +
-        `routed ${inTok.symbol}→WETH→${outTok.symbol}. Our own pools disagree on ` +
+        `routed ${inTok.symbol}→WETH→${outTok.symbol}. TimbSwap's own pools disagree on ` +
         `this pair — good for you here, but it means one of them is mispriced.`
       : `This route pays ${Math.abs(excess).toFixed(0)}% LESS than the same trade ` +
         `routed ${inTok.symbol}→WETH→${outTok.symbol}. A better fill may exist ` +
