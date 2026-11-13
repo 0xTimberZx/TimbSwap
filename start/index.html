@@ -73,9 +73,6 @@
     .step-btn:hover { filter: brightness(1.06); text-decoration: none; }
     .step-btn:active { transform: scale(.97); filter: brightness(.95); }
 
-    .start-cta { text-align: center; background: var(--bg2); border: var(--bw) solid var(--border); border-radius: var(--radius-lg); padding: 32px 24px; }
-    .start-cta h2 { margin: 0 0 10px; font-size: 24px; color: var(--text); }
-    .start-cta p { margin: 0 0 20px; color: var(--text-2); font-size: 15px; }
     .btn-big { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; background: var(--green); color: #062015; font-weight: 700; font-size: 16px; text-decoration: none; padding: 0 32px; border-radius: var(--radius); transition: transform .12s ease, filter .15s ease; }
     .btn-big:hover { filter: brightness(1.06); }
     .btn-big:active { transform: scale(.97); filter: brightness(.95); }
@@ -220,10 +217,7 @@
         <div class="step-num">3</div>
         <div class="step-body">
           <h3>Get your TIMBS</h3>
-          <p>
-            Head to the TimbSwap faucet, connect your wallet, and claim free testnet TIMBS to
-            play with.
-          </p>
+          <p>Claim free testnet TIMBS from the faucet.</p>
           <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
         </div>
       </li>
@@ -247,11 +241,12 @@
         <div class="step-body">
           <h3>Enter a round</h3>
           <p>
-            Set a 6-character string, then trade. Every eligible swap nudges the live meter —
-            if the round locks on your six, you split the pot. The prize is funded by yield, so
-            <strong>your playing deposit stays yours</strong> — claim it back within six rounds of your last one.
+            Set a 6-character string, then trade. Swaps nudge the meter; if the round locks on
+            your six, you split the pot. The pot comes from yield, so <strong>your deposit stays
+            yours</strong>: claim it back within six rounds of your last one.
           </p>
           <a class="step-btn tap" href="/compete/">Play a round &rarr;</a>
+          <p class="step-hint">Testnet play builds Timber Points for the mainnet transition.</p>
         </div>
       </li>
       <li class="step" data-net="mainnet">
@@ -265,21 +260,17 @@
             to the pot. The round's top ETH trader gets a bonus claim.
           </p>
           <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
+          <p class="step-hint">Beta activity builds Timber Points for the full launch.</p>
         </div>
       </li>
 
     </ol>
 
-    <section class="start-cta">
-      <h2>That's it — you're playing.</h2>
-      <p><span data-net="sepolia">Your testnet activity builds Timber Points and puts you first in line for the mainnet transition.</span><span data-net="mainnet">Your beta activity builds Timber Points and puts you first in line for the full launch.</span></p>
-      <a class="btn-big tap" href="/compete/">Enter your first round &rarr;</a>
-    </section>
 
     <div class="start-safe">
-      <strong>Stay safe:</strong> <span data-net="sepolia">everything here is free and on a testnet.</span><span data-net="mainnet">this is a capped beta with real ETH at small stakes — never put in more than a ticket and gas.</span> TimbSwap will never DM you
-      first or ask for your seed phrase or private keys. The only official sources are
-      <strong>timbswap.xyz</strong> and the TimbSwap Telegram and X accounts — anyone else is an impersonator.
+      <strong>Stay safe:</strong> <span data-net="sepolia">everything here is free and on a testnet.</span><span data-net="mainnet">this is a capped beta with real ETH at small stakes — never put in more than a ticket and gas.</span> TimbSwap never DMs first
+      or asks for seed phrases or private keys. Official sources: <strong>timbswap.xyz</strong> and the
+      TimbSwap Telegram and X accounts.
     </div>
 
     <div class="start-foot">
