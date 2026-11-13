@@ -1012,6 +1012,9 @@ async function handleSubmitEntry() {
     DebugHub.logCheckpoint("Prize:Entry Confirmed", "pass");
 
     btn.textContent = replacing ? "Entry updated ✓" : "Entry submitted ✓";
+    // Point the player at the next step: swaps are what steer the meter.
+    const nextStep = document.getElementById("entry-next");
+    if (nextStep) nextStep.classList.remove("hidden");
     document.getElementById("entry-string").value = "";
     extraRounds = 0;
     document.getElementById("extra-rounds-val").textContent = "0";
