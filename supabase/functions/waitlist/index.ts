@@ -153,7 +153,7 @@ function confirmText(unsub: string): string {
   return `You're on the list ✓
 
 Thanks for signing up for the TimbSwap mainnet launch. You'll be among the first
-to know when we go live — and mainnet opens as a small, capped beta first, before our independent
+to know when it goes live. Mainnet opens as a small, capped beta first, before the independent
 audit; the full launch follows the audit. Real funds are involved from the beta,
 so only use what you can afford to lose.
 
@@ -164,7 +164,7 @@ While you wait, the game is already live and free on Arbitrum Sepolia testnet:
   3. Climb the leaderboard   https://timbswap.xyz/quests
 
 Why bother on testnet? Your volume and streaks build Timber Points, and the
-wallets active on testnet are who we prioritize for the mainnet transition and
+wallets active on testnet get priority for the mainnet transition and
 the airdrop allowlist. Playing now counts.
 
 How the game works: trade like you would anywhere. Here, the meter moves with
@@ -175,9 +175,9 @@ stays yours.
 Every round settles on-chain — winning strings, entries, and payouts are all
 public: https://timbswap.xyz/analytics
 
-Stay safe: we will never DM you first and never ask for your seed phrase or
-private keys. The only official sources are timbswap.xyz, our Telegram, and our
-X account. Anyone else is an impersonator.
+Stay safe: TimbSwap will never DM you first or ask for your seed phrase or
+private keys. The only official sources are timbswap.xyz and the TimbSwap
+Telegram and X accounts. Anyone else is an impersonator.
 
 — The TimbSwap team
 
@@ -202,7 +202,7 @@ function confirmHtml(unsub: string): string {
 <tr><td style="padding:8px 32px 4px;"><div style="font-size:12px;letter-spacing:.12em;color:#14f195;font-weight:700;">YOU'RE ON THE LIST &#10003;</div>
 <h1 style="margin:10px 0 0;font-size:26px;line-height:1.25;color:#ffffff;font-weight:700;">Match the meter,<br/><span style="color:#14f195;">win the pot.</span></h1></td></tr>
 <tr><td style="padding:16px 32px 4px;font-size:15px;line-height:1.6;color:#c3d1c9;">
-<p style="margin:0 0 14px;">Thanks for joining the TimbSwap mainnet waitlist. You'll be among the first to know when we go live &mdash; and mainnet opens as a small, capped beta first, <strong style="color:#e8f0ec;">before our independent audit</strong>; the full launch follows the audit. Real funds are involved from the beta, so only use what you can afford to lose.</p>
+<p style="margin:0 0 14px;">Thanks for joining the TimbSwap mainnet waitlist. You'll be among the first to know when it goes live. Mainnet opens as a small, capped beta first, <strong style="color:#e8f0ec;">before the independent audit</strong>; the full launch follows the audit. Real funds are involved from the beta, so only use what you can afford to lose.</p>
 <p style="margin:0 0 8px;">While you wait, the game is already live and free on Arbitrum Sepolia testnet:</p></td></tr>
 <tr><td style="padding:6px 32px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 <tr><td style="padding:10px 0;border-bottom:1px solid #1a241f;font-size:15px;color:#e8f0ec;"><span style="color:#14f195;font-weight:700;">1.</span>&nbsp; Grab free test tokens &nbsp;<a href="https://timbswap.xyz/faucet" style="color:#14f195;text-decoration:none;">timbswap.xyz/faucet &#8599;</a></td></tr>
@@ -210,10 +210,10 @@ function confirmHtml(unsub: string): string {
 <tr><td style="padding:10px 0;font-size:15px;color:#e8f0ec;"><span style="color:#14f195;font-weight:700;">3.</span>&nbsp; Climb the leaderboard &nbsp;<a href="https://timbswap.xyz/quests" style="color:#14f195;text-decoration:none;">timbswap.xyz/quests &#8599;</a></td></tr></table></td></tr>
 <tr><td align="center" style="padding:20px 32px 8px;"><a href="https://timbswap.xyz/compete" style="display:inline-block;background:#14f195;color:#062015;font-weight:700;font-size:15px;text-decoration:none;padding:13px 28px;border-radius:10px;">Take a round &rarr;</a></td></tr>
 <tr><td style="padding:14px 32px 4px;font-size:14px;line-height:1.6;color:#9fb2a8;">
-<p style="margin:0 0 12px;"><strong style="color:#c3d1c9;">Why bother on testnet?</strong> Your volume and streaks build Timber Points, and testnet-active wallets are who we prioritize for the mainnet transition and the airdrop allowlist. Playing now counts.</p>
+<p style="margin:0 0 12px;"><strong style="color:#c3d1c9;">Why bother on testnet?</strong> Your volume and streaks build Timber Points, and testnet-active wallets get priority for the mainnet transition and the airdrop allowlist. Playing now counts.</p>
 <p style="margin:0 0 12px;"><strong style="color:#c3d1c9;">How it works:</strong> trade like you would anywhere. Here, the meter moves with the market &mdash; hold a ticket, call six characters, and if it lands on them, you split the pot. The prize is funded by yield, not your deposit. What you put in stays yours.</p>
 <p style="margin:0;">Every round settles on-chain &mdash; winning strings, entries, and payouts are all public. <a href="https://timbswap.xyz/analytics" style="color:#14f195;text-decoration:none;">See the round history &#8599;</a></p></td></tr>
-<tr><td style="padding:16px 32px 4px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0e1512;border:1px solid #24322b;border-radius:10px;"><tr><td style="padding:14px 16px;font-size:13px;line-height:1.55;color:#9fb2a8;"><strong style="color:#e8f0ec;">Stay safe:</strong> we will <strong style="color:#e8f0ec;">never</strong> DM you first and never ask for your seed phrase or private keys. The only official sources are timbswap.xyz, our Telegram, and our X account. Anyone else is an impersonator &mdash; report and block them.</td></tr></table></td></tr>
+<tr><td style="padding:16px 32px 4px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0e1512;border:1px solid #24322b;border-radius:10px;"><tr><td style="padding:14px 16px;font-size:13px;line-height:1.55;color:#9fb2a8;"><strong style="color:#e8f0ec;">Stay safe:</strong> TimbSwap will <strong style="color:#e8f0ec;">never</strong> DM you first or ask for your seed phrase or private keys. The only official sources are timbswap.xyz and the TimbSwap Telegram and X accounts. Anyone else is an impersonator &mdash; report and block them.</td></tr></table></td></tr>
 <tr><td style="padding:22px 32px 28px;border-top:1px solid #1a241f;">
 <p style="margin:0 0 8px;font-size:13px;color:#7d8f86;">Open-source &middot; Non-custodial &middot; Permissionless</p>
 <p style="margin:0 0 14px;font-size:13px;color:#7d8f86;"><a href="https://timbswap.xyz/litepaper" style="color:#9fb2a8;text-decoration:none;">Litepaper</a> &nbsp;&middot;&nbsp; <a href="https://timbswap.xyz/gov/#bounty" style="color:#9fb2a8;text-decoration:none;">Bug bounty</a></p>
