@@ -936,9 +936,9 @@
       const box = h("div", { class: "tsheet-warn", role: "alert" }, h("strong", { text: "Read this before you continue." }), list);
       const disc = h("p", { class: "tsheet-disclaimer", text: EXPORT_DISCLAIMER });
       const chk = h("input", { type: "checkbox", id: "tsheet-export-ack" });
-      const ack = h("label", { class: "tsheet-ack", for: "tsheet-export-ack" }, chk, " I have read the warnings and accept the disclaimer.");
+      const ack = h("label", { class: "tsheet-ack", for: "tsheet-export-ack" }, chk, " Warnings read; disclaimer accepted.");
       const err = errLine();
-      const send = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", disabled: "" }, h("strong", { text: "Send a code to " + (email || "my email") }), h("span", { text: "One-time code from Privy. The key itself is never emailed." }));
+      const send = h("button", { class: "tsheet-btn tsheet-btn-primary", type: "button", disabled: "" }, h("strong", { text: "Send a code to " + (email || "your email") }), h("span", { text: "One-time code from Privy. The key itself is never emailed." }));
       chk.addEventListener("change", () => { if (chk.checked) send.removeAttribute("disabled"); else send.setAttribute("disabled", ""); });
       send.addEventListener("click", async () => {
         if (!chk.checked) return;
@@ -1394,7 +1394,7 @@ a.tsheet-link { display: inline-block; }
         }
       } }, input, err, btn);
       setBody(
-        h("p", { class: "tsheet-note", text: "We'll email you a one-time code. Your email is handled by Privy; TimbSwap never stores it." }),
+        h("p", { class: "tsheet-note", text: "A one-time code is emailed to you. Privy handles the email; TimbSwap never stores it." }),
         form);
     }
 

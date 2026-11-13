@@ -148,7 +148,7 @@
     </section>
 
     <div class="start-progress" id="start-progress" aria-live="polite">
-      <span id="start-progress-text">Let's get you started · 0 of 4 done</span>
+      <span id="start-progress-text">Getting started · 0 of 4 done</span>
       <div class="start-progress-bar"><div class="start-progress-fill" id="start-progress-fill"></div></div>
       <div class="step-hint">Tick each step as you finish it. You can skip and come back any time.</div>
     </div>
@@ -279,7 +279,7 @@
     <div class="start-safe">
       <strong>Stay safe:</strong> <span data-net="sepolia">everything here is free and on a testnet.</span><span data-net="mainnet">this is a capped beta with real ETH at small stakes — never put in more than a ticket and gas.</span> TimbSwap will never DM you
       first or ask for your seed phrase or private keys. The only official sources are
-      <strong>timbswap.xyz</strong>, our Telegram, and our X account — anyone else is an impersonator.
+      <strong>timbswap.xyz</strong> and the TimbSwap Telegram and X accounts — anyone else is an impersonator.
     </div>
 
     <div class="start-foot">
@@ -316,7 +316,7 @@
           });
           var total = vis.length || 4;
           var t = document.getElementById("start-progress-text");
-          if (t) t.textContent = n >= total ? "All set \u00b7 " + n + " of " + total + " done" : "Let's get you started \u00b7 " + n + " of " + total + " done";
+          if (t) t.textContent = n >= total ? "All set \u00b7 " + n + " of " + total + " done" : "Getting started \u00b7 " + n + " of " + total + " done";
           var f = document.getElementById("start-progress-fill");
           if (f) f.style.width = Math.round(100 * n / total) + "%";
         }
