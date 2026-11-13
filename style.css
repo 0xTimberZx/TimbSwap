@@ -439,6 +439,15 @@ body { padding-top: 60px; }
 }
 .scroll-char.dim { color: var(--text-3); border-color: transparent; }
 .scroll-char.masked { color: var(--text-2); border-color: var(--border); }
+/* Easter egg (disconnected): tap to stop a cell; all six stopped turns gold. */
+#scroll-chars .scroll-char.masked { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+#scroll-chars .scroll-char.egg-stop { color: var(--green); border-color: rgba(20, 241, 149, 0.55); }
+#scroll-chars.egg-gold .scroll-char { color: #ffd75e; border-color: rgba(255, 215, 94, 0.6); animation: egg-gold-glow 2.4s ease-in-out infinite; }
+@keyframes egg-gold-glow {
+  0%, 100% { text-shadow: 0 0 8px rgba(255, 215, 94, 0.35); box-shadow: 0 0 0 rgba(255, 215, 94, 0); }
+  50%      { text-shadow: 0 0 22px rgba(255, 215, 94, 0.8); box-shadow: 0 0 18px rgba(255, 215, 94, 0.25); }
+}
+@media (prefers-reduced-motion: reduce) { #scroll-chars.egg-gold .scroll-char { animation: none; text-shadow: 0 0 14px rgba(255, 215, 94, 0.6); } }
 
 .scroll-meta {
   display: flex;
