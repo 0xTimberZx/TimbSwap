@@ -58,7 +58,7 @@ const NET_LABEL  = NET_IS_MAINNET ? "Arb One" : "Arb Sepolia";
 // The beta runs ETH-only (dev-docs/BETA_ETH_ONLY.md): TIMBS is deployed but not
 // distributed, so every TIMBS surface stays hidden until this flips to true.
 // While false: TIMBS drops out of the token lists and the ticket token choice,
-// the Farm, Lock and Airdrop (quests) pages are unlisted (a direct visit shows
+// the Farm, Lock and Quests pages are unlisted (a direct visit shows
 // a notice and the page's own script is not loaded, so nothing is computed),
 // and any element marked data-timbs is hidden.
 const TIMBS_LIVE = false;
@@ -89,8 +89,8 @@ const TIMBS_LIVE = false;
       document.body.innerHTML =
         '<main style="max-width:560px;margin:15vh auto;padding:0 16px;text-align:center">' +
         (quests
-          ? '<h1>Airdrop opens with TIMBS</h1>' +
-            '<p>Timber Points and the airdrop campaign start when TIMBS and ' +
+          ? '<h1>Quests open with TIMBS</h1>' +
+            '<p>Timber Points and quests start when TIMBS and ' +
             'staking launch after the independent audit. Nothing is being ' +
             'scored in the beta.</p>'
           : '<h1>Opens after the beta</h1>' +
