@@ -74,6 +74,9 @@ let currentGen         = null;   // registry game generation; prior-gen tickets 
 let lastDigitCounters  = null;
 let activeSegIndex     = -1;   // 0-based index into digitCounters for the live segment
 let myActiveTicketStr  = null; // viewer's ticket string playing the CURRENT round (gold streak)
+let mySteerTicketStr   = null; // ticket the steer card coaches: the one playing now, else the live queued one
+let roundInSettlement  = false;
+let swapNudgeWeightVal = null; // router.swapNudgeWeight(), read once
 let activeSegCounter   = null; // BigNumber — that segment's current counter
 let advanceCount       = 1;    // chosen batch size for the Advance panel
 let advanceInSettlement = false; // on-chain settlement window blocks nudges
@@ -448,6 +451,8 @@ async function pollRoundState() {
     }
 
     updateAdvancePanel(!!s.inSettlement);
+    roundInSettlement = !!s.inSettlement;
+    updateSteerCard();
 
   } catch (e) {
     // Public-RPC hiccups (a dropped eth_call response) surface as
@@ -1012,9 +1017,7 @@ async function handleSubmitEntry() {
     DebugHub.logCheckpoint("Prize:Entry Confirmed", "pass");
 
     btn.textContent = replacing ? "Entry updated ✓" : "Entry submitted ✓";
-    // Point the player at the next step: swaps are what steer the meter.
-    const nextStep = document.getElementById("entry-next");
-    if (nextStep) nextStep.classList.remove("hidden");
+
     document.getElementById("entry-string").value = "";
     extraRounds = 0;
     document.getElementById("extra-rounds-val").textContent = "0";
@@ -1197,6 +1200,8 @@ async function loadMyEntries() {
   hasPlayEntry = false;
   if (!userAddress) {
     myActiveTicketStr = null;
+    mySteerTicketStr = null;
+    updateSteerCard();
     list.innerHTML = '<div class="empty-state">Your tickets live here once you connect.</div>';
     updateEntryButton();
     return;
@@ -1256,6 +1261,16 @@ async function loadMyEntries() {
       );
       if (playing) myActiveTicketStr = bytes6ToStr(playing.string6);
     }
+    // Steer card: coach the ticket playing now; otherwise the wallet's live
+    // queued ticket (the current round's locks set where its segments start).
+    mySteerTicketStr = myActiveTicketStr;
+    if (!mySteerTicketStr) {
+      const queued = ticketList.find(t =>
+        isCurGen(t) && (t.status === 0 ||
+          (t.status === 1 && relRound !== null && relRound <= t.lastEligibleRound.toNumber())));
+      if (queued) mySteerTicketStr = bytes6ToStr(queued.string6);
+    }
+    updateSteerCard();
 
     // Hide history clutter: once a ticket is past its forfeitRound (the §14
     // per-ticket refund deadline — LER+4, or LER+6 for a late winner) it can't
@@ -1458,6 +1473,49 @@ function renderAdvancePreview() {
 // into the next segment (see renderAdvancePreview).
 let settlementSeenAt = 0;
 const SETTLE_BTN_HOLD_MS = 6000;
+
+// ─── Steer card ───────────────────────────────────────────────────────────────
+// Shown only when the live segment's meter sits in the other class (letter vs
+// digit) from the viewer's ticket character for that segment. Nudges only move
+// forward and wrap: A..Z are 0..25, 0..9 are 26..35, so a letter reaches the
+// digits in (26 - idx) nudges and a digit wraps back to A in (36 - idx).
+function steerNudgesNeeded(idx, wantDigit) {
+  if (wantDigit) return idx < 26 ? 26 - idx : 0;
+  return idx >= 26 ? 36 - idx : 0;
+}
+
+async function updateSteerCard() {
+  const card = document.getElementById("entry-next");
+  if (!card) return;
+  const hide = () => card.classList.add("hidden");
+  const t = mySteerTicketStr;
+  if (!userAddress || !t || t.length !== 6 || roundInSettlement ||
+      activeSegIndex < 0 || activeSegIndex > 5 || !activeSegCounter) return hide();
+  const idx  = Number(activeSegCounter) % 36;
+  const want = t[activeSegIndex];
+  const wantDigit = /[0-9]/.test(want);
+  const n = steerNudgesNeeded(idx, wantDigit);
+  if (n === 0) return hide();
+  if (swapNudgeWeightVal === null && ADDRESSES.TimbSwapRouter) {
+    try {
+      const r = new ethers.Contract(ADDRESSES.TimbSwapRouter, ["function swapNudgeWeight() view returns (uint256)"], readProv());
+      swapNudgeWeightVal = (await r.swapNudgeWeight()).toNumber();
+    } catch { swapNudgeWeightVal = 0; }
+  }
+  let freeLeft = null;
+  try { freeLeft = freeNudgesLeft; } catch { /* declared later in the file; not ready yet */ }
+  const seg = activeSegIndex + 1;
+  const onClass = idx < 26 ? "a letter" : "a digit";
+  const wantClass = wantDigit ? "digit" : "letter";
+  const swaps = swapNudgeWeightVal > 0 ? Math.ceil(n / swapNudgeWeightVal) : null;
+  document.getElementById("steer-title").textContent =
+    `Segment ${seg} is on ${onClass} (${ALPHABET[idx]}). Your ticket has a ${wantClass} there.`;
+  document.getElementById("steer-sub").textContent =
+    `${n} nudge${n === 1 ? "" : "s"} to reach the ${wantClass}s` +
+    (swaps ? ` · about ${swaps} eligible swap${swaps === 1 ? "" : "s"}` : "") +
+    (freeLeft ? ` · or ${freeLeft} free with Advance` : "") + ".";
+  card.classList.remove("hidden");
+}
 
 function updateAdvancePanel(inSettlement) {
   const wasInSettlement = advanceInSettlement;

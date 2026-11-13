@@ -279,19 +279,12 @@
           Connect wallet to enter
         </button>
         <p class="entry-refund-line">Refundable for 6 rounds after your ticket's last round ends, then it will lapse.</p>
-        <!-- Shown after a ticket is entered: the next thing to do. -->
+        <!-- Steer card: shown only when the live segment's meter is in the other
+             class (letter vs digit) from your ticket's character there. -->
         <div id="entry-next" class="entry-next hidden" role="status">
-          <div class="entry-next-title">Your ticket is in. Next: steer the meter.</div>
-          <div class="entry-next-sub">Eligible swaps nudge the active segment's character upward. That's how players aim each segment's class (letter or number) toward their six. The swap page shows when a swap counts.</div>
-          <a class="entry-next-btn" href="../swap/">Swap to nudge the meter &rarr;</a>
-        </div>
-      </div>
-
-      <!-- ─── My Entries ──────────────────────────────────────────────────── -->
-      <div class="compete-card">
-        <h2 class="card-title">My Tickets</h2>
-        <div id="my-entries-list" class="my-entries-list">
-          <div class="empty-state">Your tickets live here once you connect.</div>
+          <div class="entry-next-title" id="steer-title"></div>
+          <div class="entry-next-sub" id="steer-sub"></div>
+          <a class="entry-next-btn" href="../swap/">Swap to nudge &rarr;</a>
         </div>
         <!-- Opt-in Telegram nudges: first-letter match + pre-forfeit refund reminder. -->
         <a id="tg-remind-btn" class="btn-tg-remind hidden" target="_blank" rel="noopener">
@@ -415,7 +408,7 @@
   </footer>
 
   <script>document.write('<script src="../config.js?t=' + Date.now() + '"><\/script>');</script>
-  <script src="compete.js?v=20261025a"></script>
+  <script src="compete.js?v=20261114a"></script>
   <script>
     function toggleMobileNav() {
       document.getElementById("mobile-nav").classList.toggle("open");
