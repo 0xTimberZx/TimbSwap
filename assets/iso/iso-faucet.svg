@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 150" width="320" height="300" role="img" aria-label="faucet icon"><title>faucet</title>
+<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter><filter id="glowSm" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+<marker id="isoArrG" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#14f195"></path></marker>
+<marker id="isoArrB" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#28a0f0"></path></marker>
+</defs>
+<ellipse cx="80" cy="114" rx="58" ry="22" fill="#14f195" opacity=".38" filter="url(#glow)"></ellipse>
+<path d="M21.1,82.0 L80.0,116.0 L80.0,130.0 L21.1,96.0Z" fill="#0d6e47"></path>
+<path d="M138.9,82.0 L80.0,116.0 L80.0,130.0 L138.9,96.0Z" fill="#1f4f9e"></path>
+<path d="M80.0,48.0 L138.9,82.0 L80.0,116.0 L21.1,82.0Z" fill="#1a2a3c" stroke="#14f195" stroke-width="1.6" stroke-linejoin="round"></path>
+<ellipse cx="80" cy="74" rx="26" ry="22" fill="#28a0f0" opacity=".28" filter="url(#glowSm)"></ellipse><ellipse cx="80" cy="84" rx="24" ry="12" fill="none" stroke="#7fd0ff" stroke-width="1.6" opacity=".7"></ellipse>
+<ellipse cx="80" cy="84" rx="36" ry="18" fill="none" stroke="#7fd0ff" stroke-width="1" opacity=".35"></ellipse>
+<path d="M80,28 C92,46 97,56 97,66 A17,17 0 0 1 63,66 C63,56 68,46 80,28Z" fill="#28a0f0" fill-opacity=".5" stroke="#bfe6ff" stroke-width=".9"></path>
+<path d="M72,60 C72,54 75,49 78,45" fill="none" stroke="#e8f7ff" stroke-width="2.4" stroke-linecap="round" opacity=".8"></path></svg>
