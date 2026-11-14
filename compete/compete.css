@@ -43,6 +43,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .meter-stack .round-header { animation: none; }
+  .advance-panel::before { animation: none; }
 }
 
 /* A green-outlined base tucked behind the card and peeking below it: same
@@ -673,6 +674,16 @@
   overflow: hidden;
 }
 .advance-panel.hidden { display: none; }
+.advance-panel::before {
+  /* faint animated sweep to sell the "charge" feel without being loud */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 40%, rgba(40,160,240,0.08) 50%, transparent 60%);
+  background-size: 220% 100%;
+  animation: advance-sweep 5s linear infinite;
+  pointer-events: none;
+}
 @keyframes advance-sweep {
   0%   { background-position: 130% 0; }
   100% { background-position: -30% 0; }

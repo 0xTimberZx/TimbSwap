@@ -873,6 +873,13 @@ body:has(.nav-mobile-overlay.open) .nav-hamburger span:nth-child(3) { transform:
   background: color-mix(in srgb, var(--green) 40%, transparent);
 }
 .b1 .basin-fill { height: 82%; } .b2 .basin-fill { height: 62%; } .b3 .basin-fill { height: 38%; }
+.basin-fill::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 28%, rgba(255,255,255,0.20) 50%, transparent 72%);
+  background-size: 220% 100%;
+  background-position: -120% 0;
+  animation: tide-sweep 2.6s linear infinite;
+}
 /* Cascade the sheen left → right across the descending basins (farm →
    staking → boost) so the gleam reads as one fluid flow pouring down the
    waterfall, not three bins shimmering in place. */
