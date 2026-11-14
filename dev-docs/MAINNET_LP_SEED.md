@@ -67,6 +67,14 @@ the same guards.
 Fee income is 0.25 % of volume to LPs. At these sizes it is small; the pools
 are infrastructure, not yield.
 
+### Beta nudge pools
+
+`DeployBeta` designates WETH/USDC, WBTC/WETH and ARB/WETH for nudges and refuses
+to run unless all three exist. `SEED_PAIRS=beta` selects exactly those three.
+Pools of different depth are separate runs, since `SEED_USD_PER_SIDE` is one
+amount per run. As above, the amounts are a per-run decision and are not
+recorded here.
+
 ## 4. When, and where it sits in the runbook
 
 Any time after Phase 1 and before `startGame`. It does not depend on Phase 2,
