@@ -89,10 +89,8 @@ const TIMBS_LIVE = false;
       document.body.innerHTML =
         '<main style="max-width:560px;margin:15vh auto;padding:0 16px;text-align:center">' +
         (quests
-          ? '<h1>Quests open with TIMBS</h1>' +
-            '<p>Timber Points and quests start when TIMBS and ' +
-            'staking launch after the independent audit. Nothing is being ' +
-            'scored in the beta.</p>'
+          ? '<h1>Not open in the beta</h1>' +
+            '<p>Quests are off during the beta. Nothing is being scored.</p>'
           : '<h1>Opens after the beta</h1>' +
             '<p>Farming and locking pay out in TIMBS, which launches after the ' +
             'independent audit. The beta runs on ETH.</p>') +
