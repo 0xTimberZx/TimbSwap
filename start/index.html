@@ -123,6 +123,61 @@
     .step.is-done { border-color: rgba(20, 241, 149, 0.45); }
     .step.is-done .step-num { background: var(--green); color: #062015; }
     .step.is-done .step-done-btn { color: var(--green); border-color: rgba(20, 241, 149, 0.45); }
+    /* ── Two views: "How do I play?" / "The bigger picture" ─────────────────
+       Solids only; shades of green in the flow chart. Each view has its own
+       hash (#play, #bigger-picture) so posts can link straight to it. */
+    .start-wrap.is-wide { max-width: 1040px; }
+    .view-tabs { display: flex; justify-content: center; margin: 0 0 36px; }
+    .view-tablist { display: inline-flex; gap: 4px; padding: 5px; border-radius: 999px; background: var(--bg2); border: var(--bw) solid var(--border); }
+    .view-tab { min-height: 44px; padding: 0 20px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .view-tab[aria-selected="true"] { background: var(--bg3); color: var(--text); font-weight: 700; }
+    .view-tab:focus-visible, .bp-back:focus-visible, .bp-card:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+    .view-panel { animation: viewIn .18s ease; }
+    @keyframes viewIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .bp-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 36px; padding: 20px 22px; border-radius: var(--radius-lg); background: var(--bg2); border: var(--bw) solid var(--border); color: var(--text); text-decoration: none; }
+    .bp-card:hover { border-color: var(--green); }
+    .bp-card-title { font-size: 19px; font-weight: 700; }
+    .bp-card-sub { font-size: 14px; color: var(--text-2); margin-top: 2px; }
+    .bp-card-go { display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: var(--green); color: #062015; font-weight: 700; font-size: 15px; }
+
+    .bp-hero { text-align: center; margin: 0 0 40px; }
+    .bp-hero h1 { font-size: clamp(36px, 7vw, 64px); line-height: 1; letter-spacing: -1px; margin: 0 0 16px; color: var(--text); }
+    .bp-hero p { font-size: 18px; line-height: 1.5; color: var(--text-2); max-width: 520px; margin: 0 auto; }
+    .bp-flow { background: var(--bg2); border: var(--bw) solid var(--border); border-radius: 24px; padding: 36px 28px; margin: 0 0 48px; }
+    .bp-flow svg { display: block; width: 100%; height: auto; }
+    .bp-flow .fw-tall { display: none; max-width: 400px; margin: 0 auto; }
+    .fw-node { fill: var(--bg3); }
+    .fw-node-blue { fill: rgba(40, 160, 240, 0.16); }
+    .fw-label { fill: var(--text); font-family: inherit; font-weight: 700; }
+    .fw-cap { fill: var(--text-2); font-family: var(--mono); letter-spacing: 2px; }
+    .fw-pot { fill: var(--bg3); stroke: var(--green); stroke-width: 2; }
+    .fw-pot-cap { fill: var(--green); font-family: var(--mono); letter-spacing: 3px; }
+    .fw-tile-off { fill: var(--bg2); stroke: var(--border); }
+    .fw-dash { animation: fwflow 1.8s linear infinite; }
+    @keyframes fwflow { to { stroke-dashoffset: -40; } }
+    @media (max-width: 640px) {
+      .bp-flow { padding: 24px 12px; }
+      .bp-flow .fw-wide { display: none; }
+      .bp-flow .fw-tall { display: block; }
+    }
+    .bp-ideas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 0 0 48px; }
+    .bp-idea-n { width: 36px; height: 36px; border-radius: 10px; background: var(--green); color: #062015; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; }
+    .bp-idea-n.blue { background: var(--blue); color: #fff; }
+    .bp-idea h3 { margin: 12px 0 6px; font-size: 21px; color: var(--text); }
+    .bp-idea p { margin: 0; font-size: 16px; line-height: 1.5; color: var(--text-2); }
+    @media (max-width: 760px) { .bp-ideas { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+    .bp-risks { background: var(--bg2); border: var(--bw) solid var(--border); border-radius: 24px; padding: 26px 28px; margin: 0 0 40px; }
+    .bp-risks h2 { margin: 0 0 16px; font-size: 21px; color: var(--text); }
+    .bp-risks ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+    .bp-risks li { display: flex; gap: 12px; align-items: baseline; font-size: 16px; line-height: 1.5; color: var(--text-2); }
+    .bp-risks li::before { content: ""; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 2px; background: #e8c46a; transform: translateY(-1px); }
+    .bp-risks strong { color: var(--text); }
+    .bp-back-wrap { text-align: center; }
+    .bp-back { min-height: 52px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--green); color: #062015; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+    @media (prefers-reduced-motion: reduce) {
+      .view-panel, .fw-dash { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -134,6 +189,14 @@
       <span class="start-badge"><span data-net="sepolia">Testnet · Free</span><span data-net="mainnet">Capped beta · Arbitrum One</span></span>
     </header>
 
+    <nav class="view-tabs" aria-label="Start Here views">
+      <div class="view-tablist" role="tablist">
+        <button type="button" class="view-tab tap" role="tab" id="tab-play" aria-controls="view-play" aria-selected="true">How do I play?</button>
+        <button type="button" class="view-tab tap" role="tab" id="tab-bigger" aria-controls="view-bigger" aria-selected="false" tabindex="-1">The bigger picture</button>
+      </div>
+    </nav>
+
+    <div class="view-panel" id="view-play" role="tabpanel" aria-labelledby="tab-play">
     <section class="start-hero">
       <div class="start-eyebrow">Start here</div>
       <h1>Play your first round <br /><span class="accent">in minutes.</span></h1>
@@ -258,7 +321,6 @@
             to the pot. The round's top ETH trader gets a bonus claim.
           </p>
           <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
-          <p class="step-hint">Beta activity builds Timber Points for the full launch.</p>
         </div>
       </li>
 
@@ -271,14 +333,150 @@
       TimbSwap Telegram and X accounts.
     </div>
 
+    <a class="bp-card tap" href="#bigger-picture" data-view="bigger">
+      <span>
+        <span class="bp-card-title">Want the bigger picture?</span>
+        <span class="bp-card-sub" style="display: block;">Where the pot comes from.</span>
+      </span>
+      <span class="bp-card-go">The bigger picture &rarr;</span>
+    </a>
+
     <div class="start-foot">
-      Want the bigger picture?
       <div class="foot-links">
         <a class="foot-link tap" href="/litepaper/">Read the litepaper</a>
         <a class="foot-link tap" href="/quests/">See the leaderboard</a>
         <a class="foot-link tap" href="/#waitlist"><span data-net="sepolia">Join the mainnet list</span><span data-net="mainnet">Join the launch list</span></a>
       </div>
     </div>
+    </div><!-- /view-play -->
+
+    <div class="view-panel" id="view-bigger" role="tabpanel" aria-labelledby="tab-bigger" hidden>
+      <section class="bp-hero">
+        <h1>Follow the flow.</h1>
+        <p>Every round, value flows into one pot. Attention decides where it goes.</p>
+      </section>
+
+      <section class="bp-flow" aria-label="How value flows in a round">
+        <!-- Wide layout -->
+        <svg class="fw-wide" viewBox="0 0 1060 460" role="img" aria-label="Swap fees, vault yield and lapsed deposits flow into the pot. Your nudges steer the meter. At round end the pot goes to exact matches, or rolls over to the next round.">
+          <path d="M230,150 C340,150 360,214 452,214" fill="none" stroke="#14f195" stroke-width="16" stroke-linecap="round"/>
+          <path d="M230,250 C340,250 360,236 452,236" fill="none" stroke="#0fb878" stroke-width="10" stroke-linecap="round"/>
+          <path d="M230,350 C340,350 360,258 452,258" fill="none" stroke="#0b7f55" stroke-width="7" stroke-linecap="round"/>
+          <path class="fw-dash" d="M230,150 C340,150 360,214 452,214" fill="none" stroke="#0b0f14" stroke-width="3" stroke-dasharray="3 17" stroke-linecap="round" opacity=".5"/>
+          <path class="fw-dash" d="M230,250 C340,250 360,236 452,236" fill="none" stroke="#0b0f14" stroke-width="2.5" stroke-dasharray="3 17" stroke-linecap="round" opacity=".5"/>
+          <path class="fw-dash" d="M230,350 C340,350 360,258 452,258" fill="none" stroke="#0b0f14" stroke-width="2" stroke-dasharray="3 17" stroke-linecap="round" opacity=".5"/>
+          <path d="M230,50 C320,50 340,50 430,50" fill="none" stroke="#28a0f0" stroke-width="6" stroke-linecap="round"/>
+          <path d="M630,50 C730,50 740,150 830,150" fill="none" stroke="#28a0f0" stroke-width="3" stroke-dasharray="6 8"/>
+          <!-- players (blue) may act in green: a nudge can be a swap -->
+          <path d="M40,58 C20,58 16,80 16,100" fill="none" stroke="#28a0f0" stroke-width="2.5" stroke-dasharray="5 6" stroke-linecap="round"/>
+          <path d="M16,100 C16,128 20,150 32,150" fill="none" stroke="#14f195" stroke-width="2.5" stroke-dasharray="5 6" stroke-linecap="round"/>
+          <path d="M31,144 L40,150 L31,156 Z" fill="#14f195"/>
+          <path d="M608,224 C720,224 730,150 830,150" fill="none" stroke="#14f195" stroke-width="18" stroke-linecap="round"/>
+          <path d="M608,252 C720,252 730,330 830,330" fill="none" stroke="#1d5f74" stroke-width="10" stroke-linecap="round"/>
+          <path d="M930,362 C930,440 530,446 530,316" fill="none" stroke="#1d5f74" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round"/>
+          <g font-size="17">
+            <rect class="fw-node-blue" x="40" y="22" width="190" height="56" rx="14"/><circle cx="64" cy="50" r="5" fill="#28a0f0"/><text class="fw-label" x="80" y="56">Your nudges</text>
+            <rect class="fw-node" x="40" y="122" width="190" height="56" rx="14"/><circle cx="64" cy="150" r="5" fill="#14f195"/><text class="fw-label" x="80" y="156">Swap fees</text>
+            <rect class="fw-node" x="40" y="222" width="190" height="56" rx="14"/><circle cx="64" cy="250" r="5" fill="#0fb878"/><text class="fw-label" x="80" y="256">Vault yield</text>
+            <rect class="fw-node" x="40" y="322" width="190" height="56" rx="14"/><circle cx="64" cy="350" r="5" fill="#0b7f55"/><text class="fw-label" x="80" y="356">Lapsed deposits</text>
+          </g>
+          <rect class="fw-node-blue" x="430" y="18" width="200" height="64" rx="14"/>
+          <g font-family="Space Mono, monospace" font-size="14" font-weight="700" text-anchor="middle">
+            <rect x="452" y="32" width="22" height="36" rx="5" fill="#14f195"/><text x="463" y="56" fill="#062015">K</text>
+            <rect x="480" y="32" width="22" height="36" rx="5" fill="#14f195"/><text x="491" y="56" fill="#062015">7</text>
+            <rect x="508" y="32" width="22" height="36" rx="5" fill="#14f195"/><text x="519" y="56" fill="#062015">M</text>
+            <rect x="536" y="32" width="22" height="36" rx="5" fill="#28a0f0"/><text x="547" y="56" fill="#062015">2</text>
+            <rect class="fw-tile-off" x="564" y="32" width="22" height="36" rx="5"/>
+            <rect class="fw-tile-off" x="592" y="32" width="22" height="36" rx="5"/>
+          </g>
+          <text class="fw-cap" x="530" y="104" text-anchor="middle" font-size="12">THE METER</text>
+          <circle cx="530" cy="236" r="96" fill="#14f195" fill-opacity=".07"/>
+          <circle class="fw-pot" cx="530" cy="236" r="78"/>
+          <text class="fw-pot-cap" x="530" y="230" text-anchor="middle" font-size="13">THE POT</text>
+          <text class="fw-cap" x="530" y="254" text-anchor="middle" font-size="11" style="letter-spacing: 1px;">FILLS EVERY ROUND</text>
+          <g font-size="17" font-weight="700">
+            <rect x="830" y="122" width="200" height="56" rx="14" fill="#14f195"/>
+            <text x="930" y="156" text-anchor="middle" fill="#062015">Winners split it</text>
+            <rect class="fw-node" x="830" y="302" width="200" height="56" rx="14"/>
+            <text class="fw-label" x="930" y="336" text-anchor="middle">Or it rolls over</text>
+          </g>
+        </svg>
+        <!-- Tall layout (phones) -->
+        <svg class="fw-tall" viewBox="0 0 360 600" role="img" aria-label="Swap fees, vault yield and lapsed deposits flow into the pot. Your nudges steer the meter. At round end the pot goes to exact matches, or rolls over to the next round.">
+          <path d="M70,186 C70,240 160,236 166,262" fill="none" stroke="#14f195" stroke-width="12" stroke-linecap="round"/>
+          <path d="M180,186 C180,220 180,236 180,258" fill="none" stroke="#0fb878" stroke-width="8" stroke-linecap="round"/>
+          <path d="M290,186 C290,240 200,236 194,262" fill="none" stroke="#0b7f55" stroke-width="6" stroke-linecap="round"/>
+          <path class="fw-dash" d="M70,186 C70,240 160,236 166,262" fill="none" stroke="#0b0f14" stroke-width="2.5" stroke-dasharray="3 17" stroke-linecap="round" opacity=".5"/>
+          <path class="fw-dash" d="M180,186 C180,220 180,236 180,258" fill="none" stroke="#0b0f14" stroke-width="2" stroke-dasharray="3 17" stroke-linecap="round" opacity=".5"/>
+          <path class="fw-dash" d="M290,186 C290,240 200,236 194,262" fill="none" stroke="#0b0f14" stroke-width="2" stroke-dasharray="3 17" stroke-linecap="round" opacity=".5"/>
+          <path d="M170,46 H190" fill="none" stroke="#28a0f0" stroke-width="5" stroke-linecap="round"/>
+          <!-- players (blue) may act in green: a nudge can be a swap -->
+          <path d="M60,72 V98" fill="none" stroke="#28a0f0" stroke-width="2.5" stroke-dasharray="5 6" stroke-linecap="round"/>
+          <path d="M60,98 V116" fill="none" stroke="#14f195" stroke-width="2.5" stroke-dasharray="5 6" stroke-linecap="round"/>
+          <path d="M54,116 L60,125 L66,116 Z" fill="#14f195"/>
+          <path d="M340,46 H352 V476 H340" fill="none" stroke="#28a0f0" stroke-width="2.5" stroke-dasharray="5 7"/>
+          <path d="M196,384 C200,430 266,430 266,452" fill="none" stroke="#14f195" stroke-width="14" stroke-linecap="round"/>
+          <path d="M164,384 C160,430 94,430 94,452" fill="none" stroke="#1d5f74" stroke-width="8" stroke-linecap="round"/>
+          <path d="M20,476 H8 V320 H112" fill="none" stroke="#1d5f74" stroke-width="2.5" stroke-dasharray="2 8" stroke-linecap="round"/>
+          <rect class="fw-node-blue" x="20" y="22" width="150" height="48" rx="12"/><text class="fw-label" x="95" y="52" text-anchor="middle" font-size="15">Your nudges</text>
+          <rect class="fw-node-blue" x="190" y="22" width="150" height="48" rx="12"/>
+          <g font-family="Space Mono, monospace" font-size="11" font-weight="700" text-anchor="middle">
+            <rect x="203" y="32" width="18" height="28" rx="4" fill="#14f195"/><text x="212" y="51" fill="#062015">K</text>
+            <rect x="225" y="32" width="18" height="28" rx="4" fill="#14f195"/><text x="234" y="51" fill="#062015">7</text>
+            <rect x="247" y="32" width="18" height="28" rx="4" fill="#14f195"/><text x="256" y="51" fill="#062015">M</text>
+            <rect x="269" y="32" width="18" height="28" rx="4" fill="#28a0f0"/><text x="278" y="51" fill="#062015">2</text>
+            <rect class="fw-tile-off" x="291" y="32" width="18" height="28" rx="4"/>
+            <rect class="fw-tile-off" x="313" y="32" width="18" height="28" rx="4"/>
+          </g>
+          <text class="fw-cap" x="265" y="88" text-anchor="middle" font-size="10">THE METER</text>
+          <g font-size="14" text-anchor="middle">
+            <rect class="fw-node" x="20" y="126" width="100" height="60" rx="12"/><text class="fw-label" x="70" y="152">Swap</text><text class="fw-label" x="70" y="170">fees</text>
+            <rect class="fw-node" x="130" y="126" width="100" height="60" rx="12"/><text class="fw-label" x="180" y="152">Vault</text><text class="fw-label" x="180" y="170">yield</text>
+            <rect class="fw-node" x="240" y="126" width="100" height="60" rx="12"/><text class="fw-label" x="290" y="152">Lapsed</text><text class="fw-label" x="290" y="170">deposits</text>
+          </g>
+          <circle cx="180" cy="320" r="80" fill="#14f195" fill-opacity=".07"/>
+          <circle class="fw-pot" cx="180" cy="320" r="64"/>
+          <text class="fw-pot-cap" x="180" y="316" text-anchor="middle" font-size="12">THE POT</text>
+          <text class="fw-cap" x="180" y="338" text-anchor="middle" font-size="9" style="letter-spacing: 1px;">FILLS EVERY ROUND</text>
+          <g font-size="14" font-weight="700" text-anchor="middle">
+            <rect class="fw-node" x="20" y="452" width="150" height="48" rx="12"/><text class="fw-label" x="95" y="481">Or it rolls over</text>
+            <rect x="190" y="452" width="150" height="48" rx="12" fill="#14f195"/><text x="265" y="481" fill="#062015">Winners split it</text>
+          </g>
+        </svg>
+      </section>
+
+      <section class="bp-ideas" aria-label="What to take from it">
+        <div class="bp-idea">
+          <span class="bp-idea-n">1</span>
+          <h3>You can see the source</h3>
+          <p>Fees, yield and lapsed deposits. All on chain.</p>
+        </div>
+        <div class="bp-idea">
+          <span class="bp-idea-n">2</span>
+          <h3>Quiet rounds are the opening</h3>
+          <p>The pot fills on a timer. Fewer players, fewer rivals.</p>
+        </div>
+        <div class="bp-idea">
+          <span class="bp-idea-n blue">3</span>
+          <h3>Attention is rewarded</h3>
+          <p>Nudges steer the meter toward your six.</p>
+        </div>
+      </section>
+
+      <section class="bp-risks" aria-labelledby="bp-risks-h">
+        <h2 id="bp-risks-h">Know the risks</h2>
+        <ul>
+          <li><span><strong>Deposits are refundable,</strong> <span data-net="sepolia">for six rounds after your last one.</span><span data-net="mainnet">for six rounds after your last one.</span></span></li>
+          <li><span><strong>Chance-weighted.</strong> Winning is never assured.</span></li>
+          <li data-net="sepolia"><span><strong>Testnet.</strong> Unaudited, and nothing here has monetary value.</span></li>
+          <li data-net="mainnet"><span><strong>Capped beta.</strong> Ahead of the audit. Use only what you can lose.</span></li>
+        </ul>
+      </section>
+
+      <div class="bp-back-wrap">
+        <button type="button" class="bp-back tap" data-view="play">&larr; How do I play?</button>
+      </div>
+    </div><!-- /view-bigger -->
 
   </div>
 
@@ -318,6 +516,56 @@
           body.appendChild(b);
         });
         render();
+        // Steps hidden behind the other view don't count as visible; recount on return.
+        document.addEventListener("start:view", render);
+      }
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+    })();
+
+    // Two views with their own hashes: #play (default) and #bigger-picture.
+    (function () {
+      var HASH = { play: "#play", bigger: "#bigger-picture" };
+      function init() {
+        var wrap = document.querySelector(".start-wrap");
+        var tabs = { play: document.getElementById("tab-play"), bigger: document.getElementById("tab-bigger") };
+        var panels = { play: document.getElementById("view-play"), bigger: document.getElementById("view-bigger") };
+        if (!tabs.play || !panels.bigger) return;
+        function show(view, opts) {
+          opts = opts || {};
+          var other = view === "bigger" ? "play" : "bigger";
+          panels[view].hidden = false; panels[other].hidden = true;
+          tabs[view].setAttribute("aria-selected", "true"); tabs[view].tabIndex = 0;
+          tabs[other].setAttribute("aria-selected", "false"); tabs[other].tabIndex = -1;
+          wrap.classList.toggle("is-wide", view === "bigger");
+          if (opts.push) {
+            try { history.replaceState(null, "", HASH[view]); } catch (e) {}
+          }
+          if (opts.scroll) {
+            var nav = document.querySelector(".view-tabs");
+            if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: "start" });
+          }
+          if (opts.focus) tabs[view].focus();
+          document.dispatchEvent(new Event("start:view"));
+        }
+        function fromHash() { return location.hash === HASH.bigger ? "bigger" : "play"; }
+        tabs.play.addEventListener("click", function () { show("play", { push: true }); });
+        tabs.bigger.addEventListener("click", function () { show("bigger", { push: true }); });
+        // Arrow keys move between the two tabs (WAI-ARIA tabs pattern).
+        [tabs.play, tabs.bigger].forEach(function (t) {
+          t.addEventListener("keydown", function (e) {
+            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            e.preventDefault();
+            show(t === tabs.play ? "bigger" : "play", { push: true, focus: true });
+          });
+        });
+        document.querySelectorAll("[data-view]").forEach(function (el) {
+          el.addEventListener("click", function (e) {
+            e.preventDefault();
+            show(el.getAttribute("data-view"), { push: true, scroll: true, focus: true });
+          });
+        });
+        window.addEventListener("hashchange", function () { show(fromHash()); });
+        if (fromHash() === "bigger") show("bigger");
       }
       if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
     })();
