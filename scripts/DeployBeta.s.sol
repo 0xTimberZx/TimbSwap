@@ -18,6 +18,8 @@ interface IYieldVaultAdmin {
     function setTimbPrize(address) external;
     function gameRegistry() external view returns (address);
     function timbPrize() external view returns (address);
+    function setYieldAPRBps(uint256 aprBps) external;
+    function ratePerSecond1e18() external view returns (uint256);
 }
 
 interface IAirdropPause {
@@ -75,7 +77,11 @@ interface IAirdropPause {
  *   EXPECT_OLD_PRIZE         0x70e7c0c1470a5d79728cd5676940883e981365ed
  *   EXPECT_OLD_REGISTRY      0x8c40ed0cce3585b694a45106314b09dff4e04137
  *   Optional overrides (beta defaults shown):
- *   TIMBS_ENTRY_FLOOR=500e18  TIMBS_STEP=100e18   (TIMBS leg is off; ctor needs non-zero)
+ *   TIMBS_ENTRY_FLOOR=100e18  TIMBS_STEP=10e18    (TIMBS leg is off in the beta; immutable,
+ *                                                  so these carry into the TIMBS launch)
+ *   PROTOCOL_CUT_BPS=0       (everything collected goes to the pot for now, decided 2026-11-13)
+ *   YIELD_APR_BPS=10000      (on the flat 0.0001 ETH weight = 10% a year on a 0.001 ETH ticket;
+ *                             yield goes to the pot. Fund the vault after the deploy.)
  *   FAUCET_DRIP_ETH=1e13    FAUCET_POT_ETH=1e13    FAUCET_COOLDOWN=86400
  *   FAUCET_ETH_CAP=1.5e18   (the faucet is self-funded: send its ETH budget to the faucet)
  *   REFUND_WINDOW_ROUNDS=6  (4..24; 6 for the ETH beta, staged to 12 for the TIMBS launch, fix list 70)
@@ -117,6 +123,7 @@ contract DeployBeta is Script {
         uint256 refundWindow;                      // fix list 70
         uint256 cutBps;                            // protocol cut per settlement
         uint256 nudgeFloor;                        // public free-nudge pool floor
+        uint256 yieldAprBps;                       // vault rate on the flat ticket weight
     }
 
     struct Deployed {
@@ -169,14 +176,18 @@ contract DeployBeta is Script {
         c.vrfConfs  = uint16(vm.envOr("VRF_CONFIRMATIONS", uint256(3)));
         c.vrfCbGas  = uint32(vm.envOr("VRF_CALLBACK_GAS", uint256(200_000)));
         c.refundWindow = vm.envOr("REFUND_WINDOW_ROUNDS", uint256(6));
-        // Beta: 0.5% of the pot per settlement (decided 2026-10-30; the contract
-        // default is 2%, at most 10%).
-        c.cutBps    = vm.envOr("PROTOCOL_CUT_BPS", uint256(50));
+        // Beta: no cut. Everything collected goes to the pot for now (decided
+        // 2026-11-13; was 0.5%). The contract default is 2%, at most 10%.
+        c.cutBps    = vm.envOr("PROTOCOL_CUT_BPS", uint256(0));
         require(c.cutBps <= 1_000, "PROTOCOL_CUT_BPS above the 10% cap");
         // TS-055: free nudges are ticket-backed. The public pool's floor is not
         // published, so it comes from the operator's env, never a default here.
         c.nudgeFloor = vm.envUint("PUBLIC_NUDGE_FLOOR");
         require(c.nudgeFloor > 0, "PUBLIC_NUDGE_FLOOR must be set");
+        // Vault rate on the flat 0.0001 ETH weight per ticket: 10_000 = 10% a
+        // year on a 0.001 ETH ticket (decided 2026-11-14). Yield goes to the pot.
+        c.yieldAprBps = vm.envOr("YIELD_APR_BPS", uint256(10_000));
+        require(c.yieldAprBps <= 50_000, "YIELD_APR_BPS above 50% on a 0.001 ETH ticket");
     }
 
     /// @dev Registry + entropy + prize, wired to each other, to the new router
@@ -184,8 +195,8 @@ contract DeployBeta is Script {
     function _deployGame(Cfg memory c, Deployed memory d) internal {
         d.registry = new GameRegistry(
             c.timbs, c.sink, address(0),
-            vm.envOr("TIMBS_ENTRY_FLOOR", uint256(500e18)),
-            vm.envOr("TIMBS_STEP", uint256(100e18))
+            vm.envOr("TIMBS_ENTRY_FLOOR", uint256(100e18)), // decided 2026-11-13
+            vm.envOr("TIMBS_STEP", uint256(10e18))
         );
         d.entropy = new VRFEntropy(c.vrfCoord, c.vrfKeyHash, c.vrfSubId, c.vrfConfs, c.vrfCbGas, c.vrfExtra);
         d.prize   = new TimbPrize(c.escrow, address(d.registry), address(d.router));
@@ -213,6 +224,7 @@ contract DeployBeta is Script {
         EligibleTokenRegistry(c.eligible).registerConsumer(address(d.prize));
         IYieldVaultAdmin(c.vault).setGameRegistry(address(d.registry));
         IYieldVaultAdmin(c.vault).setTimbPrize(address(d.prize));
+        IYieldVaultAdmin(c.vault).setYieldAPRBps(c.yieldAprBps);
     }
 
     /// @dev New treasury (fee-sender check). The new router's 0.05% fee goes to
@@ -347,6 +359,7 @@ contract DeployBeta is Script {
         require(PrizeEscrow(payable(c.escrow)).timbPrize() == address(d.prize),  "escrow must pay the new prize");
         require(IYieldVaultAdmin(c.vault).timbPrize() == address(d.prize),       "vault must accrue to the new prize");
         require(IYieldVaultAdmin(c.vault).gameRegistry() == address(d.registry), "vault must weigh the new registry");
+        require(IYieldVaultAdmin(c.vault).ratePerSecond1e18() == c.yieldAprBps * 1e18 / 10_000 / 365 days, "vault rate as configured");
         require(d.prize.yieldVault() == c.vault && d.registry.yieldVault() == c.vault, "game must use the live vault");
         require(d.registry.timbPrize() == address(d.prize),                     "registry must report to the new prize");
         require(address(d.prize.entropy()) == address(d.entropy),               "prize must draw from the new entropy");
@@ -371,6 +384,7 @@ contract DeployBeta is Script {
         console.log("NEXT (dev-docs/BETA_ETH_ONLY.md, deploy checklist):");
         console.log("1. Add PrizeVRFEntropy as a consumer on VRF sub", c.vrfSubId, "; remove the old entropy");
         console.log("2. Send the faucet's ETH budget to the faucet itself (it pays claims from its own reserve)");
+        console.log("   Fund the yield vault reserve (TimbYieldVault.fund) and seed the pot (TimbPrize.addToPot)");
         console.log("3. Record the six addresses (incl. the new router) in MAINNET_ADDRESSES.md and config.mainnet.js");
         console.log("4. TimbPrize.startGame()  (opens round 1)");
         console.log("5. Keepers: settler, faucet, top-trader on the mainnet dispatcher/settler keys");
