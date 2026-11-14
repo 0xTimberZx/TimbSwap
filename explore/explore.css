@@ -5,9 +5,9 @@
   padding: 40px 24px 80px;
 }
 
-.explore-head { margin-bottom: 24px; }
+.explore-head { margin-bottom: 8px; }
 
-.explore-search { margin: 4px 0 20px; }
+.explore-search { margin: 16px 0 20px; }
 .explore-search-input {
   width: 100%;
   box-sizing: border-box;
@@ -28,7 +28,7 @@
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 2px;
-  color: var(--text-3);
+  color: var(--text-2);
   margin-bottom: 12px;
   margin-top: 36px;
 }
@@ -51,7 +51,7 @@
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.5px;
-  color: var(--text-3);
+  color: var(--text-2);
   margin-bottom: 8px;
 }
 
@@ -66,7 +66,7 @@
 
 .metric-sub {
   font-size: 11px;
-  color: var(--text-3);
+  color: var(--text-2);
   font-family: var(--mono);
 }
 
@@ -94,7 +94,7 @@
 .data-refresh {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 /* ─── Data Table ─────────────────────────────────────────────────────────── */
@@ -113,7 +113,7 @@
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.5px;
-  color: var(--text-3);
+  color: var(--text-2);
   font-weight: 600;
   text-align: left;
   padding: 10px 20px;
@@ -135,7 +135,7 @@
 
 .table-empty {
   text-align: center;
-  color: var(--text-3) !important;
+  color: var(--text-2) !important;
   padding: 28px 20px !important;
   font-size: 13px !important;
 }

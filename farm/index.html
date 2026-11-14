@@ -35,8 +35,8 @@
       window.DebugHub = { startSession:()=>{}, endSession:()=>{}, logCheckpoint:()=>{}, logError:()=>{}, logPerf:()=>{}, logSecurity:()=>{} };
     }
   </script>
-  <link rel="stylesheet" href="../style.css?v=20260902a" />
-  <link rel="stylesheet" href="farm.css?v=20260725c" />
+  <link rel="stylesheet" href="../style.css?v=20261114v" />
+  <link rel="stylesheet" href="farm.css?v=20261114t" />
 </head>
 <body>
 
@@ -152,9 +152,9 @@
         </button>
         <div class="pool-input-row">
           <input id="staking-amount" class="pool-input" type="number" placeholder="0.0 TIMBS" />
-          <button class="pool-max-btn" onclick="setAmount('staking', 100)">MAX</button>
-          <button class="pool-max-btn" onclick="setAmount('staking', 50)">50%</button>
           <button class="pool-max-btn" onclick="setAmount('staking', 25)">25%</button>
+          <button class="pool-max-btn" onclick="setAmount('staking', 50)">50%</button>
+          <button class="pool-max-btn" onclick="setAmount('staking', 100)">MAX</button>
         </div>
         <div class="pool-bal" id="staking-wallet" onclick="setAmount('staking', 100)" title="Use full balance">Balance: —</div>
 
@@ -202,9 +202,9 @@
 
         <div class="pool-input-row">
           <input id="farm-amount" class="pool-input" type="number" placeholder="0.0 LP" />
-          <button class="pool-max-btn" onclick="setAmount('farm', 100)">MAX</button>
-          <button class="pool-max-btn" onclick="setAmount('farm', 50)">50%</button>
           <button class="pool-max-btn" onclick="setAmount('farm', 25)">25%</button>
+          <button class="pool-max-btn" onclick="setAmount('farm', 50)">50%</button>
+          <button class="pool-max-btn" onclick="setAmount('farm', 100)">MAX</button>
         </div>
         <div class="pool-bal" id="farm-wallet" onclick="setAmount('farm', 100)" title="Use full balance">Balance: —</div>
 
