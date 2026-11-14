@@ -5,19 +5,19 @@
    Drop-in replacement for MyDapp/debughub/sdk/debugger.js.
 
    Usage: add this script tag BEFORE your app.js, and define
-     window.DEBUGHUB_CONFIG = {
-       appName:     "TimbSwap",
-      // Optional first-party relay and direct compatibility sink. When
-      // configured the SDK POSTs
-       // every event to Supabase in addition to localStorage, so the
-       // hub can aggregate across origins AND devices. Omit them and
-       // the SDK behaves exactly like 1.1.0 (localStorage only).
-      telemetryUrl: "https://timbswap.xyz/api/debughub_events",
-      supabaseUrl: "https://REPLACE_WITH_MAINNET_SUPABASE_REF.supabase.co",
-       supabaseKey: "REPLACE_WITH_MAINNET_SUPABASE_PUBLISHABLE_KEY"
-     };
-   before it loads. supabaseUrl/Key are read lazily (at send time), so
-   a later script (e.g. config.js) may fill them in after this SDK loads.
+     window.DEBUGHUB_CONFIG = { appName: "TimbSwap" };
+   before it loads. With only appName the SDK is localStorage-only: events
+   stay in the visitor's browser and transmit() returns before any fetch.
+   This is how timbswap.xyz runs today (config.js); the /api/debughub_events
+   relay was removed from the Worker and the debughub_events table dropped.
+
+   Optional network sink (NOT configured anywhere; for a future aggregated
+   hub only): telemetryUrl (a first-party relay) and/or supabaseUrl +
+   supabaseKey (direct insert). They are read lazily at send time. Do not
+   set them until the backend is hardened: no public read, reads behind
+   service-role or auth, wallet addresses hashed or dropped, the relay
+   rate-limited, and the hub brought into the bug bounty scope (see the
+   DebugHub block in config.js and SECURITY.md).
 
    Exposes window.DebugHub with:
      startSession() / endSession()
