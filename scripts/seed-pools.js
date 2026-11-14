@@ -29,9 +29,12 @@
 //   SEED_RPC                 Arbitrum One RPC (default https://arb1.arbitrum.io/rpc)
 //   SEED_PRIVATE_KEY         the LP wallet key; --execute only; never pasted anywhere
 //   SEED_ROUTER, SEED_FACTORY   MAINNET_ADDRESSES.md Phase 1 (defaults below)
-//   TOKEN_WBTC, TOKEN_WETH, TOKEN_USDC, TOKEN_USDT, TOKEN_LINK   canonical tokens
-//   FEED_BTC_USD, FEED_ETH_USD, FEED_USDC_USD, FEED_USDT_USD, FEED_LINK_USD   Chainlink
-//   SEED_PAIRS               default "WBTC/WETH,WBTC/USDC,WETH/USDT,LINK/WETH"
+//   TOKEN_WBTC, TOKEN_WETH, TOKEN_USDC, TOKEN_USDT, TOKEN_LINK, TOKEN_ARB   canonical tokens
+//   FEED_BTC_USD, FEED_ETH_USD, FEED_USDC_USD, FEED_USDT_USD, FEED_LINK_USD, FEED_ARB_USD   Chainlink
+//                            (only the tokens and feeds of the chosen pairs are read)
+//   SEED_PAIRS               "A/B,C/D" or a preset name; default "WBTC/WETH,WBTC/USDC,WETH/USDT,LINK/WETH"
+//                            presets: "beta" = WETH/USDC,WBTC/WETH,ARB/WETH (the three
+//                            nudge pairs DeployBeta requires); "phase1" = the default
 //   SEED_USD_PER_SIDE        USD of EACH token per pool — REQUIRED, a per-run decision
 //   SEED_LP_TO               LP token recipient (default: the sending wallet; use the Safe)
 //   SEED_SLIPPAGE_BPS        min-amount tolerance on the add (default 100 = 1 %)
@@ -56,6 +59,7 @@ const TOKENS = {
   USDC: { env: "TOKEN_USDC", symbol: "USDC", decimals: 6,  feed: "USDC_USD" },
   USDT: { env: "TOKEN_USDT", symbol: "USDT", decimals: 6,  feed: "USDT_USD" },
   LINK: { env: "TOKEN_LINK", symbol: "LINK", decimals: 18, feed: "LINK_USD" },
+  ARB:  { env: "TOKEN_ARB",  symbol: "ARB",  decimals: 18, feed: "ARB_USD" },
 };
 const FEEDS = {
   BTC_USD:  { env: "FEED_BTC_USD",  description: "BTC / USD" },
@@ -63,6 +67,14 @@ const FEEDS = {
   USDC_USD: { env: "FEED_USDC_USD", description: "USDC / USD" },
   USDT_USD: { env: "FEED_USDT_USD", description: "USDT / USD" },
   LINK_USD: { env: "FEED_LINK_USD", description: "LINK / USD" },
+  ARB_USD:  { env: "FEED_ARB_USD",  description: "ARB / USD" },
+};
+
+// Named pair sets for SEED_PAIRS. "beta" is exactly the three pairs DeployBeta
+// designates for nudges (TS-052) and refuses to run without.
+const PRESETS = {
+  phase1: "WBTC/WETH,WBTC/USDC,WETH/USDT,LINK/WETH",
+  beta:   "WETH/USDC,WBTC/WETH,ARB/WETH",
 };
 
 const DEFAULTS = {
@@ -70,7 +82,7 @@ const DEFAULTS = {
   chainId:   42161,
   router:    "0x4f33df838c0d357c7f1a44ffb5ee0fc49a62b5fe",   // MAINNET_ADDRESSES.md Phase 1
   factory:   "0x60d4f18fe205c0ed38507a8fbf89aaa1bd2ce183",
-  pairs:     "WBTC/WETH,WBTC/USDC,WETH/USDT,LINK/WETH",
+  pairs:     "WBTC/WETH,WBTC/USDC,WETH/USDT,LINK/WETH",   // = PRESETS.phase1
   slippageBps: 100,
   maxDeviationBps: 50,
   feedMaxAge: 3600,
@@ -79,8 +91,10 @@ const DEFAULTS = {
 
 // ─── Pure math (exported for --self-test) ───────────────────────────────────
 
-/** "A/B,C/D" → [["A","B"],["C","D"]]; validates symbols and rejects A/A. */
+/** "A/B,C/D" or a preset name → [["A","B"],["C","D"]]; validates symbols and rejects A/A. */
 function parsePairs(str, known = Object.keys(TOKENS)) {
+  const preset = PRESETS[str.trim().toLowerCase()];
+  if (preset) str = preset;
   return str.split(",").map((s) => s.trim()).filter(Boolean).map((p) => {
     const [a, b] = p.split("/").map((x) => x.trim().toUpperCase());
     if (!known.includes(a) || !known.includes(b)) throw new Error(`unknown token in pair "${p}"`);
@@ -169,6 +183,13 @@ function selfTest() {
   eq("pairs parse",            parsePairs("wbtc/weth, LINK/WETH"), [["WBTC", "WETH"], ["LINK", "WETH"]]);
   throws("unknown token rejected", () => parsePairs("WBTC/DOGE"));
   throws("same token rejected",    () => parsePairs("WETH/WETH"));
+  eq("beta preset",            parsePairs("beta"), [["WETH", "USDC"], ["WBTC", "WETH"], ["ARB", "WETH"]]);
+  eq("preset is case-blind",   parsePairs(" Beta "), parsePairs("beta"));
+  eq("phase1 preset = default", parsePairs("phase1"), parsePairs(DEFAULTS.pairs));
+  eq("ARB pair parses",        parsePairs("arb/weth"), [["ARB", "WETH"]]);
+  eq("every token has a feed", Object.values(TOKENS).every((t) => FEEDS[t.feed]), true);
+  // $600 of ARB at $0.50 is 1,200 ARB (18 decimals).
+  eq("$600 of ARB at $0.50",   amountForUsd(600, 5n * 10n ** 7n, 18), 1_200n * 10n ** 18n);
 
   eq("$600 of BTC is 0.01 BTC (8 dec)",   amountForUsd(600, BTC, 8),   1_000_000n);
   eq("$600 of ETH is 0.2 ETH (18 dec)",   amountForUsd(600, ETH, 18),  200_000_000_000_000_000n);
