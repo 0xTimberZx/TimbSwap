@@ -148,7 +148,10 @@ contract DeployBetaRehearsalTest is Test {
         leakedDeployer.run();
         vm.setEnv("SETTLER_ADDR", vm.toString(address(0)));
 
-        // 2. Named correctly, it deploys and wires everything.
+        // 2. Named correctly, it deploys and wires everything. The game fixture
+        //    set TIMBS pricing env for itself; give the beta its own values.
+        vm.setEnv("TIMBS_ENTRY_FLOOR", "100000000000000000000");
+        vm.setEnv("TIMBS_STEP", "10000000000000000000");
         new DeployBeta().run();
 
         // TS-009: a new router replaces the live one; the old one is paused.
@@ -181,7 +184,11 @@ contract DeployBetaRehearsalTest is Test {
         assertEq(reg.lapsePotBps(), 10_000);
         assertEq(reg.refundWindowRounds(), 6, "refund window: beta default (fix list 70)");
         assertEq(reg.pendingRefundWindowRounds(), 0);
-        assertEq(prize.protocolCutBps(), 50, "0.5% round sweep (PROTOCOL_CUT_BPS default)");
+        assertEq(prize.protocolCutBps(), 0, "no round cut: everything to the pot (PROTOCOL_CUT_BPS default)");
+        assertEq(reg.TIMBS_ENTRY_FLOOR(), 100e18, "TIMBS entry floor 100");
+        assertEq(reg.TIMBS_STEP(), 10e18, "TIMBS step +10 per active entry");
+        assertEq(game.yieldVault().ratePerSecond1e18(), uint256(10_000) * 1e18 / 10_000 / 365 days,
+            "vault rate: 10% a year on a 0.001 ETH ticket (YIELD_APR_BPS default)");
         assertTrue(newRouter.treasury() != SAFE, "router fee -> new treasury");
         assertEq(TimbTreasury(payable(newRouter.treasury())).router(), address(newRouter), "treasury -> new router");
         assertEq(newRouter.protocolFeeBps(), 0, "router fee 0: all-in 0.30%");
