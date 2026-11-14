@@ -79,6 +79,8 @@ interface IAirdropPause {
  *   FAUCET_DRIP_ETH=1e13    FAUCET_POT_ETH=1e13    FAUCET_COOLDOWN=86400
  *   FAUCET_ETH_CAP=1.5e18   (the faucet is self-funded: send its ETH budget to the faucet)
  *   REFUND_WINDOW_ROUNDS=6  (4..24; 6 for the ETH beta, staged to 12 for the TIMBS launch, fix list 70)
+ *   Required, kept out of the repo:
+ *   PUBLIC_NUDGE_FLOOR       public free-nudge pool floor per segment (FREE_NUDGE_POOL_SPEC)
  *
  * Run (read-only pre-flight, then simulate without --broadcast and read the
  * PRE-FLIGHT block, then broadcast and fill config.mainnet.js from the receipt):
@@ -99,6 +101,12 @@ interface ITimbSwapFactoryAdmin {
 }
 
 contract DeployBeta is Script {
+    // Free-nudge allowances for the beta (TS-055, FREE_NUDGE_POOL_SPEC). The
+    // public pool's floor is not here: it comes from PUBLIC_NUDGE_FLOOR.
+    uint256 internal constant BETA_TICKET_NUDGES     = 10;
+    uint256 internal constant BETA_PUBLIC_PER_WALLET = 3;
+    uint256 internal constant BETA_PER_TICKET_PUBLIC = 10;
+
     struct Cfg {
         address timbs; address sink; address escrow; address router; address eligible;
         address vault; address staking; address pair; address weth; address airdrop;
@@ -108,6 +116,7 @@ contract DeployBeta is Script {
         uint16 vrfConfs; uint32 vrfCbGas;
         uint256 refundWindow;                      // fix list 70
         uint256 cutBps;                            // protocol cut per settlement
+        uint256 nudgeFloor;                        // public free-nudge pool floor
     }
 
     struct Deployed {
@@ -164,6 +173,10 @@ contract DeployBeta is Script {
         // default is 2%, at most 10%).
         c.cutBps    = vm.envOr("PROTOCOL_CUT_BPS", uint256(50));
         require(c.cutBps <= 1_000, "PROTOCOL_CUT_BPS above the 10% cap");
+        // TS-055: free nudges are ticket-backed. The public pool's floor is not
+        // published, so it comes from the operator's env, never a default here.
+        c.nudgeFloor = vm.envUint("PUBLIC_NUDGE_FLOOR");
+        require(c.nudgeFloor > 0, "PUBLIC_NUDGE_FLOOR must be set");
     }
 
     /// @dev Registry + entropy + prize, wired to each other, to the new router
@@ -210,17 +223,18 @@ contract DeployBeta is Script {
 
     /// @dev New router (TS-009: swap nudges need a minimum input, which the
     ///      live router lacks). Same factory and WETH as the live router; its
-    ///      swap-nudge weight is copied. Free nudges are off (TS-055).
+    ///      swap-nudge weight is copied. Free nudges are ticket-backed (TS-055).
     ///      WETH/ETH gets the default 0.001 ETH floor; any other token earns no
     ///      nudges until setMinNudgeAmountIn is called for it.
     function _deployRouter(Cfg memory c, TimbTreasury t) internal returns (TimbSwapRouter r) {
         TimbSwapRouter old = TimbSwapRouter(payable(c.router));
         r = new TimbSwapRouter(old.factory(), address(t), c.eligible, address(0), c.weth);
         if (r.swapNudgeWeight() != old.swapNudgeWeight())       r.setSwapNudgeWeight(old.swapNudgeWeight());
-        // TS-055: the free-nudge cap is per address, so N wallets get N
-        // allowances for gas alone. Free nudges are off in the beta; only paid
-        // swaps through the designated pairs steer the class.
-        r.setFreeNudgeCapPerSeg(0);
+        // TS-055: a per-address cap gave N wallets N allowances for gas alone.
+        // Free nudges are now ticket-backed: 10 per segment for a wallet with a
+        // ticket in play; 3 per wallet from a public pool of floor + 10 per live
+        // ticket for everyone else (FREE_NUDGE_POOL_SPEC, decided 2026-11-14).
+        r.setFreeNudgeConfig(BETA_TICKET_NUDGES, BETA_PUBLIC_PER_WALLET, c.nudgeFloor, BETA_PER_TICKET_PUBLIC);
         // TS-052: swaps earn nudges only through designated pairs. Beta list:
         // WETH/USDC, WBTC/WETH, ARB/WETH. The pairs must already exist (checked
         // in _preflight; the script never creates one). TIMBS/WETH is added at
@@ -322,7 +336,9 @@ contract DeployBeta is Script {
         require(d.router.nudgePairs(IFactoryPairs(old.factory()).getPairAddress(c.wbtc, c.weth)), "WBTC/WETH must be a nudge pair (TS-052)");
         require(d.router.nudgePairs(IFactoryPairs(old.factory()).getPairAddress(c.arb,  c.weth)), "ARB/WETH must be a nudge pair (TS-052)");
         require(!d.router.nudgePairs(c.pair),                    "TIMBS/WETH is not a nudge pair until TIMBS launch (TS-052)");
-        require(d.router.freeNudgeCapPerSeg() == 0,             "beta: free nudges must be off (TS-055)");
+        require(d.router.ticketNudgesPerSeg() == BETA_TICKET_NUDGES,        "beta: 10 free nudges per ticket per segment (TS-055)");
+        require(d.router.publicNudgesPerWallet() == BETA_PUBLIC_PER_WALLET, "beta: 3 public nudges per wallet (TS-055)");
+        require(d.router.perTicketPublicNudges() == BETA_PER_TICKET_PUBLIC, "beta: +10 public nudges per live ticket (TS-055)");
         require(old.paused(),                                   "old router must be paused");
         require(d.router.protocolFeeBps() == 0,                 "router fee must be 0 (all-in 0.30%)");
         require(ITimbSwapFactoryAdmin(old.factory()).feeTo() == address(d.treasury), "pool protocol share must go to the new treasury");

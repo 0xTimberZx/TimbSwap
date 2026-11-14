@@ -37,6 +37,13 @@ interface ITimbPrize {
     function isSettlementWindow() external view returns (bool);
     function currentRound() external view returns (uint256);
     function currentSegment() external view returns (uint256);
+    function gameRegistry() external view returns (address);
+}
+
+/// @dev The registry surface the free-nudge allowance reads (FREE_NUDGE_POOL_SPEC).
+interface IGameRegistryNudge {
+    function verifyEntryValid(address player, uint256 round) external view returns (bool valid, bytes6 string6);
+    function liveEntrantCount(uint256 round) external view returns (uint256);
 }
 
 interface IWETH {
@@ -106,10 +113,31 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     /// @notice Default WETH/ETH floor seeded at construction.
     uint256 public constant DEFAULT_WETH_NUDGE_FLOOR = 0.001 ether;
 
-    /// @notice #1 — max gas-only (advanceScroll) nudges one address may make
-    ///         per segment. Paid swap-nudges are NOT capped (they cost fees
-    ///         per wallet, so sybil doesn't help). 0 = free path disabled.
-    uint256 public freeNudgeCapPerSeg = 10;
+    /// @notice Free (gas-only, advanceScroll) nudges, ticket-backed (TS-055).
+    ///         A per-address cap alone gave N wallets N allowances for gas.
+    ///         Now, per segment:
+    ///         - a wallet with a ticket IN PLAY this round (registry
+    ///           verifyEntryValid) gets `ticketNudgesPerSeg` of its own and
+    ///           never draws on the public pool;
+    ///         - any other wallet may take up to `publicNudgesPerWallet` from a
+    ///           shared public pool of
+    ///           floor + perTicketPublicNudges × live tickets this round.
+    ///         Tickets count from their play round only: before it they can be
+    ///         cancelled for a full refund, so earlier credit would be free.
+    ///         Paid swap-nudges are NOT capped (they cost fees per wallet).
+    uint256 public ticketNudgesPerSeg    = 10;
+    uint256 public publicNudgesPerWallet = 3;
+    uint256 public perTicketPublicNudges = 10;
+    /// @dev Public-pool floor per segment. Not published: kept out of the ABI
+    ///      (no getter) and out of this source (starts at 0; the deploy script
+    ///      sets it from the operator's env). It is still readable from storage
+    ///      and from the setter's calldata, which is accepted.
+    uint256 private _publicNudgeFloor;
+
+    /// @notice Bounds for setFreeNudgeConfig.
+    uint256 public constant MAX_FREE_NUDGES_PER_WALLET = 50;
+    uint256 public constant MAX_PUBLIC_NUDGE_FLOOR     = 10_000;
+    uint256 public constant MAX_PER_TICKET_PUBLIC      = 100;
 
     /// @notice Free-nudge usage, keyed by keccak256(timbPrize, round, segment,
     ///         user) so the cap auto-resets every segment with no cleanup, AND is
@@ -121,6 +149,11 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     ///         report "free nudges used" on the fresh game (gen-3 hit exactly
     ///         this — see dev-docs/GEN3_MIGRATION.md).
     mapping(bytes32 => uint256) public freeNudgesUsed;
+
+    /// @notice Public-pool usage per segment, keyed by
+    ///         keccak256(timbPrize, round, segment) — same namespacing as
+    ///         freeNudgesUsed, so it resets each segment and generation.
+    mapping(bytes32 => uint256) public publicNudgesUsed;
 
     // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -159,7 +192,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     event Paused(address indexed by);
     event Unpaused(address indexed by);
     event SwapNudgeWeightSet(uint256 weight);
-    event FreeNudgeCapSet(uint256 capPerSegment);
+    event FreeNudgeConfigSet(uint256 ticketPerSeg, uint256 publicPerWallet, uint256 perTicketPublic);
     event MinNudgeAmountInSet(address indexed token, uint256 minAmountIn);
     event NudgePairSet(address indexed pair, bool allowed);
     event ProtocolFeeBpsSet(uint256 bps);
@@ -187,6 +220,7 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
     error InvalidPath();
     error ProtocolFeeTooHigh(uint256 bps, uint256 max);
     error InvalidTo(address to);
+    error FreeNudgeConfigOutOfRange();
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
 
@@ -744,26 +778,31 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
      *      so no TimbPrize change is needed. Each iteration inherits
      *      TimbPrize's own guards (whenGameStarted, settlement-window block).
      *
-     *      #1 — this free (gas-only) path is capped per address per segment so
-     *      one wallet can't dominate the meter for free. The request is
-     *      CLAMPED to the remaining allowance rather than reverted, so a batch
-     *      that overshoots still applies what it can; it only reverts when the
-     *      caller has no allowance left this segment. Paid swap-nudges are not
-     *      capped (see _maybeNudge).
+     *      #1 / TS-055 — this free (gas-only) path is ticket-backed: a
+     *      wallet with a ticket in play spends its own per-segment allowance;
+     *      anyone else draws a small per-wallet share of a public pool that
+     *      grows with the tickets in play (see ticketNudgesPerSeg). The
+     *      request is CLAMPED to the remaining room rather than reverted, so a
+     *      batch that overshoots still applies what it can; it only reverts
+     *      when the caller has no room left this segment. Paid swap-nudges are
+     *      not capped (see _maybeNudge).
      */
     function advanceScroll(uint256 count)
         external
         nonReentrant
         whenNotPaused
     {
-        if (timbPrize == address(0)) revert PrizeNotSet();
+        address prize = timbPrize;
+        if (prize == address(0)) revert PrizeNotSet();
         if (count == 0 || count > MAX_BATCH_NUDGE) {
             revert InvalidNudgeCount(count, MAX_BATCH_NUDGE);
         }
 
-        uint256 round = ITimbPrize(timbPrize).currentRound();
-        uint256 seg   = ITimbPrize(timbPrize).currentSegment();
-        if (_freeNudgeRoom(round, seg) == 0) revert FreeNudgeCapReached(round, seg);
+        uint256 round = ITimbPrize(prize).currentRound();
+        uint256 seg   = ITimbPrize(prize).currentSegment();
+        (uint256 room, bool holder) = _freeNudgeRoom(prize, round, seg, msg.sender);
+        if (room == 0) revert FreeNudgeCapReached(round, seg);
+        uint256 n = count < room ? count : room;
 
         // TS-013: a nudge in the settlement window settles the segment, so the
         // rest of the batch would land in the NEXT segment. Charge each nudge to
@@ -772,35 +811,88 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         // TS-029: while the segment awaits its VRF word, nudgeScroll is a
         // deliberate no-op. A no-op must not spend the caller's allowance, and
         // every later call in the batch would no-op too, so end the batch.
-        for (uint256 i = 0; i < count; i++) {
-            if (_freeNudgeRoom(round, seg) == 0) break;
-            uint256 posBefore = ITimbPrize(timbPrize).positionCounter();
-            ITimbPrize(timbPrize).nudgeScroll();
-            if (ITimbPrize(timbPrize).positionCounter() == posBefore) break;
-            uint256 r2 = ITimbPrize(timbPrize).currentRound();
-            uint256 s2 = ITimbPrize(timbPrize).currentSegment();
-            // Namespaced by the prize instance so a reused router doesn't carry
-            // stale per-(round,segment) usage across a game-generation migration.
-            freeNudgesUsed[keccak256(abi.encode(timbPrize, r2, s2, msg.sender))]++;
-            if (r2 != round || s2 != seg) break;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 posBefore = ITimbPrize(prize).positionCounter();
+            ITimbPrize(prize).nudgeScroll();
+            if (ITimbPrize(prize).positionCounter() == posBefore) break;
+            uint256 r2 = ITimbPrize(prize).currentRound();
+            uint256 s2 = ITimbPrize(prize).currentSegment();
+            if (r2 != round || s2 != seg) {
+                // Landed in the next segment (possibly the next round, where
+                // the caller's ticket status may differ): charge it there.
+                _chargeFreeNudge(prize, r2, s2, msg.sender, _isTicketHolder(prize, r2, msg.sender));
+                break;
+            }
+            _chargeFreeNudge(prize, round, seg, msg.sender, holder);
         }
         emit ScrollNudged(msg.sender, address(0)); // address(0) = direct nudge
     }
 
-    function _freeNudgeRoom(uint256 round, uint256 seg) internal view returns (uint256) {
-        uint256 used = freeNudgesUsed[keccak256(abi.encode(timbPrize, round, seg, msg.sender))];
-        return freeNudgeCapPerSeg > used ? freeNudgeCapPerSeg - used : 0;
+    /// @dev True when `user` holds a ticket in play for `round` — the same
+    ///      check settlement uses (Active, or Pending once its play round has
+    ///      arrived), so it doesn't wait on the activation keeper.
+    function _isTicketHolder(address prize, uint256 round, address user) internal view returns (bool) {
+        address reg = ITimbPrize(prize).gameRegistry();
+        if (reg == address(0)) return false;
+        (bool valid,) = IGameRegistryNudge(reg).verifyEntryValid(user, round);
+        return valid;
+    }
+
+    /// @dev Remaining free nudges for `user` this segment, and whether they
+    ///      are spending a ticket allowance (true) or the public pool (false).
+    ///      One per-wallet counter serves both, so a wallet that loses its
+    ///      ticket mid-round (concede) can't then add a public share on top.
+    function _freeNudgeRoom(address prize, uint256 round, uint256 seg, address user)
+        internal
+        view
+        returns (uint256 room, bool holder)
+    {
+        uint256 used = freeNudgesUsed[keccak256(abi.encode(prize, round, seg, user))];
+        holder = _isTicketHolder(prize, round, user);
+        if (holder) {
+            return (ticketNudgesPerSeg > used ? ticketNudgesPerSeg - used : 0, true);
+        }
+        uint256 walletRoom = publicNudgesPerWallet > used ? publicNudgesPerWallet - used : 0;
+        if (walletRoom == 0) return (0, false);
+        uint256 pubUsed = publicNudgesUsed[keccak256(abi.encode(prize, round, seg))];
+        uint256 cap     = _publicPoolCap(prize, round);
+        uint256 poolRoom = cap > pubUsed ? cap - pubUsed : 0;
+        return (walletRoom < poolRoom ? walletRoom : poolRoom, false);
+    }
+
+    /// @dev Public pool size for a segment of `round`.
+    function _publicPoolCap(address prize, uint256 round) internal view returns (uint256) {
+        if (publicNudgesPerWallet == 0) return 0;
+        address reg = ITimbPrize(prize).gameRegistry();
+        uint256 live = reg == address(0) ? 0 : IGameRegistryNudge(reg).liveEntrantCount(round);
+        return _publicNudgeFloor + perTicketPublicNudges * live;
+    }
+
+    function _chargeFreeNudge(address prize, uint256 round, uint256 seg, address user, bool holder) internal {
+        // Namespaced by the prize instance so a reused router doesn't carry
+        // stale per-(round,segment) usage across a game-generation migration.
+        freeNudgesUsed[keccak256(abi.encode(prize, round, seg, user))]++;
+        if (!holder) publicNudgesUsed[keccak256(abi.encode(prize, round, seg))]++;
     }
 
     /// @notice Remaining free (gas-only) nudges the caller may make this
-    ///         segment. Frontend reads this to size the Advance batch so a
-    ///         request never overshoots the cap. Resets each segment.
+    ///         segment: their ticket allowance, or their share of what is left
+    ///         in the public pool. Frontend reads this to size the Advance
+    ///         batch so a request never overshoots. Resets each segment.
     function freeNudgesRemaining(address user) external view returns (uint256) {
-        if (timbPrize == address(0)) return 0;
-        uint256 round = ITimbPrize(timbPrize).currentRound();
-        uint256 seg   = ITimbPrize(timbPrize).currentSegment();
-        uint256 used  = freeNudgesUsed[keccak256(abi.encode(timbPrize, round, seg, user))];
-        return freeNudgeCapPerSeg > used ? freeNudgeCapPerSeg - used : 0;
+        address prize = timbPrize;
+        if (prize == address(0)) return 0;
+        uint256 round = ITimbPrize(prize).currentRound();
+        uint256 seg   = ITimbPrize(prize).currentSegment();
+        (uint256 room,) = _freeNudgeRoom(prize, round, seg, user);
+        return room;
+    }
+
+    /// @notice Largest per-segment free allowance any wallet can have (0 =
+    ///         free path off). Kept under the old name so existing readers
+    ///         (the compete page hides the Advance panel on 0) still work.
+    function freeNudgeCapPerSeg() external view returns (uint256) {
+        return ticketNudgesPerSeg > publicNudgesPerWallet ? ticketNudgesPerSeg : publicNudgesPerWallet;
     }
 
     /// @notice The live router protocol fee (bps). Kept under the old
@@ -842,11 +934,29 @@ contract TimbSwapRouter is Ownable2Step, ReentrancyGuard {
         emit SwapNudgeWeightSet(weight);
     }
 
-    /// @notice Owner: set the per-address free-nudge cap per segment (#1).
-    ///         0 disables the free path entirely (swaps still nudge).
-    function setFreeNudgeCapPerSeg(uint256 capPerSegment) external onlyOwner {
-        freeNudgeCapPerSeg = capPerSegment;
-        emit FreeNudgeCapSet(capPerSegment);
+    /// @notice Owner: free-nudge allowances (TS-055, FREE_NUDGE_POOL_SPEC).
+    ///         `ticketPerSeg` for wallets with a ticket in play; `publicPerWallet`
+    ///         from the public pool of `floor` + `perTicketPublic` × live
+    ///         tickets. Both per-wallet values 0 disables the free path (swaps
+    ///         still nudge). The floor is left out of the event on purpose; it
+    ///         is still visible in this call's calldata.
+    function setFreeNudgeConfig(
+        uint256 ticketPerSeg,
+        uint256 publicPerWallet,
+        uint256 floor,
+        uint256 perTicketPublic
+    ) external onlyOwner {
+        if (
+            ticketPerSeg    > MAX_FREE_NUDGES_PER_WALLET ||
+            publicPerWallet > MAX_FREE_NUDGES_PER_WALLET ||
+            floor           > MAX_PUBLIC_NUDGE_FLOOR     ||
+            perTicketPublic > MAX_PER_TICKET_PUBLIC
+        ) revert FreeNudgeConfigOutOfRange();
+        ticketNudgesPerSeg    = ticketPerSeg;
+        publicNudgesPerWallet = publicPerWallet;
+        _publicNudgeFloor     = floor;
+        perTicketPublicNudges = perTicketPublic;
+        emit FreeNudgeConfigSet(ticketPerSeg, publicPerWallet, perTicketPublic);
     }
 
     // ─── Internal: Liquidity Helpers ─────────────────────────────────────────
