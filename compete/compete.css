@@ -41,8 +41,28 @@
     box-shadow: 0 0 20px 1px rgba(130, 165, 200, 0.18);
   }
 }
+/* A slow sheen across the meter card (over its solid fill), in the same
+   spirit as the nudge panel's sweep: a moving highlight, not a fill. */
+.meter-stack .round-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 38%, rgba(255,255,255,0.07) 50%, transparent 62%);
+  background-size: 240% 100%;
+  animation: meter-sheen 9s linear infinite;
+  pointer-events: none;
+}
+@keyframes meter-sheen {
+  0%   { background-position: 140% 0; }
+  100% { background-position: -40% 0; }
+}
+:root[data-theme="light"] .meter-stack .round-header::after {
+  background-image: linear-gradient(100deg, transparent 38%, rgba(20,241,149,0.06) 50%, transparent 62%);
+}
 @media (prefers-reduced-motion: reduce) {
   .meter-stack .round-header { animation: none; }
+  .meter-stack .round-header::after { animation: none; display: none; }
   .advance-panel::before { animation: none; }
 }
 
