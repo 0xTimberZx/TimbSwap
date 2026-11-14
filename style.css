@@ -191,6 +191,8 @@ body { padding-top: 60px; }
   white-space: nowrap;
 }
 @media (max-width: 480px) { .testnet-badge { display: none; } }
+/* Light theme: the amber reads too pale on cream; darken text and border. */
+:root[data-theme="light"] .testnet-badge { color: #8a5a00; background: rgba(224,165,46,0.14); border-color: rgba(176,120,0,0.45); }
 
 .btn-connect {
   background: var(--green);
@@ -362,6 +364,7 @@ body { padding-top: 60px; }
 
 .btn-primary {
   background: var(--green);
+  border: 0;
   color: #000;
   border-radius: var(--radius);
   padding: 12px 24px;
