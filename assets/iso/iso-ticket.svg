@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 150" width="320" height="300" role="img" aria-label="ticket icon"><title>ticket</title>
+<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter><filter id="glowSm" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+<marker id="isoArrG" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#14f195"></path></marker>
+<marker id="isoArrB" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#28a0f0"></path></marker>
+</defs>
+<ellipse cx="80" cy="114" rx="58" ry="22" fill="#14f195" opacity=".38" filter="url(#glow)"></ellipse>
+<path d="M21.1,82.0 L80.0,116.0 L80.0,130.0 L21.1,96.0Z" fill="#0d6e47"></path>
+<path d="M138.9,82.0 L80.0,116.0 L80.0,130.0 L138.9,96.0Z" fill="#1f4f9e"></path>
+<path d="M80.0,48.0 L138.9,82.0 L80.0,116.0 L21.1,82.0Z" fill="#1a2a3c" stroke="#14f195" stroke-width="1.6" stroke-linejoin="round"></path>
+<ellipse cx="80" cy="74" rx="26" ry="22" fill="#14f195" opacity=".28" filter="url(#glowSm)"></ellipse><path d="M100.8,86.0 L105.1,83.5 L105.1,45.5 L100.8,48.0Z" fill="#0d6e47" fill-opacity=".62"></path>
+<path d="M59.2,24.0 L100.8,48.0 L105.1,45.5 L63.5,21.5Z" fill="#8fffd0" fill-opacity=".78"></path>
+<path d="M59.2,62.0 L100.8,86.0 L100.8,48.0 L59.2,24.0Z" fill="#14f195" fill-opacity=".5" stroke="#bfffe6" stroke-width=".8"></path>
+<path d="M63.5,42.5 L72.2,47.5 L72.2,37.5 L63.5,32.5Z" fill="#0b0f14" stroke="#14f195" stroke-width=".9"></path><path d="M75.7,49.5 L84.3,54.5 L84.3,44.5 L75.7,39.5Z" fill="#0b0f14" stroke="#14f195" stroke-width=".9"></path><path d="M87.8,56.5 L96.5,61.5 L96.5,51.5 L87.8,46.5Z" fill="#0b0f14" stroke="#14f195" stroke-width=".9"></path><path d="M63.5,56.5 L72.2,61.5 L72.2,51.5 L63.5,46.5Z" fill="#0f2a22" stroke="#14f195" stroke-width=".9"></path><path d="M75.7,63.5 L84.3,68.5 L84.3,58.5 L75.7,53.5Z" fill="#0b0f14" stroke="#14f195" stroke-width=".9"></path><path d="M87.8,70.5 L96.5,75.5 L96.5,65.5 L87.8,60.5Z" fill="#0b0f14" stroke="#14f195" stroke-width=".9"></path></svg>

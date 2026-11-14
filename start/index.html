@@ -54,7 +54,7 @@
        green buttons' text green-on-green. */
     .step-body p a { color: var(--green); text-decoration: none; font-weight: 600; }
     .step-body p a:hover { text-decoration: underline; }
-    .step-hint { font-size: 13px; color: var(--text-3); }
+    .step-hint { font-size: 13px; color: var(--text-2); }
 
     /* ── Tap targets & press feedback ──────────────────────────────────────
        Every actionable control is ≥44px tall, gives immediate pressed feedback
@@ -123,6 +123,52 @@
     .step.is-done { border-color: rgba(20, 241, 149, 0.45); }
     .step.is-done .step-num { background: var(--green); color: #062015; }
     .step.is-done .step-done-btn { color: var(--green); border-color: rgba(20, 241, 149, 0.45); }
+    /* ── "How do I play?" as icon cards (UI standard: solids, shades, see-through icons) ── */
+    .start-wrap { max-width: 980px; }
+    .start-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; list-style: none; padding: 0; }
+    .start-steps .step { display: block; padding: 20px 22px; border-radius: 20px; }
+    .step-top { display: flex; align-items: flex-start; gap: 8px; }
+    .step-head { flex: 1 1 auto; min-width: 0; }
+    .step-badge { display: flex; align-items: center; gap: 10px; }
+    .step-badge .step-num { width: 30px; height: 30px; font-size: 14px; flex: 0 0 30px; }
+    .step-label { font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
+    .step-label .lbl-done { display: none; }
+    .step.is-done .step-label { color: var(--green); }
+    .step.is-done .step-label .lbl-step { display: none; }
+    .step.is-done .step-label .lbl-done { display: inline; }
+    .step.is-done .step-num { font-size: 0; }
+    .step.is-done .step-num::after { content: "\2713"; font-size: 15px; }
+    .start-steps .step-body h3 { margin: 12px 0 4px; font-size: 19px; line-height: 1.3; }
+    .step-summary { margin: 0 !important; font-size: 15px; line-height: 1.5; color: var(--text-2); }
+    .step-icon { width: 96px; height: 90px; flex: 0 0 96px; margin: -6px -8px 0 0; }
+    .step-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+    .step-actions:empty { display: none; }
+    .step-actions .step-btn, .step-actions .step-done-btn { margin-top: 0; min-height: 44px; border-radius: 999px; }
+    .step-actions .step-btn { padding: 0 20px; }
+    .step-actions .step-done-btn { padding: 0 16px; font-size: 14px; }
+    .step-more { margin-top: 12px; border-top: var(--bw) solid var(--border); }
+    .step-more-sum { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 600; color: var(--text-2); }
+    .step-more-sum::-webkit-details-marker { display: none; }
+    .step-more-sum::after { content: "\25BE"; font-size: 12px; transition: transform .2s ease; }
+    .step-more[open] > .step-more-sum::after { transform: rotate(180deg); }
+    .step-more-sum:hover { color: var(--green); }
+    .step-more-sum:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 6px; }
+    .step-more-body { padding: 2px 0 6px; }
+    .step-more-body > p:first-child { margin-top: 0; }
+    @media (max-width: 720px) {
+      .start-steps { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .start-steps .step { padding: 18px 16px; }
+      .step-icon { width: 72px; height: 68px; flex-basis: 72px; }
+      .start-steps .step-body h3 { font-size: 18px; }
+    }
+    @media (max-height: 520px) {
+      .start-steps .step { padding: 14px 16px; }
+      .step-icon { width: 64px; height: 60px; flex-basis: 64px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .step-more-sum::after { transition: none; } }
+
     /* ── Two views: "How do I play?" / "The bigger picture" ─────────────────
        Solids only; shades of green in the flow chart. Each view has its own
        hash (#play, #bigger-picture) so posts can link straight to it. */
@@ -211,11 +257,20 @@
       <div class="step-hint">Tick each step as you finish it. You can skip and come back any time.</div>
     </div>
     <ol class="start-steps">
-
       <li class="step" data-net="sepolia">
-        <div class="step-num">1</div>
         <div class="step-body">
-          <h3>Get a wallet + add the network</h3>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">1</span><span class="step-label"><span class="lbl-step">Step 1</span><span class="lbl-done">Done</span></span></div>
+              <h3>Get a wallet + add the network</h3>
+              <p class="step-summary">Any EVM wallet, switched to Arbitrum Sepolia.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-lock.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"></div>
+          <details class="step-more">
+            <summary class="step-more-sum tap">Show links</summary>
+            <div class="step-more-body">
           <p>
             Install MetaMask (or any EVM wallet), then add the <strong>Arbitrum Sepolia</strong>
             testnet in one click.
@@ -225,12 +280,24 @@
             <a class="step-link tap" href="https://chainlist.org/chain/421614" target="_blank" rel="noopener">Add network on Chainlist<span class="ext">&#8599;</span></a>
           </div>
           <p class="step-hint">Already have a wallet? Just switch it to Arbitrum Sepolia and skip ahead.</p>
+            </div>
+          </details>
         </div>
       </li>
       <li class="step" data-net="mainnet">
-        <div class="step-num">1</div>
         <div class="step-body">
-          <h3>Get a wallet + add the network</h3>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">1</span><span class="step-label"><span class="lbl-step">Step 1</span><span class="lbl-done">Done</span></span></div>
+              <h3>Get a wallet + add the network</h3>
+              <p class="step-summary">Any EVM wallet, switched to Arbitrum One.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-lock.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"></div>
+          <details class="step-more">
+            <summary class="step-more-sum tap">Show links</summary>
+            <div class="step-more-body">
           <p>
             Install MetaMask (or any EVM wallet), then add <strong>Arbitrum One</strong>
             in one click.
@@ -240,13 +307,24 @@
             <a class="step-link tap" href="https://chainlist.org/chain/42161" target="_blank" rel="noopener">Add network on Chainlist<span class="ext">&#8599;</span></a>
           </div>
           <p class="step-hint">Already have a wallet? Just switch it to Arbitrum One and skip ahead.</p>
+            </div>
+          </details>
         </div>
       </li>
-
       <li class="step" data-net="sepolia">
-        <div class="step-num">2</div>
         <div class="step-body">
-          <h3>Grab free test gas (ETH)</h3>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">2</span><span class="step-label"><span class="lbl-step">Step 2</span><span class="lbl-done">Done</span></span></div>
+              <h3>Grab free test gas (ETH)</h3>
+              <p class="step-summary">A little test ETH covers gas. It’s free.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-faucet.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"></div>
+          <details class="step-more">
+            <summary class="step-more-sum tap">Show links</summary>
+            <div class="step-more-body">
           <p>
             You need a little Arbitrum Sepolia ETH to pay gas — it's free from a public faucet.
             Pick one and send it to your wallet address.
@@ -256,12 +334,24 @@
             <a class="step-link tap" href="https://faucet.quicknode.com/arbitrum/sepolia" target="_blank" rel="noopener">QuickNode faucet<span class="ext">&#8599;</span></a>
           </div>
           <p class="step-hint">Testnet ETH has no value — it just covers network fees so your trades go through.</p>
+            </div>
+          </details>
         </div>
       </li>
       <li class="step" data-net="mainnet">
-        <div class="step-num">2</div>
         <div class="step-body">
-          <h3>Get a little ETH on Arbitrum One</h3>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">2</span><span class="step-label"><span class="lbl-step">Step 2</span><span class="lbl-done">Done</span></span></div>
+              <h3>Get a little ETH on Arbitrum One</h3>
+              <p class="step-summary">About 0.002 ETH: a ticket and gas.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-faucet.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"></div>
+          <details class="step-more">
+            <summary class="step-more-sum tap">Show links</summary>
+            <div class="step-more-body">
           <p>
             You need about 0.002 ETH on Arbitrum One: 0.001 for your first ticket
             (a refundable deposit) and the rest for gas. Bridge from Ethereum, or withdraw
@@ -271,21 +361,37 @@
             <a class="step-link tap" href="https://bridge.arbitrum.io/" target="_blank" rel="noopener">Arbitrum bridge<span class="ext">&#8599;</span></a>
           </div>
           <p class="step-hint">Gas on Arbitrum is a fraction of a cent per transaction.</p>
+            </div>
+          </details>
         </div>
       </li>
-
       <li class="step" data-net="sepolia">
-        <div class="step-num">3</div>
         <div class="step-body">
-          <h3>Get your TIMBS</h3>
-          <p>Claim free testnet TIMBS from the faucet.</p>
-          <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">3</span><span class="step-label"><span class="lbl-step">Step 3</span><span class="lbl-done">Done</span></span></div>
+              <h3>Get your TIMBS</h3>
+              <p class="step-summary">Free testnet TIMBS from the faucet.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-pot.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"><a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a></div>
         </div>
       </li>
       <li class="step" data-net="mainnet">
-        <div class="step-num">3</div>
         <div class="step-body">
-          <h3>Pick your ticket</h3>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">3</span><span class="step-label"><span class="lbl-step">Step 3</span><span class="lbl-done">Done</span></span></div>
+              <h3>Pick your ticket</h3>
+              <p class="step-summary">Six characters, no repeats. Your deposit stays yours.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-ticket.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"><a class="step-btn tap" href="/compete/">Open Compete &rarr;</a></div>
+          <details class="step-more">
+            <summary class="step-more-sum tap">Details</summary>
+            <div class="step-more-body">
           <p>
             Head to Compete, connect, and set a 6-character ticket (A–Z, 0–9, no
             repeats) for 0.001 ETH. The deposit is escrowed, not spent: it stays
@@ -293,36 +399,57 @@
             (about three days) of its last round, or it lapses. Up to six extra rounds are
             free during the beta.
           </p>
-          <a class="step-btn tap" href="/compete/">Open Compete &rarr;</a>
+            </div>
+          </details>
         </div>
       </li>
-
       <li class="step" data-net="sepolia">
-        <div class="step-num">4</div>
         <div class="step-body">
-          <h3>Enter a round</h3>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">4</span><span class="step-label"><span class="lbl-step">Step 4</span><span class="lbl-done">Done</span></span></div>
+              <h3>Enter a round</h3>
+              <p class="step-summary">Swaps move the meter. Match the six, split the pot.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-ticket.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"><a class="step-btn tap" href="/compete/">Play a round &rarr;</a></div>
+          <details class="step-more">
+            <summary class="step-more-sum tap">Details</summary>
+            <div class="step-more-body">
           <p>
             Set a 6-character string, then trade. Swaps nudge the meter; if the round locks on
             your six, you split the pot. The pot comes from yield, so <strong>your deposit stays
             yours</strong>: claim it back within six rounds of your last one.
           </p>
-          <a class="step-btn tap" href="/compete/">Play a round &rarr;</a>
+            </div>
+          </details>
         </div>
       </li>
       <li class="step" data-net="mainnet">
-        <div class="step-num">4</div>
         <div class="step-body">
-          <h3>Trade, nudge, keep it alive</h3>
+          <div class="step-top">
+            <div class="step-head">
+              <div class="step-badge"><span class="step-num">4</span><span class="step-label"><span class="lbl-step">Step 4</span><span class="lbl-done">Done</span></span></div>
+              <h3>Trade, nudge, keep it alive</h3>
+              <p class="step-summary">Swaps move the meter. With a ticket in play, claim the daily faucet.</p>
+            </div>
+            <img class="step-icon" src="/assets/iso/iso-swap.svg" width="96" height="90" alt="" loading="lazy" />
+          </div>
+          <div class="step-actions"><a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a></div>
+          <details class="step-more">
+            <summary class="step-more-sum tap">Details</summary>
+            <div class="step-more-body">
           <p>
             Every eligible ETH swap nudges the live meter — if the round locks on your
             six, you split the pot. With an Active ticket you can also claim the
             keep-alive faucet once a day: 0.00001 ETH to you for gas and 0.00001 ETH
             to the pot. The round's top ETH trader gets a bonus claim.
           </p>
-          <a class="step-btn tap" href="/faucet/">Open the faucet &rarr;</a>
+            </div>
+          </details>
         </div>
       </li>
-
     </ol>
 
 
@@ -507,7 +634,7 @@
           if (f) f.style.width = Math.round(100 * n / total) + "%";
         }
         steps.forEach(function (li) {
-          var body = li.querySelector(".step-body");
+          var body = li.querySelector(".step-actions") || li.querySelector(".step-body");
           if (!body || body.querySelector(".step-done-btn")) return;
           var b = document.createElement("button");
           b.type = "button"; b.className = "step-done-btn";

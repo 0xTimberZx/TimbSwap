@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 150" width="320" height="300" role="img" aria-label="swap icon"><title>swap</title>
+<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter><filter id="glowSm" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+<marker id="isoArrG" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#14f195"></path></marker>
+<marker id="isoArrB" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10Z" fill="#28a0f0"></path></marker>
+</defs>
+<ellipse cx="80" cy="114" rx="58" ry="22" fill="#14f195" opacity=".38" filter="url(#glow)"></ellipse>
+<path d="M21.1,82.0 L80.0,116.0 L80.0,130.0 L21.1,96.0Z" fill="#0d6e47"></path>
+<path d="M138.9,82.0 L80.0,116.0 L80.0,130.0 L138.9,96.0Z" fill="#1f4f9e"></path>
+<path d="M80.0,48.0 L138.9,82.0 L80.0,116.0 L21.1,82.0Z" fill="#1a2a3c" stroke="#14f195" stroke-width="1.6" stroke-linejoin="round"></path>
+<ellipse cx="80" cy="74" rx="26" ry="22" fill="#14f195" opacity=".28" filter="url(#glowSm)"></ellipse><path d="M68.6,64.9 L74.9,63.7 L81.4,63.5 L87.9,64.1 L93.9,65.7 L99.1,68.0 L103.1,71.0 L105.8,74.5 L106.9,78.2 L106.4,82.0 L104.4,85.6" fill="none" stroke="#14f195" stroke-width="4" stroke-linecap="round" marker-end="url(#isoArrG)"></path>
+<path d="M91.4,93.1 L85.1,94.3 L78.6,94.5 L72.1,93.9 L66.1,92.3 L60.9,90.0 L56.9,87.0 L54.2,83.5 L53.1,79.8 L53.6,76.0 L55.6,72.4" fill="none" stroke="#28a0f0" stroke-width="4" stroke-linecap="round" marker-end="url(#isoArrB)"></path>
+<path d="M69,72 L69,78 A11 6.4 0 0 0 91,78 L91,72Z" fill="#0b8a57" fill-opacity=".6"></path>
+<ellipse cx="80" cy="72" rx="11" ry="6.4" fill="#14f195" fill-opacity=".5" stroke="#bfffe6" stroke-width=".8"></ellipse></svg>
