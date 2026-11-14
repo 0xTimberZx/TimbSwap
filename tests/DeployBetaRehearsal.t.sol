@@ -73,6 +73,7 @@ contract DeployBetaRehearsalTest is Test {
         vm.setEnv("VRF_KEY_HASH", vm.toString(bytes32(uint256(1))));
         vm.setEnv("VRF_SUB_ID", "7");
         vm.setEnv("VRF_EXTRA_ARGS", "0x");
+        vm.setEnv("PUBLIC_NUDGE_FLOOR", "40"); // test value; the real floor stays out of the repo
         vm.setEnv("GOV_MULTISIG", vm.toString(SAFE));
         vm.setEnv("ENTRY_COST_TIMBS", "1000000000000000000");
         vm.setEnv("INITIAL_SUPPLY", "100000000000000000000000000");
@@ -161,16 +162,14 @@ contract DeployBetaRehearsalTest is Test {
         assertTrue(newRouter.nudgePairs(factory.getPairAddress(address(arb),  address(weth))), "ARB/WETH nudge pair");
         assertFalse(newRouter.nudgePairs(game.timbsEthPair()), "TIMBS/WETH waits for TIMBS launch");
         assertEq(newRouter.swapNudgeWeight(), router.swapNudgeWeight(), "nudge weight carried over");
-        // TS-055: free nudges are off in the beta, whatever the live router had.
-        assertGt(router.freeNudgeCapPerSeg(), 0, "fixture: live router had free nudges");
-        assertEq(newRouter.freeNudgeCapPerSeg(), 0, "free nudges off");
+        // TS-055: free nudges are ticket-backed in the beta.
+        assertEq(newRouter.ticketNudgesPerSeg(), 10, "10 per ticket per segment");
+        assertEq(newRouter.publicNudgesPerWallet(), 3, "3 public per wallet");
+        assertEq(newRouter.perTicketPublicNudges(), 10, "+10 public per live ticket");
 
         TimbPrize prize = TimbPrize(payable(newRouter.timbPrize()));
-        // TS-055: the free path refuses the first nudge.
-        uint256 r0 = prize.currentRound();
-        uint256 s0 = prize.currentSegment();
-        vm.expectRevert(abi.encodeWithSelector(TimbSwapRouter.FreeNudgeCapReached.selector, r0, s0));
-        newRouter.advanceScroll(1);
+        // A wallet with no ticket gets its public share (pool floor 40 here).
+        assertEq(newRouter.freeNudgesRemaining(address(0xBEEF)), 3, "fresh wallet: public share");
         assertTrue(address(prize) != address(game.timbPrize()), "new router -> new prize");
         assertEq(prize.router(), address(newRouter), "prize accepts the new router's nudges");
         assertEq(game.prizeEscrow().timbPrize(), address(prize), "escrow -> new prize");

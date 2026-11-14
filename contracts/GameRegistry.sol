@@ -314,6 +314,16 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     /// @notice generation → round → wallet → already in roundEntrants.
     mapping(uint256 => mapping(uint256 => mapping(address => bool))) public hasEntryInRound;
 
+    /// @notice generation → round → wallets holding a LIVE ticket for that
+    ///         round. Unlike roundEntrants (append-only), this drops on cancel
+    ///         and concede, so a mint-and-cancel loop can't inflate it. Sizes
+    ///         the router's public free-nudge pool (FREE_NUDGE_POOL_SPEC).
+    mapping(uint256 => mapping(uint256 => uint256)) public liveEntrantsInRound;
+
+    /// @dev generation → round → wallet → counted in liveEntrantsInRound.
+    ///      One wallet counts once per round even across a concede+replace.
+    mapping(uint256 => mapping(uint256 => mapping(address => bool))) private _liveIn;
+
     /// @notice generation → round → string → wallets holding that string.
     ///         Stale rows (conceded/replaced) are filtered at verification.
     mapping(uint256 => mapping(uint256 => mapping(bytes6 => address[]))) public stringEntrants;
@@ -543,6 +553,10 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
                 hasEntryInRound[g][r][owner_] = true;
                 roundEntrants[g][r].push(owner_);
             }
+            if (!_liveIn[g][r][owner_]) {
+                _liveIn[g][r][owner_] = true;
+                liveEntrantsInRound[g][r] += 1;
+            }
         }
 
         emit TicketMinted(
@@ -652,6 +666,13 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
         bytes6  s      = t.string6;
         address owner_ = t.owner;
         for (uint256 r = t.playRound; r <= t.lastEligibleRound; r++) {
+            // The ticket is no longer live for r: drop it from the live count
+            // that sizes the public free-nudge pool. Cancel and concede are
+            // the only paths that end a ticket before its run, and both prune.
+            if (_liveIn[g][r][owner_]) {
+                _liveIn[g][r][owner_] = false;
+                liveEntrantsInRound[g][r] -= 1;
+            }
             uint256 slot = _stringSlot[g][r][s][owner_];
             if (slot == 0) continue;
             address[] storage row = stringEntrants[g][r][s];
@@ -1289,6 +1310,12 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     ///         A bare `.length` is a single SLOAD and cannot be griefed.
     function roundEntrantsLength(uint256 round) external view returns (uint256) {
         return roundEntrants[generation][round].length;
+    }
+
+    /// @notice Wallets holding a live ticket for `round` in the current
+    ///         generation. Drops on cancel/concede (see liveEntrantsInRound).
+    function liveEntrantCount(uint256 round) external view returns (uint256) {
+        return liveEntrantsInRound[generation][round];
     }
 
     // ─── Views: Tickets ──────────────────────────────────────────────────────
