@@ -23,6 +23,9 @@ case "$net" in sepolia) tag=$sha ;; mainnet) tag="mainnet-$sha" ;; *) echo "NET 
 if [ "$net" = mainnet ] && grep -qE '"0x0{40}",? *// beta' config.mainnet.js; then
   echo "config.mainnet.js still has a zero beta address — fill in the DeployBeta output first" >&2; exit 3
 fi
+if [ "$net" = mainnet ] && ! grep -qE '^ *ethUsdFeed: *"0x[0-9a-fA-F]{40}"' config.mainnet.js; then
+  echo "config.mainnet.js has no ethUsdFeed — copy the Chainlink ETH / USD proxy (Arbitrum One) from docs.chain.link" >&2; exit 3
+fi
 out=dist; stage=$out/site; rm -rf "$stage"; mkdir -p "$stage"
 
 # 1. site files: everything git tracks except code, CI, docs-for-devs, tests
