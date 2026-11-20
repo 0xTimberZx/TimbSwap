@@ -11,7 +11,8 @@ contract RLEToken is ERC20 {
 
 /// The live-entrant count sizes the router's public free-nudge pool
 /// (FREE_NUDGE_POOL_SPEC). It must count each wallet with a live ticket once
-/// per round, and drop on cancel and concede so churn can't inflate it.
+/// per round, and drop on cancel and concede so churn can't inflate it. A round's count is
+/// fixed once it is in play: a mid-round concede drops only future rounds.
 contract RegistryLiveEntrantsTest is Test {
     GameRegistry reg;
     bytes6 constant S  = bytes6("ABC123");
@@ -87,15 +88,30 @@ contract RegistryLiveEntrantsTest is Test {
         assertEq(reg.liveEntrantCount(2), 0, "conceded run dropped");
     }
 
-    function test_ReplaceInPlayMovesTheCountToTheNewRun() public {
+    function test_ReplaceInPlayKeepsTheRoundCountAndMovesTheRest() public {
         address a = makeAddr("a");
         _enter(a, S, 0);    // plays round 1
         reg.setCurrentRound(1); // ticket now in play
         vm.prank(a);
         reg.replaceEntry(S2, 0); // concedes the round-1 ticket; new one plays round 2
-        assertEq(reg.liveEntrantCount(1), 0, "conceded: no longer live this round");
+        // The count for a round already in play is fixed once it starts, so a
+        // mid-round concede cannot shrink the public pool others draw on.
+        assertEq(reg.liveEntrantCount(1), 1, "round in play keeps its count");
         assertEq(reg.liveEntrantCount(2), 1, "replacement counted for its round");
         (bool valid,) = reg.verifyEntryValid(a, 1);
-        assertFalse(valid, "count and validity agree");
+        assertFalse(valid, "the conceded ticket still cannot win round 1");
+    }
+
+    function test_ConcedeMidRunDropsOnlyFutureRounds() public {
+        address a = makeAddr("a");
+        address b = makeAddr("b");
+        _enter(a, S, 3);    // plays rounds 1..4
+        _enter(b, S2, 3);   // plays rounds 1..4
+        reg.setCurrentRound(2); // both in play, round 2
+        vm.prank(a);
+        reg.replaceEntry(bytes6("GHJ789"), 0); // new ticket plays round 3 only
+        assertEq(reg.liveEntrantCount(2), 2, "current round unchanged by the concede");
+        assertEq(reg.liveEntrantCount(3), 2, "a's replacement counts once in round 3");
+        assertEq(reg.liveEntrantCount(4), 1, "a's conceded round 4 dropped");
     }
 }
