@@ -18,14 +18,19 @@ import {TimbPrize} from "../contracts/TimbPrize.sol";
  *         that call alone left the old prize's unclaimed winnings and any
  *         undelivered protocol cut in the escrow, owed to no one.
  *
- *         Delivers the old protocol cut (to PROTOCOL_CUT_TO), revokes the
- *         payer, then carries the old unclaimed pool into the live prize.
+ *         Run it TWICE:
+ *         1. Delivers the old protocol cut (to PROTOCOL_CUT_TO) and revokes
+ *            the payer. Nothing is carried yet.
+ *         2. After that revoke is mined, run the same command again: the old
+ *            prize can no longer pay, so its unclaimed pool is final, and this
+ *            run carries it into the live prize. A third run refuses.
  *         Broadcaster must own the escrow, the old prize and the live prize.
  *
  * Env: DEPLOYER_PRIVATE_KEY, PRIZE_ESCROW_ADDR, OLD_PRIZE,
  *      PROTOCOL_CUT_TO (required only if the old prize has a cut accrued).
  *
- *   forge script scripts/ReleaseRetiredPrize.s.sol --rpc-url $RPC --broadcast
+ *   forge script scripts/ReleaseRetiredPrize.s.sol --rpc-url $RPC --broadcast   # run 1: revoke
+ *   forge script scripts/ReleaseRetiredPrize.s.sol --rpc-url $RPC --broadcast   # run 2: carry
  */
 contract ReleaseRetiredPrize is PotCarry {
     function run() external {
