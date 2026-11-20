@@ -18,6 +18,7 @@ interface IOutgoingPot {
     function hasClaimed(uint256 round, address winner) external view returns (bool);
     function recycleUnclaimed(uint256 round) external;
     function withdrawProtocolCut(address to) external;
+    function prizeEscrow() external view returns (address);
 }
 
 /**
@@ -44,9 +45,10 @@ interface IOutgoingPot {
  *         freezes currentRound, so the last settled rounds can never be
  *         recycled, and once the runbook revokes the retired payer their
  *         unclaimed shares can be neither claimed nor recycled.
- *         `_releaseRetired` is that runbook step: it delivers the old prize's
- *         protocol cut while it can still pay, revokes it, then carries what
- *         is left unclaimed into the live prize.
+ *         `_releaseRetired` is that runbook step, in two runs: the first
+ *         delivers the old prize's protocol cut while it can still pay and
+ *         revokes it; the second, once the revoke is mined, carries what is
+ *         left unclaimed into the live prize.
  */
 abstract contract PotCarry is Script {
     /// TimbPrize.CLAIM_WINDOW_ROUNDS: a round's shares are claimable while
@@ -127,12 +129,23 @@ abstract contract PotCarry is Script {
         }
     }
 
-    /// @dev TS-071 (2): the runbook's "revoke the retired payer" step. Run it
-    ///      once the old prize's last claim period is over. Order matters:
-    ///      the protocol cut is delivered while the old prize can still pay;
-    ///      the revoke then ends claims, so nothing can be paid twice; what is
-    ///      left in the old prize's unclaimed pool is carried into the live
-    ///      prize. Its books keep listing those shares, but it has no pay right.
+    /// @dev TS-071 (2): the runbook's "revoke the retired payer" step, run
+    ///      once the old prize's last claim period is over. It takes TWO runs
+    ///      of the script, because a script reads chain state when it simulates
+    ///      and sends its transactions afterwards:
+    ///      - Run 1 (the old prize is still a retired payer): deliver its
+    ///        protocol cut while it can still pay, then revoke it. Nothing is
+    ///        carried. A winner claiming before the revoke lands is paid
+    ///        normally and simply leaves less to carry.
+    ///      - Run 2 (after the revoke is mined): the old prize can no longer
+    ///        pay, so its unclaimed pool is final. Read it and carry it into the
+    ///        live prize. Reading it in run 1, before the revoke was mined, could
+    ///        carry a share that a winner then claimed, leaving the live pot
+    ///        short of ETH.
+    ///      Run 2 also checks that the old pool's ETH is still in the escrow
+    ///      above what the live prize owes, so running it again after a carry
+    ///      fails instead of carrying twice. (With more than one retired payer
+    ///      on the same escrow, that check counts their pools too: run it once.)
     function _releaseRetired(address oldPrize, address escrowAddr, TimbPrize livePrize, address payout, address cutTo)
         internal
         returns (uint256 owed)
@@ -140,25 +153,31 @@ abstract contract PotCarry is Script {
         PrizeEscrow escrow = PrizeEscrow(payable(escrowAddr));
         require(oldPrize != address(livePrize), "TS-071: old prize is the live prize");
         require(escrow.timbPrize() == address(livePrize), "TS-071: escrow must point at the live prize");
-        require(escrow.retiredPrize(oldPrize), "TS-071: old prize is not a retired payer (already revoked?)");
-
         IOutgoingPot p = IOutgoingPot(oldPrize);
-        uint256 cut = p.protocolCutAccrued();
-        if (cut > 0) {
-            require(cutTo != address(0), "TS-071: old prize has an undelivered protocol cut; set PROTOCOL_CUT_TO");
-            p.withdrawProtocolCut(cutTo);
-            console.log("TS-071: delivered the old prize's protocol cut (wei):", cut);
+        require(p.prizeEscrow() == escrowAddr, "TS-071: old prize does not use this escrow");
+
+        if (escrow.retiredPrize(oldPrize)) {
+            uint256 cut = p.protocolCutAccrued();
+            if (cut > 0) {
+                require(cutTo != address(0), "TS-071: old prize has an undelivered protocol cut; set PROTOCOL_CUT_TO");
+                p.withdrawProtocolCut(cutTo);
+                console.log("TS-071: delivered the old prize's protocol cut (wei):", cut);
+            }
+            escrow.setRetiredPrize(oldPrize, false);
+            console.log("TS-071: revoked the retired payer:", oldPrize);
+            console.log("TS-071: run this script again once the revoke is mined, to carry the unclaimed pool");
+            return 0;
         }
 
         owed = p.gameUnclaimed_winningsPool();
-        escrow.setRetiredPrize(oldPrize, false);
-        console.log("TS-071: revoked the retired payer:", oldPrize);
-
         if (owed == 0) {
             console.log("TS-071: no unclaimed winnings left on the old prize");
             return 0;
         }
-        require(escrowAddr.balance >= owed, "TS-071: escrow holds less than the old unclaimed pool");
+        uint256 liveOwed = livePrize.currentAccumulatedRewards()
+            + livePrize.gameUnclaimed_winningsPool()
+            + livePrize.protocolCutAccrued();
+        require(escrowAddr.balance >= liveOwed + owed, "TS-071: the old pool is not in the escrow (already carried?)");
         uint256 before = livePrize.currentAccumulatedRewards();
         escrow.emergencyWithdraw(payout, owed);
         livePrize.fundPot{value: owed}();

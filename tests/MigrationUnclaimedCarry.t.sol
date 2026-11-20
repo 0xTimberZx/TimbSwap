@@ -45,7 +45,8 @@ contract UCOperator is PotCarry {
  * currentRound, so the last rounds can never be recycled, and once the runbook
  * revoked the retired payer their unclaimed shares were stranded in the
  * escrow. _carryPot now recycles expired rounds first, and _releaseRetired
- * (scripts/ReleaseRetiredPrize.s.sol) replaces the bare revoke.
+ * (scripts/ReleaseRetiredPrize.s.sol) replaces the bare revoke: run 1 revokes,
+ * run 2 (after the revoke is mined) carries the now-final unclaimed pool.
  *
  * Run: forge test --match-contract MigrationUnclaimedCarryTest -vvv
  */
@@ -192,15 +193,35 @@ contract MigrationUnclaimedCarryTest is Test {
         for (uint256 i = 0; i < 3; i++) _settleRound(newPrize); // Bob's claim period passes
 
         uint256 potBefore = newPrize.currentAccumulatedRewards();
-        uint256 released  = op.release(address(oldPrize), address(escrow), newPrize, cutTo);
-        assertEq(released, share);
-        assertEq(newPrize.currentAccumulatedRewards(), potBefore + share, "share reaches the live pot");
+        // Run 1: revoke only; nothing is carried before the revoke is mined.
+        assertEq(op.release(address(oldPrize), address(escrow), newPrize, cutTo), 0);
         assertFalse(escrow.retiredPrize(address(oldPrize)));
-        assertEq(_stranded(newPrize), 0, "nothing stranded after the revoke");
+        assertEq(newPrize.currentAccumulatedRewards(), potBefore, "run 1 carries nothing");
 
         vm.prank(bob);
         vm.expectRevert(PrizeEscrow.NotTimbPrize.selector);
-        oldPrize.claimWinnings(3);                // revoked: cannot be paid twice
+        oldPrize.claimWinnings(3);                // revoked: the pool is now final
+
+        // Run 2: carry the frozen pool.
+        uint256 released = op.release(address(oldPrize), address(escrow), newPrize, cutTo);
+        assertEq(released, share);
+        assertEq(newPrize.currentAccumulatedRewards(), potBefore + share, "share reaches the live pot");
+        assertEq(_stranded(newPrize), 0, "nothing stranded after the carry");
+    }
+
+    /// The race the two runs close: a winner who claims before the revoke
+    /// lands is paid, and the carry (read only after the revoke) skips them.
+    function test_TS071_ClaimBeforeRevokeIsNotCarried() public {
+        _bobWinsLastRound();
+        (TimbPrize newPrize,) = _migrate();
+        uint256 potBefore = newPrize.currentAccumulatedRewards();
+
+        vm.prank(bob);
+        oldPrize.claimWinnings(3);                // lands before the revoke
+        op.release(address(oldPrize), address(escrow), newPrize, cutTo); // run 1
+        assertEq(op.release(address(oldPrize), address(escrow), newPrize, cutTo), 0, "nothing left to carry");
+        assertEq(newPrize.currentAccumulatedRewards(), potBefore);
+        assertEq(_stranded(newPrize), 0, "the live pot stays fully backed");
     }
 
     function test_TS071_ReleaseAfterClaimCarriesNothing() public {
@@ -209,6 +230,7 @@ contract MigrationUnclaimedCarryTest is Test {
         vm.prank(bob);
         oldPrize.claimWinnings(3);
         uint256 potBefore = newPrize.currentAccumulatedRewards();
+        assertEq(op.release(address(oldPrize), address(escrow), newPrize, cutTo), 0);
         assertEq(op.release(address(oldPrize), address(escrow), newPrize, cutTo), 0);
         assertEq(newPrize.currentAccumulatedRewards(), potBefore);
         assertEq(_stranded(newPrize), 0);
@@ -223,10 +245,21 @@ contract MigrationUnclaimedCarryTest is Test {
         vm.expectRevert(bytes("TS-071: old prize has an undelivered protocol cut; set PROTOCOL_CUT_TO"));
         op.release(address(oldPrize), address(escrow), newPrize, address(0));
 
-        op.release(address(oldPrize), address(escrow), newPrize, cutTo);
+        op.release(address(oldPrize), address(escrow), newPrize, cutTo); // run 1
         assertEq(cutTo.balance, cut);
         assertEq(oldPrize.protocolCutAccrued(), 0);
+        op.release(address(oldPrize), address(escrow), newPrize, cutTo); // run 2
         assertEq(_stranded(newPrize), 0);
+    }
+
+    /// A third run after the carry refuses instead of carrying twice.
+    function test_TS071_ReleaseCannotCarryTwice() public {
+        uint256 share = _bobWinsLastRound();
+        (TimbPrize newPrize,) = _migrate();
+        op.release(address(oldPrize), address(escrow), newPrize, cutTo); // run 1
+        assertEq(op.release(address(oldPrize), address(escrow), newPrize, cutTo), share); // run 2
+        vm.expectRevert(bytes("TS-071: the old pool is not in the escrow (already carried?)"));
+        op.release(address(oldPrize), address(escrow), newPrize, cutTo);
     }
 
     function test_TS071_ReleaseGuards() public {
@@ -234,8 +267,11 @@ contract MigrationUnclaimedCarryTest is Test {
         vm.expectRevert(bytes("TS-071: old prize is the live prize"));
         op.release(address(newPrize), address(escrow), newPrize, cutTo);
 
-        op.release(address(oldPrize), address(escrow), newPrize, cutTo);
-        vm.expectRevert(bytes("TS-071: old prize is not a retired payer (already revoked?)"));
-        op.release(address(oldPrize), address(escrow), newPrize, cutTo);
+        vm.startPrank(address(op));
+        PrizeEscrow other = new PrizeEscrow();
+        TimbPrize stranger = new TimbPrize(address(other), address(oldReg), router);
+        vm.stopPrank();
+        vm.expectRevert(bytes("TS-071: old prize does not use this escrow"));
+        op.release(address(stranger), address(escrow), newPrize, cutTo);
     }
 }
