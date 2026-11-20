@@ -197,6 +197,15 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     /// @notice Current accumulated rewards (live prize pot, in ETH wei).
     uint256 public currentAccumulatedRewards;
 
+    /// @notice The pot as it stood when the round's final segment armed its VRF
+    ///         draw. Once that word lands the winning string is knowable before
+    ///         the lock, so a known winner could push recyclable winnings, lapse
+    ///         shares or LP fees into the pot they are about to collect. The round
+    ///         pays from this snapshot (plus the settle-time yield harvest, which no
+    ///         caller can trigger); anything credited after the arm rolls to the
+    ///         next round. Zero outside the final segment's arm-to-lock gap.
+    uint256 public armedPot;
+
     /// @notice Undistributed winnings documented for winners pending claim.
     uint256 public gameUnclaimed_winningsPool;
 
@@ -294,6 +303,9 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     event EligibleRegistrySet(address indexed registry);
     event GameRegistrySet(address indexed registry);
     event PrizeEscrowSet(address indexed escrow);
+    /// @notice ETH credited to the pot after the final segment armed, rolled to
+    ///         the next round instead of the round being settled.
+    event LateInflowDeferred(uint256 indexed round, uint256 amount);
     event YieldVaultSet(address indexed vault);
     event PrizeRetired();
     event SegmentArmed(uint256 indexed round, uint256 indexed segment, uint256 requestId);
@@ -549,6 +561,10 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
             // counter, so no post-arm nudge can steer the winning char's class.
             segmentArmedIsLetter[currentSegment] =
                 (segmentDigitCounter[currentSegment] % 36) < 26;
+            // Final segment: freeze the pot this round pays out (see armedPot).
+            if (currentSegment == SEGMENTS_PER_ROUND) {
+                armedPot = currentAccumulatedRewards;
+            }
             // Arm: fire the draw now that the interaction window has closed. The
             // word is unknowable until its callback lands.
             uint256 reqId = entropy.requestFor(salt);
@@ -575,8 +591,17 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     function _settleRound() internal {
         uint256 round = currentRound;
 
+        // Inflows credited after the final segment armed (recycled winnings,
+        // lapse shares, LP fees, top-ups) are deferred to the next round: by
+        // now the winning word may already be public. The pot only grows, so
+        // the current value is never below the snapshot.
+        uint256 deferred = currentAccumulatedRewards - armedPot;
+        armedPot = 0;
+
         // 4th pot source: harvest active-escrow yield BEFORE the split so
-        // this round's winners benefit from this round's accrual.
+        // this round's winners benefit from this round's accrual. The harvest
+        // is internal to settlement (the vault's harvest is onlyTimbPrize), so
+        // it stays in this round's pot.
         _harvestYield(round);
 
         bytes6 winningString = _buildWinningString();
@@ -586,7 +611,7 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         (address[] memory winners, uint256 winnerCount) =
             _findVerifiedWinners(round, winningString);
 
-        _distributePotAndRecord(round, winners, winnerCount);
+        _distributePotAndRecord(round, winners, winnerCount, deferred);
 
         // §14: tell the registry who won so it can push those tickets'
         // forfeiture anchor past the 2-round prize-claim window — a winner's
@@ -797,9 +822,10 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
     function _distributePotAndRecord(
         uint256 round,
         address[] memory winners,
-        uint256 winnerCount
+        uint256 winnerCount,
+        uint256 deferred
     ) internal {
-        uint256 pot = currentAccumulatedRewards;
+        uint256 pot = currentAccumulatedRewards - deferred;
         uint256 perWinner;
         uint256 remainder;
 
@@ -829,13 +855,14 @@ contract TimbPrize is Ownable2Step, ReentrancyGuard {
         roundRemainder[round]       = remainder;
 
         gameUnclaimed_winningsPool += totalPaid;
-        currentAccumulatedRewards   = remainder; // r snowballs to next round
+        currentAccumulatedRewards   = remainder + deferred; // r + post-arm inflows roll to next round
 
         // Surface the carry so off-chain analytics can show how much the pot is
         // rolling forward. Accounting-only: the ETH already lives in PrizeEscrow,
         // so this is the settlement-time counterpart to the Deposited event that
         // real top-ups (seeds, yield harvest) fire.
         if (remainder > 0) emit PotCarried(round, remainder, winnerCount);
+        if (deferred > 0) emit LateInflowDeferred(round, deferred);
     }
 
     /**
