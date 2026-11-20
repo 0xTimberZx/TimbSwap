@@ -169,6 +169,12 @@ function expectedTp(row, weights, minRounds) {
   return Math.round(tp * 100) / 100;
 }
 
+/** PostgREST path for this season's sent faucet claims: ids above the previous
+ *  season's final cursor, reserved at or before `until` (the lag block's time). */
+function faucetClaimsPath(baselineId, untilIso) {
+  return `faucet_claims?select=address&status=eq.sent&id=gt.${Number(baselineId) || 0}&reserved_at=lte.${encodeURIComponent(untilIso)}`;
+}
+
 /**
  * Compare the shadow ledger (plus faucet counts) to the board rows.
  * pendingUnder: { "addr:col": firstSeenSec } — mutated.
@@ -314,6 +320,9 @@ function selfTest() {
   eq("tp zero with sybil flag",     expectedTp({ rounds_played: 5, sybil_flag: "x" }, W, 2), 0);
   eq("tp honours season weights",   expectedTp({ rounds_played: 1 }, { round_played: 7 }, 0), 7);
   eq("tp missing weight defaults",  expectedTp({ faucet_claims: 3 }, { round_played: 7 }, 0), 3);
+  eq("faucet path: only this season's ids", faucetClaimsPath(27, "2026-11-20T00:00:00.000Z"),
+     "faucet_claims?select=address&status=eq.sent&id=gt.27&reserved_at=lte.2026-11-20T00%3A00%3A00.000Z");
+  eq("faucet path: first season starts at 0", faucetClaimsPath(undefined, "x").includes("&id=gt.0&"), true);
   eq("tp takes meter points as given", expectedTp({ rounds_played: 2, meter_tp: 30 }, W, 2), 530);
   eq("tp first round of a deposit is the activation only", expectedTp({ rounds_played: 1, tickets_activated: 1 }, W, 0), 200);
   eq("tp later rounds of a deposit are rounds", expectedTp({ rounds_played: 13, tickets_activated: 1 }, W, 0), 3200);
@@ -543,10 +552,15 @@ async function main() {
     }
 
     // 3. Faucet drips up to the lag block's time, from the ledger table itself.
+    // Only this season's: faucet_claims is not season-scoped, and the board
+    // (points_fold_faucet) starts each season at the previous season's final
+    // cursor, so rows at or below that id belong to an earlier season.
     const faucetOf = {};
     if (toBlock >= startBlock) {
       const until = new Date((await provider.getBlock(toBlock)).timestamp * 1000).toISOString();
-      for (const r of await sbAll(`faucet_claims?select=address&status=eq.sent&reserved_at=lte.${encodeURIComponent(until)}`)) {
+      const prev = await sbGet(`seasons?id=lt.${s.id}&select=last_faucet_claim_id&order=id.desc&limit=1`);
+      const baseline = Number(prev[0]?.last_faucet_claim_id ?? 0);
+      for (const r of await sbAll(faucetClaimsPath(baseline, until))) {
         const a = String(r.address).toLowerCase(); faucetOf[a] = (faucetOf[a] || 0) + 1;
       }
     }
