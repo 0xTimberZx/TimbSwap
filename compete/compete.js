@@ -110,10 +110,10 @@ function contractRO(address, abi) {
 }
 
 // ─── USD pricing (newcomer banner) ───────────────────────────────────────────
-// Fixed real ETH rate (config ETH_USD_PRICE), the same figure the landing
-// "Win the Pot" uses — so the banner's dollars match the dashboard. Testnet ETH
-// has no market price, so a testnet pool ratio would be meaningless.
-async function usdPerEth() { return ETH_USD_PRICE; }
+// The site's ETH/USD anchor (config ensureEthUsd: a fixed rate on the testnet,
+// the live Chainlink feed on mainnet), the same figure the landing "Win the Pot"
+// uses. null when there is no trustworthy rate: the banner then shows ETH.
+async function usdPerEth() { return ensureEthUsd(); }
 
 // The yield read runs on the 4s poll; log a read failure only once per session
 // so a persistent RPC hiccup doesn't spam DebugHub every tick.

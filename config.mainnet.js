@@ -27,6 +27,12 @@ window.TIMBSWAP_NET = {
   // Mainnet Privy app ("Continue with email"). Leave "" to hide the option.
   privyAppId: "",
 
+  // Chainlink ETH / USD proxy on Arbitrum One, for every "≈ $" on the site.
+  // Copy it from Chainlink's feed list (docs.chain.link, Arbitrum One), never
+  // from memory; the build refuses while it is empty. The site checks the
+  // feed's description, freshness and range, and hides USD if they fail.
+  ethUsdFeed: "",
+
   addresses: {
     // ── Beta deploy (scripts/DeployBeta.s.sol) — fill from its output ──
     GameRegistry:         "0x0000000000000000000000000000000000000000", // beta

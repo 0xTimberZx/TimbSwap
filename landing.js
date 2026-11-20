@@ -134,8 +134,8 @@ let lastSegment = null;
 // "Up for Grabs" shows the exact same value as the compete LIVE banner: the
 // winnable pot plus any accruing yield (never the PrizeEscrow balance, which
 // can hold ETH no winner can be paid; TS-007). It revolves between that ETH figure and its USD worth
-// at a FIXED real ETH rate (config ETH_USD_PRICE) — testnet ETH has no market
-// price, so a testnet pool ratio would be meaningless.
+// at the site's ETH/USD anchor (config ensureEthUsd: a fixed rate on the testnet,
+// the live Chainlink feed on mainnet). With no trustworthy rate it stays on ETH.
 function fmtUsd(v) {
   // Always show cents at/above $1 — the pot includes accruing yield, so a
   // $300.03 pot must not read as a flat "$300" (dropping the yield the deposit
@@ -166,8 +166,17 @@ function renderUpForGrabs(withFade) {
 
 function setUpForGrabs(weiTotal) {
   _potEth = fmtETH(weiTotal);                                   // e.g. "0.0100 ETH"
-  _potUsd = fmtUsd(parseFloat(ethers.utils.formatEther(weiTotal)) * ETH_USD_PRICE);
+  const ethFloat = parseFloat(ethers.utils.formatEther(weiTotal));
+  const px = _oracleEthUsd();                                   // sync: the last known anchor
+  _potUsd = px ? fmtUsd(ethFloat * px) : null;
   renderUpForGrabs(false);                                      // reflect fresh number now
+  if (!_ethUsdLive && ETH_USD_FEED) {
+    ensureEthUsd().then(p => {                                  // first feed read on this page
+      if (_potEth !== fmtETH(weiTotal)) return;                 // a newer pot read has landed
+      _potUsd = p ? fmtUsd(ethFloat * p) : null;
+      renderUpForGrabs(false);
+    });
+  }
   if (!_potRotTimer) {
     _potRotTimer = setInterval(() => { _showUsd = !_showUsd; renderUpForGrabs(true); }, 4000);
   }

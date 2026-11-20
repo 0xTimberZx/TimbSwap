@@ -300,10 +300,13 @@ function _withReadRetry(provider) {
 }
 
 // ─── Display pricing ──────────────────────────────────────────────────────────
-// Fixed USD-per-ETH for the marketing "Win the Pot" USD figure on the landing.
-// Testnet ETH has no market price, so we value it as if it were real ETH at
-// this rate rather than reading a meaningless testnet pool. Adjust to track ETH.
+// Fixed USD-per-ETH for the testnet. Testnet ETH has no market price, so it is
+// valued as if it were real ETH at this rate rather than off a meaningless
+// testnet pool. A network with `ethUsdFeed` set (mainnet: config.mainnet.js)
+// reads a live Chainlink ETH / USD feed instead and never shows this constant;
+// see ensureEthUsd() below.
 const ETH_USD_PRICE = 3000;
+const ETH_USD_FEED  = (_NET.ethUsdFeed || "").toLowerCase(); // any casing; checked by description
 
 // ─── Contract Addresses ───────────────────────────────────────────────────────
 
@@ -1360,8 +1363,53 @@ async function _priceViaPair(prov, factory, token, quote, quoteUsd) {
 // apart, and which one you saw depended on the page. Testnet ETH has no market
 // price to discover, so reading a pool for it was never buying us anything:
 // take the declared rate, the same one the landing page quotes the pot in.
+//
+// With a live feed configured (mainnet), the anchor is the feed's answer, after
+// checks: description "ETH / USD", a positive answer, updated within
+// _FEED_MAX_AGE, and a sane range. If the feed can't be read or fails a check,
+// the last good answer from this browser (up to 2 days old) is used; failing
+// that the anchor is null and every "≈ $" is hidden: with real money, no
+// dollar figure beats a wrong one. Without a feed (testnet), ETH_USD_PRICE.
+const _FEED_ABI = [
+  "function decimals() view returns (uint8)",
+  "function description() view returns (string)",
+  "function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)",
+];
+const _FEED_MAX_AGE = 26 * 3600;          // seconds; above the feed's heartbeat
+const _FEED_STORE   = "timbswap.ethUsd";
+let _ethUsdLive = null, _ethUsdPromise = null;
+function _ethUsdStored() {
+  try {
+    const o = JSON.parse(localStorage.getItem(_FEED_STORE) || "null");
+    if (o && o.px > 0 && Date.now() - o.ts < 2 * 86400e3) return o.px;
+  } catch {}
+  return null;
+}
 function _oracleEthUsd() {
-  return ETH_USD_PRICE;
+  if (!ETH_USD_FEED) return ETH_USD_PRICE;
+  return _ethUsdLive || _ethUsdStored();  // null when nothing trustworthy
+}
+// Read the feed once per page (memoised). Resolves to the anchor (number|null).
+function ensureEthUsd() {
+  if (!ETH_USD_FEED) return Promise.resolve(ETH_USD_PRICE);
+  if (!_ethUsdPromise) _ethUsdPromise = (async () => {
+    try {
+      const f = new ethers.Contract(ETH_USD_FEED, _FEED_ABI, _priceProvider());
+      const [dec, desc, rd] = await Promise.all([f.decimals(), f.description(), f.latestRoundData()]);
+      if (desc !== "ETH / USD") throw new Error("unexpected feed: " + desc);
+      if (!rd[1].gt(0)) throw new Error("non-positive answer");
+      const age = Math.floor(Date.now() / 1000) - rd[3].toNumber();
+      if (age > _FEED_MAX_AGE) throw new Error("stale answer (" + age + "s)");
+      const px = parseFloat(ethers.utils.formatUnits(rd[1], dec));
+      if (!(px > 100 && px < 100000)) throw new Error("answer out of range: " + px);
+      _ethUsdLive = px;
+      try { localStorage.setItem(_FEED_STORE, JSON.stringify({ px, ts: Date.now() })); } catch {}
+    } catch (e) {
+      console.warn("[price] ETH/USD feed unavailable:", (e && e.message) || e);
+    }
+    return _oracleEthUsd();
+  })();
+  return _ethUsdPromise;
 }
 // NOTE: stables are deliberately NOT pinned to $1 here. On this testnet nothing
 // arbitrages the pools, so USDC/USDT have drifted off a dollar — pinning them
@@ -1380,8 +1428,10 @@ async function usdPriceOf(tokenAddr) {
   try {
     const prov    = _priceProvider();
     const factory = new ethers.Contract(ADDRESSES.TimbSwapFactory, _PRICE_FACTORY_ABI, prov);
-    const ethUsd = _oracleEthUsd();
-    if (lc === ADDRESSES.WETH.toLowerCase()) {
+    const ethUsd = await ensureEthUsd();
+    if (ethUsd === null) {
+      px = null;                         // no trustworthy anchor: hide "≈ $"
+    } else if (lc === ADDRESSES.WETH.toLowerCase()) {
       px = ethUsd;                       // the anchor itself
     } else {
       // Everything hangs off WETH, so every readout shares one denominator.
