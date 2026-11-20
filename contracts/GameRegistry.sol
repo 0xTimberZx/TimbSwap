@@ -669,7 +669,11 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
             // The ticket is no longer live for r: drop it from the live count
             // that sizes the public free-nudge pool. Cancel and concede are
             // the only paths that end a ticket before its run, and both prune.
-            if (_liveIn[g][r][owner_]) {
+            // Rounds already in play keep their count: it is fixed once a round
+            // starts, so a mid-round concede cannot shrink the pool that other
+            // wallets are drawing on. Cancel never reaches here for such a
+            // round (it is refused once the play round has begun).
+            if (r > currentRound && _liveIn[g][r][owner_]) {
                 _liveIn[g][r][owner_] = false;
                 liveEntrantsInRound[g][r] -= 1;
             }
@@ -1313,7 +1317,8 @@ contract GameRegistry is Ownable2Step, ReentrancyGuard {
     }
 
     /// @notice Wallets holding a live ticket for `round` in the current
-    ///         generation. Drops on cancel/concede (see liveEntrantsInRound).
+    ///         generation. Drops on cancel/concede for rounds not yet in play;
+    ///         fixed once a round starts (see _pruneStringEntrants).
     function liveEntrantCount(uint256 round) external view returns (uint256) {
         return liveEntrantsInRound[generation][round];
     }
