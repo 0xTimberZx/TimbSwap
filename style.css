@@ -930,3 +930,6 @@ body:has(.nav-mobile-overlay.open) .nav-hamburger span:nth-child(3) { transform:
 .page-h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin: 0 0 8px; color: var(--text); }
 .page-sub { color: var(--text-2); font-size: 15px; line-height: 1.6; max-width: 620px; margin: 0 0 24px; }
 @media (max-width: 560px) { .page-h1 { font-size: 26px; } }
+
+/* Nav "Live" badge (testnet Quests): same shape as Soon, in green. */
+.badge-soon.badge-live { color: var(--green); background: rgba(20, 241, 149, 0.12); }
