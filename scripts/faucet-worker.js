@@ -33,6 +33,8 @@ const SB_URL      = process.env.SUPABASE_URL;
 const SB_SERVICE  = process.env.SUPABASE_SERVICE_KEY;
 const TG_TOKEN    = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT_ID  = process.env.TELEGRAM_CHAT_ID;
+const { waitMined } = require("./lib/tx");
+const TX_TIMEOUT_MS = Number(process.env.FAUCET_TX_TIMEOUT_MS || 180_000);
 
 const LINGER_BUDGET_MS = Number(process.env.FAUCET_LINGER_MINUTES || 55) * 60 * 1000;
 const POLL_MS          = Number(process.env.FAUCET_POLL_SECONDS || 12) * 1000;
@@ -141,7 +143,9 @@ async function dispenseOne(provider, faucet, row, nonce) {
 
   const tx = await faucet.dispense(row.address, overrides);
   console.log(`[faucet] dispense ${row.address} → ${tx.hash} (nonce ${nonce})`);
-  const receipt = await tx.wait();
+  // A dropped tx throws TX_DROPPED here; drainOnce marks the claim failed and
+  // refreshes the nonce, so the wallet never waits on a tx that will not land.
+  const receipt = await waitMined(tx, { timeoutMs: TX_TIMEOUT_MS, provider });
   if (receipt.status !== 1) {
     await markFailed(row.id, `dispense tx reverted (${tx.hash})`);
     return { sent: false, nonceUsed: true };

@@ -38,6 +38,10 @@ const { ethers } = require("ethers");
 const { postRoundToX } = require("./xposter");
 const { addrFromConfig } = require("./lib/config");
 const { makeTelegram, ALERT_GLYPH } = require("./lib/telegram");
+const { waitMined } = require("./lib/tx");
+// A settle normally confirms in under a second; past this, treat it as dropped
+// and fail into the existing alert/exit path so the liveness revive restarts us.
+const TX_TIMEOUT_MS = Number(process.env.SETTLER_TX_TIMEOUT_MS || 120_000);
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -240,7 +244,7 @@ async function sendSettleSegment(provider, wallet, prize) {
     nonce
   });
   console.log(`[settler] Submitted: ${tx.hash}`);
-  const receipt = await tx.wait();
+  const receipt = await waitMined(tx, { timeoutMs: TX_TIMEOUT_MS, provider });
   console.log(`[settler] Confirmed in block ${receipt.blockNumber}`);
   return { tx, receipt };
 }
@@ -333,7 +337,7 @@ async function sendBookkeeping(label, send) {
     try {
       tx = await send();
       console.log(`[settler] ${label} submitted: ${tx.hash}`);
-      await tx.wait();
+      await waitMined(tx, { timeoutMs: TX_TIMEOUT_MS });
       return;
     } catch (e) {
       const hash = tx?.hash || e?.receipt?.hash || e?.transactionHash || e?.transaction?.hash;
@@ -564,7 +568,7 @@ async function main() {
         await armSegment(provider, wallet, prize, round, segment);
       } else if (await entropy.replaceable(salt)) {
         console.log(`[settler] VRF draw stalled past the re-request delay — rearming…`);
-        await (await prize.rearmSegment()).wait();
+        await waitMined(await prize.rearmSegment(), { timeoutMs: TX_TIMEOUT_MS, provider });
         await notify(`♻️ Re-requested a stalled VRF draw\nRound #${round} | Segment ${segment}/6`);
       }
     } catch (err) {
