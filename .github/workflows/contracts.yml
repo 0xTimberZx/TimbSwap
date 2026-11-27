@@ -7,7 +7,8 @@ on:
   pull_request:
     paths:
       - "contracts/**"
-      - "scripts/**"
+      - "scripts/*.sol"      # Foundry deploy scripts only; keeper JS never reaches forge
+      - "scripts/**/*.sol"
       - "tests/**"
       - "foundry.toml"
       - ".github/workflows/contracts.yml"
@@ -19,7 +20,8 @@ on:
     branches: [main]
     paths:
       - "contracts/**"
-      - "scripts/**"
+      - "scripts/*.sol"      # Foundry deploy scripts only; keeper JS never reaches forge
+      - "scripts/**/*.sol"
       - "tests/**"
       - "foundry.toml"
       - ".github/workflows/contracts.yml"
@@ -27,6 +29,11 @@ on:
 
 permissions:
   contents: read
+
+# A new push to a PR cancels that PR's older run. Runs on main are never cancelled.
+concurrency:
+  group: contracts-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   forge:

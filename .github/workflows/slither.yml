@@ -24,6 +24,11 @@ permissions:
   contents: read
   security-events: write   # publish findings to the repo Security tab
 
+# A new push to a PR cancels that PR's older run. Runs on main are never cancelled.
+concurrency:
+  group: slither-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: static analysis

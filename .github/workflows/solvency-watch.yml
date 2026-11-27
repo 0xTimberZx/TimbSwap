@@ -7,10 +7,12 @@ name: TimbSwap Solvency Watch
 # for the owner to pause (pausing is owner-only; this job never pauses) and
 # fails the run. No private key. The state file holds only the last-alert
 # stamps, committed back so alerts stay throttled between runs.
+#
+# Hosting: this runs on Railway (keeper-loop.js, KEEPER=solvency-watch). The
+# 15-minute cron that used to live here was removed on 2026-11-27 to keep GitHub
+# Actions usage at zero; run it by hand from the Actions tab if needed.
 
 on:
-  schedule:
-    - cron: "11,26,41,56 * * * *"   # every 15 min, offset from the top of the hour
   workflow_dispatch:
     inputs:
       report:
