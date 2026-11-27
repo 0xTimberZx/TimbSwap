@@ -11,14 +11,13 @@ name: TimbSwap LP Fee Split
 # nothing to split and send nothing. A pair is split once its fee would return
 # at least MIN_SPLIT_ETH. The key pays gas only; it holds no role.
 #
-# Cadence: hourly cron. GitHub delivers this repo's cron at roughly one tick in
-# four to six, which matches the Railway copy's six-hour pause (keeper-loop.js,
-# KEEPER=lp-fee-split). Late runs only delay the pot's share; nothing is lost,
+# Hosting: this runs on Railway (keeper-loop.js, KEEPER=lp-fee-split), six-hour
+# pause. The hourly cron that used to live here was removed on 2026-11-27 to keep
+# GitHub Actions usage at zero; run it by hand from the Actions tab if the
+# Railway copy is down. Late runs only delay the pot's share; nothing is lost,
 # the next run redeems everything accrued.
 
 on:
-  schedule:
-    - cron: "37 * * * *"
   workflow_dispatch:
     inputs:
       mode:

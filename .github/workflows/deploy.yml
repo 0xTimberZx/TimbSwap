@@ -3,6 +3,16 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:        # nothing the site serves changes in these
+      - "contracts/**"
+      - "tests/**"
+      - "scripts/**"
+      - "supabase/**"
+      - "workers/**"
+      - "foundry.toml"
+      - "slither.config.json"
+      - "*.md"
+      - "**/*.md"
   workflow_dispatch:
 
 permissions:
